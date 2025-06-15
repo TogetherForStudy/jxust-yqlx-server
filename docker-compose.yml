@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  # MySQL数据库
+  mysql:
+    image: mysql:8.0
+    container_name: gojxust-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: gojxust
+      MYSQL_USER: gojxust
+      MYSQL_PASSWORD: gojxustpassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    command: --default-authentication-plugin=mysql_native_password
+    networks:
+      - gojxust-network
+
+  # Go应用
+  app:
+    build: .
+    container_name: gojxust-app
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USERNAME: gojxust
+      DB_PASSWORD: gojxustpassword
+      DB_NAME: gojxust
+      JWT_SECRET: your_jwt_secret_key_here
+      SERVER_PORT: 8080
+      WECHAT_APP_ID: your_wechat_app_id
+      WECHAT_APP_SECRET: your_wechat_app_secret
+      GIN_MODE: release
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mysql
+    networks:
+      - gojxust-network
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+
+networks:
+  gojxust-network:
+    driver: bridge

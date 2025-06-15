@@ -1,0 +1,340 @@
+### GoJxust API测试文件
+### 江西理工大学小程序后端API接口测试
+
+@baseUrl = http://localhost:8085
+@normalToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTA2MDg5OTksImlhdCI6MTc1MDAwNDE5OSwib3Blbl9pZCI6Im1vY2tfbm9ybWFsX29wZW5pZF83ODkwMTIiLCJyb2xlIjoxLCJ1c2VyX2lkIjoxfQ.AbBgEgMhs6Un5vhunzRuGbznpj0R8yy1DoFM8j3LhrY
+@adminToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTA2MDkzNzUsImlhdCI6MTc1MDAwNDU3NSwib3Blbl9pZCI6Im1vY2tfYWRtaW5fb3BlbmlkXzEyMzQ1NiIsInJvbGUiOjIsInVzZXJfaWQiOjR9.STqC6R_AnTsR1WIKmyGE7Oot7NfkSKdvZCPDatfV5yY
+
+### ===========================================
+### 1. 系统健康检查
+### ===========================================
+
+### 健康检查
+GET {{baseUrl}}/health
+
+### ===========================================
+### 2. 认证相关接口
+### ===========================================
+
+### 2.1 微信小程序登录（正式环境）
+POST {{baseUrl}}/api/auth/wechat-login
+Content-Type: application/json
+
+{
+  "code": "wx_js_code_from_wechat"
+}
+
+### 2.2 模拟微信登录 - 普通用户
+# @name mockLoginNormal
+POST {{baseUrl}}/api/auth/mock-wechat-login
+Content-Type: application/json
+
+{
+  "test_user": "normal"
+}
+
+### 2.3 模拟微信登录 - 管理员用户
+# @name mockLoginAdmin
+POST {{baseUrl}}/api/auth/mock-wechat-login
+Content-Type: application/json
+
+{
+  "test_user": "admin"
+}
+
+### 2.4 模拟微信登录 - 新用户
+# @name mockLoginNewUser
+POST {{baseUrl}}/api/auth/mock-wechat-login
+Content-Type: application/json
+
+{
+  "test_user": "new_user"
+}
+
+### 2.5 模拟微信登录 - 无效用户类型（测试错误处理）
+POST {{baseUrl}}/api/auth/mock-wechat-login
+Content-Type: application/json
+
+{
+  "test_user": "invalid_type"
+}
+
+### ===========================================
+### 3. 用户相关接口（需要认证）
+### ===========================================
+
+### 3.1 获取用户资料
+GET {{baseUrl}}/api/user/profile
+Authorization: Bearer {{normalToken}}
+
+### 3.2 更新用户资料
+PUT {{baseUrl}}/api/user/profile
+Authorization: Bearer {{normalToken}}
+Content-Type: application/json
+
+{
+  "nickname": "测试用户昵称",
+  "avatar": "https://example.com/avatar.jpg",
+  "phone": "13800138000",
+  "student_id": "2023001001",
+  "real_name": "张三",
+  "college": "计算机学院",
+  "major": "软件工程",
+  "class_id": "2023级1班"
+}
+
+### ===========================================
+### 4. 教师评价相关接口
+### ===========================================
+
+### 4.1 获取指定教师的评价（公开接口）
+GET {{baseUrl}}/api/reviews/teacher?teacher_name=张三&page=1&size=10
+
+### 4.2 创建教师评价（需要认证）
+POST {{baseUrl}}/api/reviews
+Authorization: Bearer {{normalToken}}
+Content-Type: application/json
+
+{
+  "teacher_name": "张三",
+  "campus": "前湖校区",
+  "course_name": "数据结构",
+  "content": "老师讲课很清晰，课程内容丰富，推荐选课。",
+  "attitude": 1
+}
+
+### 4.3 获取用户自己的评价列表（需要认证）
+GET {{baseUrl}}/api/reviews/user?page=1&size=10
+Authorization: Bearer {{normalToken}}
+
+### 4.4 创建教师评价 - 中立态度
+POST {{baseUrl}}/api/reviews
+Authorization: Bearer {{normalToken}}
+Content-Type: application/json
+
+{
+  "teacher_name": "李四",
+  "campus": "前湖校区",
+  "course_name": "操作系统",
+  "content": "课程难度适中，需要认真听讲。",
+  "attitude": 3
+}
+
+### 4.5 创建教师评价 - 避雷
+POST {{baseUrl}}/api/reviews
+Authorization: Bearer {{normalToken}}
+Content-Type: application/json
+
+{
+  "teacher_name": "王五",
+  "campus": "前湖校区",
+  "course_name": "计算机网络",
+  "content": "课程内容过于枯燥，不太推荐。",
+  "attitude": 2
+}
+
+### ===========================================
+### 5. 管理员接口（需要管理员权限）
+### ===========================================
+
+### 5.1 获取所有评价列表
+GET {{baseUrl}}/api/admin/reviews?page=1&size=10
+Authorization: Bearer {{adminToken}}
+
+### 5.2 获取待审核评价
+GET {{baseUrl}}/api/admin/reviews?page=1&size=10&status=1
+Authorization: Bearer {{adminToken}}
+
+### 5.3 按教师姓名搜索评价
+GET {{baseUrl}}/api/admin/reviews?page=1&size=10&teacher_name=张三
+Authorization: Bearer {{adminToken}}
+
+### 5.4 审核通过评价
+POST {{baseUrl}}/api/admin/reviews/1/approve
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "admin_note": "评价内容合理，审核通过"
+}
+
+### 5.5 审核拒绝评价
+POST {{baseUrl}}/api/admin/reviews/2/reject
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "admin_note": "评价内容不当，需要修改"
+}
+
+### 5.6 删除评价
+DELETE {{baseUrl}}/api/admin/reviews/3
+Authorization: Bearer {{adminToken}}
+
+### ===========================================
+### 6. 错误测试用例
+### ===========================================
+
+### 6.1 无效的认证Token测试
+GET {{baseUrl}}/api/user/profile
+Authorization: Bearer invalid_token_here
+
+### 6.2 普通用户访问管理员接口（权限测试）
+GET {{baseUrl}}/api/admin/reviews
+Authorization: Bearer {{normalToken}}
+
+### 6.3 创建评价 - 缺少必填字段
+POST {{baseUrl}}/api/reviews
+Authorization: Bearer {{normalToken}}
+Content-Type: application/json
+
+{
+  "teacher_name": "张三"
+  // 缺少必填字段
+}
+
+### 6.4 创建评价 - 无效的态度值
+POST {{baseUrl}}/api/reviews
+Authorization: Bearer {{normalToken}}
+Content-Type: application/json
+
+{
+  "teacher_name": "张三",
+  "campus": "前湖校区",
+  "course_name": "数据结构",
+  "content": "测试内容",
+  "attitude": 3
+}
+
+### 6.5 更新用户资料 - 无效数据
+PUT {{baseUrl}}/api/user/profile
+Authorization: Bearer {{normalToken}}
+Content-Type: application/json
+
+{
+  "nickname": "",
+  "phone": "invalid_phone_format"
+}
+
+### ===========================================
+### 7. 批量测试场景
+### ===========================================
+
+### 7.1 完整用户流程测试 - 注册到创建评价
+# 1. 模拟登录获取Token
+POST {{baseUrl}}/api/auth/mock-wechat-login
+Content-Type: application/json
+
+{
+  "test_user": "normal"
+}
+
+### 7.2 完善用户资料
+PUT {{baseUrl}}/api/user/profile
+Authorization: Bearer {{normalToken}}
+Content-Type: application/json
+
+{
+  "nickname": "完整流程测试用户",
+  "real_name": "测试用户",
+  "student_id": "2023999999",
+  "college": "计算机学院",
+  "major": "软件工程",
+  "class_id": "2023级测试班"
+}
+
+### 7.3 创建多个评价
+POST {{baseUrl}}/api/reviews
+Authorization: Bearer {{normalToken}}
+Content-Type: application/json
+
+{
+  "teacher_name": "测试教师A",
+  "campus": "前湖校区",
+  "course_name": "软件工程",
+  "content": "流程测试 - 推荐选课",
+  "attitude": 1
+}
+
+### 7.4 查看自己的评价
+GET {{baseUrl}}/api/reviews/user
+Authorization: Bearer {{normalToken}}
+
+### ===========================================
+### 8. 管理员完整流程测试
+### ===========================================
+
+### 8.1 管理员登录
+POST {{baseUrl}}/api/auth/mock-wechat-login
+Content-Type: application/json
+
+{
+  "test_user": "admin"
+}
+
+### 8.2 查看所有待审核评价
+GET {{baseUrl}}/api/admin/reviews?status=1
+Authorization: Bearer {{adminToken}}
+
+### 8.3 批量审核评价（需要先获取评价ID）
+POST {{baseUrl}}/api/admin/reviews/1/approve
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "admin_note": "内容合规，审核通过"
+}
+
+### ===========================================
+### 9. 性能测试相关
+### ===========================================
+
+### 9.1 分页测试 - 大页码
+GET {{baseUrl}}/api/reviews/teacher?teacher_name=张三&page=999&size=50
+
+### 9.2 分页测试 - 大页面大小
+GET {{baseUrl}}/api/admin/reviews?page=1&size=100
+Authorization: Bearer {{adminToken}}
+
+### 9.3 搜索测试 - 特殊字符
+GET {{baseUrl}}/api/admin/reviews?teacher_name=@#$%^&*()
+Authorization: Bearer {{adminToken}}
+
+### ===========================================
+### 10. 边界条件测试
+### ===========================================
+
+### 10.1 创建评价 - 最大长度内容
+POST {{baseUrl}}/api/reviews
+Authorization: Bearer {{normalToken}}
+Content-Type: application/json
+
+{
+  "teacher_name": "边界测试教师",
+  "campus": "前湖校区",
+  "course_name": "边界测试课程",
+  "content": "这是一个用于测试最大长度的评价内容，包含了足够多的文字来验证系统对长文本的处理能力。测试内容应该包含各种情况，确保系统能够正确处理和存储较长的评价文本，同时验证前端和后端的字符限制功能是否正常工作。",
+  "attitude": 1
+}
+
+### 10.2 创建评价 - 空白内容测试
+POST {{baseUrl}}/api/reviews
+Authorization: Bearer {{normalToken}}
+Content-Type: application/json
+
+{
+  "teacher_name": "   ",
+  "campus": "   ",
+  "course_name": "   ",
+  "content": "   ",
+  "attitude": 3
+}
+
+### ===========================================
+### 使用说明：
+### 1. 修改 @baseUrl 为实际的服务器地址
+### 2. 先执行模拟登录接口获取token
+### 3. 将获取的token复制到 @normalToken 或 @adminToken 变量中
+### 4. 按需执行各个测试用例
+### 5. 观察响应结果，验证API功能是否正常
+### ===========================================
