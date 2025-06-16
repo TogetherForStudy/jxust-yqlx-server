@@ -12,12 +12,12 @@ import (
 )
 
 type AdminHandler struct {
-	reviewService  *services.ReviewService
+	reviewService *services.ReviewService
 }
 
 func NewAdminHandler(reviewService *services.ReviewService) *AdminHandler {
 	return &AdminHandler{
-		reviewService:  reviewService}
+		reviewService: reviewService}
 }
 
 // GetReviews 获取所有评价列表（管理员）
@@ -74,7 +74,10 @@ func (h *AdminHandler) ApproveReview(c *gin.Context) {
 	}
 
 	var req ApproveReviewRequest
-	c.ShouldBindJSON(&req)
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ValidateResponse(c, "请提供管理员备注")
+		return
+	}
 
 	if err := h.reviewService.ApproveReview(uint(reviewID), req.AdminNote); err != nil {
 		utils.ErrorResponse(c, http.StatusInternalServerError, "审核失败")

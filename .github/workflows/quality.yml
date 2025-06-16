@@ -44,7 +44,7 @@ jobs:
         uses: golangci/golangci-lint-action@v8
         with:
           args: --timeout=5m
-          version: v2.0
+          version: v2.1
   unit-test:
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request' || (!github.event.pull_request.draft && !contains(github.event.pull_request.title, 'WIP'))
