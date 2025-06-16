@@ -1,0 +1,11 @@
+version: "2"
+linters:
+  disable:
+    - staticcheck
+  settings:
+    errcheck:
+      exclude-functions:
+        - (io.ReadCloser).Close
+        - (io.Closer).Close
+        - (*os.File).Close
+        - (*net.Conn).Close
