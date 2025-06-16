@@ -62,4 +62,4 @@ jobs:
       - name: UnitTest
         run: |
           set -e
-          # make test
+          make test
