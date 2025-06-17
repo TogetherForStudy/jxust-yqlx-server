@@ -29,7 +29,7 @@ help:
 	@echo "   CGO_ENABLED=1 make build-apiserver"
 
 docker-build:
-	docker build -t gojxust-app:nightly . \
+	docker build -f cmd/apiserver/Dockerfile -t gojxust-app:nightly . \
 
 test:
 	go test -v $(shell go list ./... | grep -v /integration)
