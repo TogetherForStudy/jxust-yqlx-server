@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
-	"github.com/TogetherForStudy/jxust-yqlx-server/internal/utils"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
 	"gorm.io/gorm"
 )
@@ -139,7 +139,7 @@ func (s *StudyExperienceService) GetExperienceByID(experienceID uint) (*models.S
 func (s *StudyExperienceService) ApproveExperience(experienceID uint, adminNote string) error {
 	return s.db.Model(&models.StudyExperience{}).
 		Where("id = ?", experienceID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"status":     models.StudyExperienceStatusApproved,
 			"admin_note": adminNote,
 			"updated_at": time.Now(),
@@ -150,7 +150,7 @@ func (s *StudyExperienceService) ApproveExperience(experienceID uint, adminNote 
 func (s *StudyExperienceService) RejectExperience(experienceID uint, adminNote string) error {
 	return s.db.Model(&models.StudyExperience{}).
 		Where("id = ?", experienceID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"status":     models.StudyExperienceStatusRejected,
 			"admin_note": adminNote,
 			"updated_at": time.Now(),

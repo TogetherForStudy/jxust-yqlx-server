@@ -1,12 +1,12 @@
 package main
 
 import (
-	"log"
 	"os"
 
-	"goJxust/internal/config"
-	"goJxust/internal/database"
-	"goJxust/internal/router"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/database"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/router"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -15,7 +15,7 @@ import (
 func main() {
 	// 加载环境变量
 	if err := godotenv.Load(); err != nil {
-		log.Printf("Warning: .env file not found: %v", err)
+		logger.Warnf(".env file not found: %v", err)
 	}
 
 	// 初始化配置
@@ -24,12 +24,12 @@ func main() {
 	// 初始化数据库
 	db, err := database.NewDatabase(cfg)
 	if err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
+		logger.Fatalf("Failed to initialize database: %v", err)
 	}
 
 	// 自动迁移数据库表
 	if err := database.AutoMigrate(db); err != nil {
-		log.Fatalf("Failed to migrate database: %v", err)
+		logger.Fatalf("Failed to migrate database: %v", err)
 	}
 
 	// 设置生产模式
@@ -46,8 +46,8 @@ func main() {
 		port = "8085"
 	}
 
-	log.Printf("Server starting on port %s", port)
+	logger.Infof("Server starting on port %s", port)
 	if err := r.Run(":" + port); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+		logger.Fatalf("Failed to start server: %v", err)
 	}
 }

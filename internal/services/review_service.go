@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
-	"github.com/TogetherForStudy/jxust-yqlx-server/internal/utils"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
 	"gorm.io/gorm"
 )
@@ -138,7 +138,7 @@ func (s *ReviewService) GetUserReviews(userID uint, page, size int) ([]models.Te
 func (s *ReviewService) ApproveReview(reviewID uint, adminNote string) error {
 	return s.db.Model(&models.TeacherReview{}).
 		Where("id = ?", reviewID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"status":     models.TeacherReviewStatusApproved,
 			"admin_note": adminNote,
 			"updated_at": time.Now(),
@@ -149,7 +149,7 @@ func (s *ReviewService) ApproveReview(reviewID uint, adminNote string) error {
 func (s *ReviewService) RejectReview(reviewID uint, adminNote string) error {
 	return s.db.Model(&models.TeacherReview{}).
 		Where("id = ?", reviewID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"status":     models.TeacherReviewStatusRejected,
 			"admin_note": adminNote,
 			"updated_at": time.Now(),

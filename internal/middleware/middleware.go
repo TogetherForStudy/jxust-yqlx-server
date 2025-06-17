@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
-	"github.com/TogetherForStudy/jxust-yqlx-server/internal/utils"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -54,7 +54,7 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			utils.ErrorResponse(c, http.StatusUnauthorized, "未授权访问")
+			helper.ErrorResponse(c, http.StatusUnauthorized, "未授权访问")
 			c.Abort()
 			return
 		}
@@ -62,13 +62,13 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 		// 检查Bearer前缀
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		if tokenString == authHeader {
-			utils.ErrorResponse(c, http.StatusUnauthorized, "无效的Authorization头")
+			helper.ErrorResponse(c, http.StatusUnauthorized, "无效的Authorization头")
 			c.Abort()
 			return
 		}
 
 		// 解析JWT token
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
@@ -76,7 +76,7 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 		})
 
 		if err != nil || !token.Valid {
-			utils.ErrorResponse(c, http.StatusUnauthorized, "无效的token")
+			helper.ErrorResponse(c, http.StatusUnauthorized, "无效的token")
 			c.Abort()
 			return
 		}
@@ -91,7 +91,7 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 			c.Set("open_id", openID)
 			c.Set("role", role)
 		} else {
-			utils.ErrorResponse(c, http.StatusUnauthorized, "无效的token Claims")
+			helper.ErrorResponse(c, http.StatusUnauthorized, "无效的token Claims")
 			c.Abort()
 			return
 		}
@@ -105,13 +105,13 @@ func AdminMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		role, exists := c.Get("role")
 		if !exists {
-			utils.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户角色")
+			helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户角色")
 			c.Abort()
 			return
 		}
 
 		if role.(uint8) != 2 { // UserRoleAdmin = 2
-			utils.ErrorResponse(c, http.StatusForbidden, "需要管理员权限")
+			helper.ErrorResponse(c, http.StatusForbidden, "需要管理员权限")
 			c.Abort()
 			return
 		}

@@ -9,7 +9,7 @@ import (
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
-	"github.com/TogetherForStudy/jxust-yqlx-server/internal/utils"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
 	"gorm.io/gorm"
 )
@@ -133,7 +133,7 @@ func (s *AuthService) GetUserByID(userID uint) (*models.User, error) {
 
 // UpdateUserProfile 更新用户资料
 func (s *AuthService) UpdateUserProfile(userID uint, profile *models.User) error {
-	return s.db.Model(&models.User{}).Where("id = ?", userID).Updates(map[string]interface{}{
+	return s.db.Model(&models.User{}).Where("id = ?", userID).Updates(map[string]any{
 		"nickname":   profile.Nickname,
 		"avatar":     profile.Avatar,
 		"phone":      profile.Phone,

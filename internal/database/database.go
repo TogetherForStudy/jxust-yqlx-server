@@ -6,10 +6,10 @@ import (
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 func NewDatabase(cfg *config.Config) (*gorm.DB, error) {
@@ -23,7 +23,7 @@ func NewDatabase(cfg *config.Config) (*gorm.DB, error) {
 	)
 
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		Logger: logger.NewLog(),
 		NowFunc: func() time.Time {
 			return time.Now().Local()
 		},

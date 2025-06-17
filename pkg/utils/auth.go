@@ -46,9 +46,9 @@ func GenerateRandomString(length int) (string, error) {
 
 // Pagination 分页参数
 type Pagination struct {
-	Page     int `form:"page" json:"page"`
-	Size     int `form:"size" json:"size"`
-	Offset   int `json:"-"`
+	Page   int `form:"page" json:"page"`
+	Size   int `form:"size" json:"size"`
+	Offset int `json:"-"`
 }
 
 // GetPagination 获取分页参数
