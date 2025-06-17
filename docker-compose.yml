@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # MySQL数据库
   mysql:

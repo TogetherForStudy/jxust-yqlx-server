@@ -7,6 +7,8 @@ WORKDIR /app
 COPY go.mod go.sum ./
 
 # 下载依赖
+# if you are in China, you can uncomment the following line
+# RUN go env -w GOPROXY=https://mirrors.aliyun.com/goproxy/,direct
 RUN go mod download
 
 # 复制源代码
