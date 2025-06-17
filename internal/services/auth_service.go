@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"time"
 
-	"goJxust/internal/config"
-	"goJxust/internal/models"
-	"goJxust/internal/utils"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/utils"
 
 	"gorm.io/gorm"
 )

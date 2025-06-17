@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"goJxust/internal/config"
-	"goJxust/internal/utils"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/utils"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"

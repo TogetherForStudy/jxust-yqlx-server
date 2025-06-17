@@ -1,4 +1,4 @@
-module goJxust
+module github.com/TogetherForStudy/jxust-yqlx-server
 
 go 1.23.0
 

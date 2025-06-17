@@ -3,8 +3,8 @@ package services
 import (
 	"time"
 
-	"goJxust/internal/models"
-	"goJxust/internal/utils"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/utils"
 
 	"gorm.io/gorm"
 )
@@ -22,27 +22,25 @@ func NewStudyExperienceService(db *gorm.DB) *StudyExperienceService {
 // CreateExperienceRequest 创建备考经验请求
 type CreateExperienceRequest struct {
 	Campus     string `json:"campus" binding:"required"`
-	CourseName      string `json:"course_name" binding:"required"`
-	Content     string `json:"content" binding:"required"`
+	CourseName string `json:"course_name" binding:"required"`
+	Content    string `json:"content" binding:"required"`
 }
 
 // CreateExperience 创建备考经验-User
 func (s *StudyExperienceService) CreateExperience(userID uint, req *CreateExperienceRequest) error {
 	// 创建经验分享
 	experience := &models.StudyExperience{
-		UserID:      userID,
+		UserID:     userID,
 		Campus:     req.Campus,
-		CourseName:  req.CourseName,
-		Content:     req.Content,
-		Status:      models.StudyExperienceStatusPending,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+		CourseName: req.CourseName,
+		Content:    req.Content,
+		Status:     models.StudyExperienceStatusPending,
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
 	}
 
 	return s.db.Create(experience).Error
 }
-
-
 
 // GetExperiences 获取备考经验列表-Admin
 func (s *StudyExperienceService) GetExperiences(page, size int, status models.StudyExperienceStatus) ([]models.StudyExperience, int64, error) {
@@ -165,4 +163,3 @@ func (s *StudyExperienceService) LikeExperience(experienceID uint) error {
 		Where("id = ?", experienceID).
 		UpdateColumn("like_count", gorm.Expr("like_count + 1")).Error
 }
-

@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"goJxust/internal/services"
-	"goJxust/internal/utils"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/utils"
 
 	"github.com/gin-gonic/gin"
 )

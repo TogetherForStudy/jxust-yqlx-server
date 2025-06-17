@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"goJxust/internal/config"
-	"goJxust/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
