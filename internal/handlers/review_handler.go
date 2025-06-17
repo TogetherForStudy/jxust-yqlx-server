@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"strconv"
 
-	"goJxust/internal/services"
-	"goJxust/internal/utils"
-
 	"github.com/gin-gonic/gin"
+
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
 )
 
 type ReviewHandler struct {
@@ -34,22 +34,22 @@ func NewReviewHandler(reviewService *services.ReviewService) *ReviewHandler {
 func (h *ReviewHandler) CreateReview(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		utils.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
 		return
 	}
 
 	var req services.CreateReviewRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ValidateResponse(c, "参数验证失败")
+		helper.ValidateResponse(c, "参数验证失败")
 		return
 	}
 
 	if err := h.reviewService.CreateReview(userID.(uint), &req); err != nil {
-		utils.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	utils.SuccessResponse(c, gin.H{"message": "评价提交成功，等待审核"})
+	helper.SuccessResponse(c, gin.H{"message": "评价提交成功，等待审核"})
 }
 
 // GetReviewsByTeacher 获取指定教师的评价
@@ -67,7 +67,7 @@ func (h *ReviewHandler) CreateReview(c *gin.Context) {
 func (h *ReviewHandler) GetReviewsByTeacher(c *gin.Context) {
 	teacherName := c.Query("teacher_name")
 	if teacherName == "" {
-		utils.ValidateResponse(c, "请提供教师姓名")
+		helper.ValidateResponse(c, "请提供教师姓名")
 		return
 	}
 
@@ -76,11 +76,11 @@ func (h *ReviewHandler) GetReviewsByTeacher(c *gin.Context) {
 
 	reviews, total, err := h.reviewService.GetReviewsByTeacher(teacherName, page, size)
 	if err != nil {
-		utils.ErrorResponse(c, http.StatusInternalServerError, "获取评价失败")
+		helper.ErrorResponse(c, http.StatusInternalServerError, "获取评价失败")
 		return
 	}
 
-	utils.PageSuccessResponse(c, reviews, total, page, size)
+	helper.PageSuccessResponse(c, reviews, total, page, size)
 }
 
 // GetUserReviews 获取用户的评价记录
@@ -98,7 +98,7 @@ func (h *ReviewHandler) GetReviewsByTeacher(c *gin.Context) {
 func (h *ReviewHandler) GetUserReviews(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		utils.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
 		return
 	}
 
@@ -107,9 +107,9 @@ func (h *ReviewHandler) GetUserReviews(c *gin.Context) {
 
 	reviews, total, err := h.reviewService.GetUserReviews(userID.(uint), page, size)
 	if err != nil {
-		utils.ErrorResponse(c, http.StatusInternalServerError, "获取评价记录失败")
+		helper.ErrorResponse(c, http.StatusInternalServerError, "获取评价记录失败")
 		return
 	}
 
-	utils.PageSuccessResponse(c, reviews, total, page, size)
+	helper.PageSuccessResponse(c, reviews, total, page, size)
 }

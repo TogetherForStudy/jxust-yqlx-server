@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"goJxust/internal/models"
-	"goJxust/internal/utils"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
 	"gorm.io/gorm"
 )
@@ -22,11 +22,11 @@ func NewReviewService(db *gorm.DB) *ReviewService {
 
 // CreateReviewRequest 创建评价请求
 type CreateReviewRequest struct {
-	TeacherName string `json:"teacher_name" binding:"required"`
-	Campus      string `json:"campus" binding:"required"`
-	CourseName  string `json:"course_name" binding:"required"`
-	Content     string `json:"content" binding:"required,max=200"`
-	Attitude    models.TeacherAttitude   `json:"attitude" binding:"required,oneof=1 2 3"`
+	TeacherName string                 `json:"teacher_name" binding:"required"`
+	Campus      string                 `json:"campus" binding:"required"`
+	CourseName  string                 `json:"course_name" binding:"required"`
+	Content     string                 `json:"content" binding:"required,max=200"`
+	Attitude    models.TeacherAttitude `json:"attitude" binding:"required,oneof=1 2 3"`
 }
 
 // CreateReview 创建教师评价
@@ -138,7 +138,7 @@ func (s *ReviewService) GetUserReviews(userID uint, page, size int) ([]models.Te
 func (s *ReviewService) ApproveReview(reviewID uint, adminNote string) error {
 	return s.db.Model(&models.TeacherReview{}).
 		Where("id = ?", reviewID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"status":     models.TeacherReviewStatusApproved,
 			"admin_note": adminNote,
 			"updated_at": time.Now(),
@@ -149,7 +149,7 @@ func (s *ReviewService) ApproveReview(reviewID uint, adminNote string) error {
 func (s *ReviewService) RejectReview(reviewID uint, adminNote string) error {
 	return s.db.Model(&models.TeacherReview{}).
 		Where("id = ?", reviewID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"status":     models.TeacherReviewStatusRejected,
 			"admin_note": adminNote,
 			"updated_at": time.Now(),

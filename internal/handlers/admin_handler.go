@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"strconv"
 
-	"goJxust/internal/models"
-	"goJxust/internal/services"
-	"goJxust/internal/utils"
-
 	"github.com/gin-gonic/gin"
+
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
 )
 
 type AdminHandler struct {
@@ -42,11 +42,11 @@ func (h *AdminHandler) GetReviews(c *gin.Context) {
 
 	reviews, total, err := h.reviewService.GetReviews(page, size, teacherName, models.TeacherReviewStatus(status))
 	if err != nil {
-		utils.ErrorResponse(c, http.StatusInternalServerError, "获取评价列表失败")
+		helper.ErrorResponse(c, http.StatusInternalServerError, "获取评价列表失败")
 		return
 	}
 
-	utils.PageSuccessResponse(c, reviews, total, page, size)
+	helper.PageSuccessResponse(c, reviews, total, page, size)
 }
 
 // ApproveReviewRequest 审核评价请求
@@ -69,22 +69,22 @@ type ApproveReviewRequest struct {
 func (h *AdminHandler) ApproveReview(c *gin.Context) {
 	reviewID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		utils.ValidateResponse(c, "无效的评价ID")
+		helper.ValidateResponse(c, "无效的评价ID")
 		return
 	}
 
 	var req ApproveReviewRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ValidateResponse(c, "请提供管理员备注")
+		helper.ValidateResponse(c, "请提供管理员备注")
 		return
 	}
 
 	if err := h.reviewService.ApproveReview(uint(reviewID), req.AdminNote); err != nil {
-		utils.ErrorResponse(c, http.StatusInternalServerError, "审核失败")
+		helper.ErrorResponse(c, http.StatusInternalServerError, "审核失败")
 		return
 	}
 
-	utils.SuccessResponse(c, gin.H{"message": "审核通过"})
+	helper.SuccessResponse(c, gin.H{"message": "审核通过"})
 }
 
 // RejectReview 审核拒绝评价
@@ -102,27 +102,27 @@ func (h *AdminHandler) ApproveReview(c *gin.Context) {
 func (h *AdminHandler) RejectReview(c *gin.Context) {
 	reviewID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		utils.ValidateResponse(c, "无效的评价ID")
+		helper.ValidateResponse(c, "无效的评价ID")
 		return
 	}
 
 	var req ApproveReviewRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ValidateResponse(c, "请提供拒绝理由")
+		helper.ValidateResponse(c, "请提供拒绝理由")
 		return
 	}
 
 	if req.AdminNote == "" {
-		utils.ValidateResponse(c, "请提供拒绝理由")
+		helper.ValidateResponse(c, "请提供拒绝理由")
 		return
 	}
 
 	if err := h.reviewService.RejectReview(uint(reviewID), req.AdminNote); err != nil {
-		utils.ErrorResponse(c, http.StatusInternalServerError, "审核失败")
+		helper.ErrorResponse(c, http.StatusInternalServerError, "审核失败")
 		return
 	}
 
-	utils.SuccessResponse(c, gin.H{"message": "审核拒绝"})
+	helper.SuccessResponse(c, gin.H{"message": "审核拒绝"})
 }
 
 // DeleteReview 删除评价
@@ -139,14 +139,14 @@ func (h *AdminHandler) RejectReview(c *gin.Context) {
 func (h *AdminHandler) DeleteReview(c *gin.Context) {
 	reviewID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		utils.ValidateResponse(c, "无效的评价ID")
+		helper.ValidateResponse(c, "无效的评价ID")
 		return
 	}
 
 	if err := h.reviewService.DeleteReview(uint(reviewID)); err != nil {
-		utils.ErrorResponse(c, http.StatusInternalServerError, "删除失败")
+		helper.ErrorResponse(c, http.StatusInternalServerError, "删除失败")
 		return
 	}
 
-	utils.SuccessResponse(c, gin.H{"message": "删除成功"})
+	helper.SuccessResponse(c, gin.H{"message": "删除成功"})
 }

@@ -1,10 +1,10 @@
 package router
 
 import (
-	"goJxust/internal/config"
-	"goJxust/internal/handlers"
-	"goJxust/internal/middleware"
-	"goJxust/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/middleware"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -37,7 +37,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 	// API路由组
 	api := r.Group("/api")
-	{		// 认证相关路由
+	{ // 认证相关路由
 		auth := api.Group("/auth")
 		{
 			auth.POST("/wechat-login", authHandler.WechatLogin)

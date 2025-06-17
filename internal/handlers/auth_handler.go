@@ -3,11 +3,11 @@ package handlers
 import (
 	"net/http"
 
-	"goJxust/internal/models"
-	"goJxust/internal/services"
-	"goJxust/internal/utils"
-
 	"github.com/gin-gonic/gin"
+
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
 )
 
 type AuthHandler struct {
@@ -33,17 +33,17 @@ func NewAuthHandler(authService *services.AuthService) *AuthHandler {
 func (h *AuthHandler) WechatLogin(c *gin.Context) {
 	var req services.WechatLoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ValidateResponse(c, "参数验证失败")
+		helper.ValidateResponse(c, "参数验证失败")
 		return
 	}
 
 	result, err := h.authService.WechatLogin(req.Code)
 	if err != nil {
-		utils.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	utils.SuccessResponse(c, result)
+	helper.SuccessResponse(c, result)
 }
 
 // MockWechatLogin 模拟微信小程序登录 - 仅用于测试
@@ -59,17 +59,17 @@ func (h *AuthHandler) WechatLogin(c *gin.Context) {
 func (h *AuthHandler) MockWechatLogin(c *gin.Context) {
 	var req services.MockWechatLoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ValidateResponse(c, "参数验证失败")
+		helper.ValidateResponse(c, "参数验证失败")
 		return
 	}
 
 	result, err := h.authService.MockWechatLogin(req.TestUser)
 	if err != nil {
-		utils.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	utils.SuccessResponse(c, result)
+	helper.SuccessResponse(c, result)
 }
 
 // GetProfile 获取用户资料
@@ -85,17 +85,17 @@ func (h *AuthHandler) MockWechatLogin(c *gin.Context) {
 func (h *AuthHandler) GetProfile(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		utils.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
 		return
 	}
 
 	user, err := h.authService.GetUserByID(userID.(uint))
 	if err != nil {
-		utils.ErrorResponse(c, http.StatusNotFound, "用户不存在")
+		helper.ErrorResponse(c, http.StatusNotFound, "用户不存在")
 		return
 	}
 
-	utils.SuccessResponse(c, user)
+	helper.SuccessResponse(c, user)
 }
 
 // UpdateProfileRequest 更新用户资料请求
@@ -124,13 +124,13 @@ type UpdateProfileRequest struct {
 func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		utils.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
 		return
 	}
 
 	var req UpdateProfileRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ValidateResponse(c, "参数验证失败")
+		helper.ValidateResponse(c, "参数验证失败")
 		return
 	}
 
@@ -146,9 +146,9 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	}
 
 	if err := h.authService.UpdateUserProfile(userID.(uint), profile); err != nil {
-		utils.ErrorResponse(c, http.StatusInternalServerError, "更新失败")
+		helper.ErrorResponse(c, http.StatusInternalServerError, "更新失败")
 		return
 	}
 
-	utils.SuccessResponse(c, gin.H{"message": "更新成功"})
+	helper.SuccessResponse(c, gin.H{"message": "更新成功"})
 }

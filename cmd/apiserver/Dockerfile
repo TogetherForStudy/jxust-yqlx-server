@@ -15,7 +15,8 @@ RUN go mod download
 COPY . .
 
 # 构建应用
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
+WORKDIR /app/cmd/apiserver
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /apiserver .
 
 # 运行阶段
 FROM alpine:latest
@@ -29,13 +30,10 @@ ENV TZ=Asia/Shanghai
 WORKDIR /root/
 
 # 从构建阶段复制二进制文件
-COPY --from=builder /app/main .
-
-# 复制配置文件模板
-COPY --from=builder /app/.env.example .env.example
+COPY --from=builder /apiserver .
 
 # 暴露端口
 EXPOSE 8080
 
 # 运行应用
-CMD ["./main"]
+CMD ["./apiserver"]

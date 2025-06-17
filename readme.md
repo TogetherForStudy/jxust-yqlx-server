@@ -272,7 +272,7 @@ Content-Type: application/json
 ### 使用Docker部署
 
 1. 创建Dockerfile
-2. 构建镜像: `docker build -t gojxust .`
+2. 构建镜像: `make docker-build`
 3. 运行容器: `docker run -p 8080:8080 gojxust`
 
 ### 生产环境配置
