@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
@@ -26,28 +27,8 @@ func NewAuthService(db *gorm.DB, cfg *config.Config) *AuthService {
 	}
 }
 
-// WechatLoginRequest 微信登录请求
-type WechatLoginRequest struct {
-	Code string `json:"code" binding:"required"`
-}
-
-// WechatLoginResponse 微信登录响应
-type WechatLoginResponse struct {
-	Token    string      `json:"token"`
-	UserInfo models.User `json:"user_info"`
-}
-
-// WechatSession 微信session信息
-type WechatSession struct {
-	OpenID     string `json:"openid"`
-	UnionID    string `json:"unionid"`
-	SessionKey string `json:"session_key"`
-	ErrCode    int    `json:"errcode"`
-	ErrMsg     string `json:"errmsg"`
-}
-
 // WechatLogin 微信小程序登录
-func (s *AuthService) WechatLogin(code string) (*WechatLoginResponse, error) {
+func (s *AuthService) WechatLogin(code string) (*response.WechatLoginResponse, error) {
 	// 调用微信API获取openid
 	session, err := s.getWechatSession(code)
 	if err != nil {
@@ -91,14 +72,14 @@ func (s *AuthService) WechatLogin(code string) (*WechatLoginResponse, error) {
 		return nil, fmt.Errorf("生成token失败: %w", err)
 	}
 
-	return &WechatLoginResponse{
+	return &response.WechatLoginResponse{
 		Token:    token,
 		UserInfo: user,
 	}, nil
 }
 
 // getWechatSession 获取微信session信息
-func (s *AuthService) getWechatSession(code string) (*WechatSession, error) {
+func (s *AuthService) getWechatSession(code string) (*response.WechatSession, error) {
 	url := fmt.Sprintf("https://api.weixin.qq.com/sns/jscode2session?appid=%s&secret=%s&js_code=%s&grant_type=authorization_code",
 		s.cfg.WechatAppID, s.cfg.WechatAppSecret, code)
 
@@ -113,7 +94,7 @@ func (s *AuthService) getWechatSession(code string) (*WechatSession, error) {
 		return nil, fmt.Errorf("读取响应失败: %w", err)
 	}
 
-	var session WechatSession
+	var session response.WechatSession
 	if err := json.Unmarshal(body, &session); err != nil {
 		return nil, fmt.Errorf("解析响应失败: %w", err)
 	}
@@ -152,7 +133,7 @@ type MockWechatLoginRequest struct {
 }
 
 // MockWechatLogin 模拟微信小程序登录 - 仅用于测试
-func (s *AuthService) MockWechatLogin(testUser string) (*WechatLoginResponse, error) {
+func (s *AuthService) MockWechatLogin(testUser string) (*response.WechatLoginResponse, error) {
 	// 根据测试用户类型生成不同的模拟数据
 	var mockOpenID, mockUnionID, nickname, avatar string
 	var role models.UserRole
@@ -220,7 +201,7 @@ func (s *AuthService) MockWechatLogin(testUser string) (*WechatLoginResponse, er
 		return nil, fmt.Errorf("生成token失败: %w", err)
 	}
 
-	return &WechatLoginResponse{
+	return &response.WechatLoginResponse{
 		Token:    token,
 		UserInfo: user,
 	}, nil
