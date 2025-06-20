@@ -37,21 +37,22 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 	// API路由组
 	api := r.Group("/api")
+	v0 := api.Group("/v0")
 	{ // 认证相关路由
-		auth := api.Group("/auth")
+		auth := v0.Group("/auth")
 		{
 			auth.POST("/wechat-login", authHandler.WechatLogin)
 			auth.POST("/mock-wechat-login", authHandler.MockWechatLogin) // 模拟微信登录接口
 		}
 
 		// 评价相关路由（公开查询）
-		reviews := api.Group("/reviews")
+		reviews := v0.Group("/reviews")
 		{
 			reviews.GET("/teacher", reviewHandler.GetReviewsByTeacher)
 		}
 
 		// 需要认证的路由
-		authorized := api.Group("/")
+		authorized := v0.Group("/")
 		authorized.Use(middleware.AuthMiddleware(cfg))
 		{
 			// 用户相关路由
