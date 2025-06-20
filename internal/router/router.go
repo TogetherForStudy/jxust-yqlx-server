@@ -38,6 +38,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	// API路由组
 	api := r.Group("/api")
 	v0 := api.Group("/v0")
+	v0.Use(middleware.RequestID())
 	{ // 认证相关路由
 		auth := v0.Group("/auth")
 		{

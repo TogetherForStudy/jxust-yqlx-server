@@ -13,6 +13,7 @@ import (
 // SuccessResponse 成功响应
 func SuccessResponse(c *gin.Context, data any) {
 	c.JSON(http.StatusOK, dto.Response{
+		RequestId:     GetRequestID(c),
 		StatusMessage: "Success",
 		Result:        data,
 	})
@@ -22,6 +23,7 @@ func SuccessResponse(c *gin.Context, data any) {
 func ErrorResponse(c *gin.Context, serviceCode int, message string) {
 	logger.Errorf("Error response: %v, message: %v", message, http.StatusText(serviceCode))
 	c.JSON(http.StatusOK, dto.Response{
+		RequestId:     GetRequestID(c),
 		StatusCode:    serviceCode,
 		StatusMessage: message,
 	})
@@ -31,6 +33,7 @@ func ErrorResponse(c *gin.Context, serviceCode int, message string) {
 func ValidateResponse(c *gin.Context, message string) {
 	logger.Warnf("Validation error: %v", message)
 	c.JSON(http.StatusBadRequest, dto.Response{
+		RequestId:     GetRequestID(c),
 		StatusCode:    http.StatusBadRequest,
 		StatusMessage: message,
 	})
