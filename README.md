@@ -184,6 +184,8 @@ go run main.go
 4. 推送到分支
 5. 创建Pull Request
 
+    a. 管理员会随时审核您的代码,除非你的PR设置为`draft`状态或标题内包含`WIP`/`Work In Progress`/🚧字样。
+
 ## 许可证
 
 MIT License
