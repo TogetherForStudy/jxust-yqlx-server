@@ -8,9 +8,11 @@ import (
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 // CORS 跨域中间件
@@ -116,6 +118,18 @@ func AdminMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		c.Next()
+	}
+}
+
+func RequestID() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		requestID := c.Request.Header.Get("X-Request-ID")
+		if requestID == "" {
+			requestID = uuid.NewString()
+			c.Request.Header.Set("X-Request-ID", requestID)
+		}
+		c.Set(constant.RequestID, requestID)
 		c.Next()
 	}
 }

@@ -3,11 +3,12 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/gin-gonic/gin"
-
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+
+	"github.com/gin-gonic/gin"
 )
 
 type AuthHandler struct {
@@ -31,7 +32,7 @@ func NewAuthHandler(authService *services.AuthService) *AuthHandler {
 // @Failure 400 {object} utils.Response
 // @Router /api/auth/wechat-login [post]
 func (h *AuthHandler) WechatLogin(c *gin.Context) {
-	var req services.WechatLoginRequest
+	var req request.WechatLoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		helper.ValidateResponse(c, "参数验证失败")
 		return
@@ -98,18 +99,6 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 	helper.SuccessResponse(c, user)
 }
 
-// UpdateProfileRequest 更新用户资料请求
-type UpdateProfileRequest struct {
-	Nickname  string `json:"nickname"`
-	Avatar    string `json:"avatar"`
-	Phone     string `json:"phone"`
-	StudentID string `json:"student_id"`
-	RealName  string `json:"real_name"`
-	College   string `json:"college"`
-	Major     string `json:"major"`
-	ClassID   string `json:"class_id"`
-}
-
 // UpdateProfile 更新用户资料
 // @Summary 更新用户资料
 // @Description 更新当前登录用户的资料信息
@@ -128,7 +117,7 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	var req UpdateProfileRequest
+	var req request.UpdateProfileRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		helper.ValidateResponse(c, "参数验证失败")
 		return
