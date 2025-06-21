@@ -131,7 +131,7 @@ WECHAT_APP_SECRET=your_wechat_app_secret
 go mod tidy
 ```
 
-### 7. 运行应用
+### 4. 运行应用
 
 ```bash
 go run main.go
