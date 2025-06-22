@@ -73,7 +73,7 @@ erDiagram
 2. **安全性**: 确保用户权限的安全性，防止未授权访问
 3. **易用性**: 提供简单易用的权限管理接口
 4. **可扩展性**: 支持动态添加和修改角色和权限
-5. **性能**: 确保权限检查的高效性，避免性能瓶颈
+5. **性能**: 确保权限检查的高效性，避免性能瓶颈，**建议将该部分存入缓存中**
 
 ## 用户类别
 
@@ -81,7 +81,7 @@ erDiagram
 - **被禁言用户**: 普通用户被禁言后，无法进行评论、请求上传资源等操作
 - **普通用户**: 通过微信已登录的用户，拥有基本的查看、评论、请求添加/上传资源、下载资源权限
 - **社区管理员**: 负责社区管理，拥有数据查看、编辑、删除、审查评论和资源、禁言用户等权限（不可查看用户隐私信息）
-- **系统(超级)管理员**: 负责系统管理，拥有所有权限，包括用户管理（查看用户信息）、角色管理、权限管理等
+- **系统管理员**: 负责系统管理，拥有所有权限，包括用户管理（可以查看用户详细信息）、角色管理、权限管理等
 
 ## 模型
 
@@ -128,7 +128,7 @@ VALUES
     ('COMMUNITY_MODERATION', '社区管理权限'),
     ('SYSTEM_ADMINISTRATION', '系统管理权限'),
     ('RESTRICTED_USER', '受限用户权限组');
--- 先插入所有权限定义（假设权限表已存在）
+
 INSERT INTO Permission (PermissionTag, Description)
 VALUES
     ('PUBLIC_VIEW', '查看公开信息'),
@@ -180,9 +180,9 @@ INSERT INTO Role (RoleControlTag, Description, IsSuperAdmin)
 VALUES
     ('GUEST', '未登录访客', false),
     ('RESTRICTED', '被禁言用户', false),
-    ('MEMBER', '普通会员', false),
+    ('USER', '普通用户', false),
     ('MODERATOR', '社区管理员', false),
-    ('SUPER_ADMIN', '系统超级管理员', true);
+    ('ADMIN', '系统管理员', true);
 
 INSERT INTO RolePermissionGroup (RoleControlTag, GroupTag)
 VALUES
@@ -194,9 +194,9 @@ VALUES
     ('RESTRICTED', 'RESTRICTED_USER'),
 
     -- 普通用户（基础+内容交互+资源上传）
-    ('MEMBER', 'BASIC_ACCESS'),
-    ('MEMBER', 'CONTENT_INTERACTION'),
-    ('MEMBER', 'RESOURCE_MANAGEMENT'),
+    ('USER', 'BASIC_ACCESS'),
+    ('USER', 'CONTENT_INTERACTION'),
+    ('USER', 'RESOURCE_MANAGEMENT'),
 
     -- 社区管理员（继承普通用户所有权限+管理权限）
     ('MODERATOR', 'BASIC_ACCESS'),
@@ -205,7 +205,7 @@ VALUES
     ('MODERATOR', 'COMMUNITY_MODERATION'),
 
     -- 超级管理员（通过IsSuperAdmin字段自动获得所有权限）
-    ('SUPER_ADMIN', 'SYSTEM_ADMINISTRATION');
+    ('ADMIN', 'SYSTEM_ADMINISTRATION');
 ```
 
 ## 鉴权流程：
@@ -276,10 +276,10 @@ func checkPermission(union_id, required_permission) {
 
 ## 角色控制标签
 
-| code | 角色控制标签      | 描述      |
-|------|-------------|---------|
-| 1    | GUEST       | 未登录访客   |
-| 2    | RESTRICTED  | 被禁言用户   |       |
-| 3    | MEMBER      | 普通会员    |       |
-| 4    | MODERATOR   | 社区管理员   |       |
-| 5    | SUPER_ADMIN | 系统超级管理员 |       |
+| code | 角色控制标签     | 描述      |
+|------|------------|---------|
+| 1    | GUEST      | 未登录访客   |
+| 2    | RESTRICTED | 被禁言用户   |  
+| 3    | USER       | 普通用户    |    
+| 4    | MODERATOR  | 社区管理员   |  
+| 5    | ADMIN      | 系统超级管理员 |  
