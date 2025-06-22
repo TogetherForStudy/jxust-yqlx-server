@@ -2,7 +2,7 @@
 
 RBAC是每一个涉及到权限控制的系统都需要设计的部分。它提供了一种灵活的方式来管理用户权限，确保系统的安全性和可维护性。
 
-在微信登录完成后，我们需要根据用户的角色和权限来控制他们在系统中的操作。RBAC设计将帮助我们实现这一目标。
+在微信登录完成后，我们可以获取到OpenID和UnionID，我们需要根据用户的角色和权限来控制他们在系统中的操作。RBAC设计将帮助我们实现这一目标。
 
 系统采用 **用户-角色-权限** 三级关系进行权限控制。每个用户可以拥有多个角色，每个角色可以拥有多个权限。
 
@@ -75,6 +75,14 @@ erDiagram
 4. **可扩展性**: 支持动态添加和修改角色和权限
 5. **性能**: 确保权限检查的高效性，避免性能瓶颈
 
+## 用户类别
+
+- **访客**: 未微信登录的用户，没有任何权限，仅能查看公开信息页面
+- **被禁言用户**: 普通用户被禁言后，无法进行评论、请求上传资源等操作
+- **普通用户**: 通过微信已登录的用户，拥有基本的查看、评论、请求添加/上传资源、下载资源权限
+- **社区管理员**: 负责社区管理，拥有数据查看、编辑、删除、审查评论和资源、禁言用户等权限（不可查看用户隐私信息）
+- **系统(超级)管理员**: 负责系统管理，拥有所有权限，包括用户管理（查看用户信息）、角色管理、权限管理等
+
 ## 模型
 
 角色表: (RoleControlTag (PK), Description)
@@ -113,16 +121,91 @@ CREATE TABLE RolePermissionGroup (
 );
 
 INSERT INTO PermissionGroup (GroupTag, Description)
-VALUES ('DATA_MANAGERS', '数据管理权限组');
+VALUES
+    ('BASIC_ACCESS', '基础访问权限（所有登录用户）'),
+    ('CONTENT_INTERACTION', '内容交互权限'),
+    ('RESOURCE_MANAGEMENT', '资源管理权限'),
+    ('COMMUNITY_MODERATION', '社区管理权限'),
+    ('SYSTEM_ADMINISTRATION', '系统管理权限'),
+    ('RESTRICTED_USER', '受限用户权限组');
+-- 先插入所有权限定义（假设权限表已存在）
+INSERT INTO Permission (PermissionTag, Description)
+VALUES
+    ('PUBLIC_VIEW', '查看公开信息'),
+    ('LOGIN_REQUIRED_VIEW', '查看需登录内容'),
+    ('COMMENT_POST', '发表评论'),
+    ('REQUEST_RESOURCE', '请求添加资源'),
+    ('UPLOAD_RESOURCE', '上传资源文件'),
+    ('DOWNLOAD_RESOURCE', '下载资源'),
+    ('EDIT_ANY_CONTENT', '编辑所有内容'),
+    ('DELETE_ANY_CONTENT', '删除任何内容'),
+    ('REVIEW_COMMENTS', '审核评论'),
+    ('MUTE_USERS', '禁言用户'),
+    ('MANAGE_RESOURCES', '管理资源审批'),
+    ('VIEW_USER_PROFILES', '查看用户完整资料'),
+    ('MANAGE_USER_ROLES', '管理用户角色'),
+    ('MANAGE_SYSTEM_SETTINGS', '管理系统配置'),
+    ('BYPASS_RESTRICTIONS', '绕过所有限制');
 
 INSERT INTO GroupPermission (GroupTag, PermissionTag)
-VALUES 
-    ('DATA_MANAGERS', 'DATA_VIEW'),
-    ('DATA_MANAGERS', 'DATA_EDIT'),
-    ('DATA_MANAGERS', 'DATA_DELETE');
+VALUES
+    -- 基础访问
+    ('BASIC_ACCESS', 'PUBLIC_VIEW'),
+    ('BASIC_ACCESS', 'LOGIN_REQUIRED_VIEW'),
+
+    -- 内容交互
+    ('CONTENT_INTERACTION', 'COMMENT_POST'),
+    ('CONTENT_INTERACTION', 'REQUEST_RESOURCE'),
+    ('CONTENT_INTERACTION', 'DOWNLOAD_RESOURCE'),
+
+    -- 资源管理
+    ('RESOURCE_MANAGEMENT', 'UPLOAD_RESOURCE'),
+
+    -- 社区管理
+    ('COMMUNITY_MODERATION', 'EDIT_ANY_CONTENT'),
+    ('COMMUNITY_MODERATION', 'DELETE_ANY_CONTENT'),
+    ('COMMUNITY_MODERATION', 'REVIEW_COMMENTS'),
+    ('COMMUNITY_MODERATION', 'MUTE_USERS'),
+    ('COMMUNITY_MODERATION', 'MANAGE_RESOURCES'),
+
+    -- 系统管理组
+    ('SYSTEM_ADMINISTRATION', 'VIEW_USER_PROFILES'),
+    ('SYSTEM_ADMINISTRATION', 'MANAGE_USER_ROLES'),
+    ('SYSTEM_ADMINISTRATION', 'MANAGE_SYSTEM_SETTINGS'),
+    ('SYSTEM_ADMINISTRATION', 'BYPASS_RESTRICTIONS'),
+
+    -- 受限用户（空权限）
+    ('RESTRICTED_USER', 'PUBLIC_VIEW');
+INSERT INTO Role (RoleControlTag, Description, IsSuperAdmin)
+VALUES
+    ('GUEST', '未登录访客', false),
+    ('RESTRICTED', '被禁言用户', false),
+    ('MEMBER', '普通会员', false),
+    ('MODERATOR', '社区管理员', false),
+    ('SUPER_ADMIN', '系统超级管理员', true);
 
 INSERT INTO RolePermissionGroup (RoleControlTag, GroupTag)
-VALUES ('COLLEGE_ADMIN', 'DATA_MANAGERS');
+VALUES
+    -- 访客（仅基础访问中的公开部分）
+    ('GUEST', 'BASIC_ACCESS'),
+
+    -- 被禁言用户（基础访问+受限标记）
+    ('RESTRICTED', 'BASIC_ACCESS'),
+    ('RESTRICTED', 'RESTRICTED_USER'),
+
+    -- 普通用户（基础+内容交互+资源上传）
+    ('MEMBER', 'BASIC_ACCESS'),
+    ('MEMBER', 'CONTENT_INTERACTION'),
+    ('MEMBER', 'RESOURCE_MANAGEMENT'),
+
+    -- 社区管理员（继承普通用户所有权限+管理权限）
+    ('MODERATOR', 'BASIC_ACCESS'),
+    ('MODERATOR', 'CONTENT_INTERACTION'),
+    ('MODERATOR', 'RESOURCE_MANAGEMENT'),
+    ('MODERATOR', 'COMMUNITY_MODERATION'),
+
+    -- 超级管理员（通过IsSuperAdmin字段自动获得所有权限）
+    ('SUPER_ADMIN', 'SYSTEM_ADMINISTRATION');
 ```
 
 ## 鉴权流程：
@@ -189,3 +272,14 @@ func checkPermission(union_id, required_permission) {
     return false, nil
 }
 ```
+
+
+## 角色控制标签
+
+| code | 角色控制标签      | 描述      |
+|------|-------------|---------|
+| 1    | GUEST       | 未登录访客   |
+| 2    | RESTRICTED  | 被禁言用户   |       |
+| 3    | MEMBER      | 普通会员    |       |
+| 4    | MODERATOR   | 社区管理员   |       |
+| 5    | SUPER_ADMIN | 系统超级管理员 |       |
