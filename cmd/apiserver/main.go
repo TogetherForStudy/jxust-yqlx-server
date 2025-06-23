@@ -42,9 +42,6 @@ func main() {
 
 	// 启动服务器
 	port := cfg.ServerPort
-	if port == "" {
-		port = "8085"
-	}
 
 	logger.Infof("Server starting on port %s", port)
 	if err := r.Run(":" + port); err != nil {
