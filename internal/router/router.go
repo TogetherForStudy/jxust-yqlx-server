@@ -21,11 +21,12 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	// 初始化服务
 	authService := services.NewAuthService(db, cfg)
 	reviewService := services.NewReviewService(db)
+	studyExperienceService := services.NewStudyExperienceService(db)
 
 	// 初始化处理器
 	authHandler := handlers.NewAuthHandler(authService)
 	reviewHandler := handlers.NewReviewHandler(reviewService)
-	adminHandler := handlers.NewAdminHandler(reviewService)
+	studyExperienceHandler := handlers.NewStudyExperienceHandler(studyExperienceService)
 
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
@@ -52,6 +53,13 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			reviews.GET("/teacher", reviewHandler.GetReviewsByTeacher)
 		}
 
+		// 备考经验相关路由（公开查询）
+		experiences := v0.Group("/experiences")
+		{
+			experiences.GET("/", studyExperienceHandler.GetApprovedExperiences)
+			experiences.GET("/:id", studyExperienceHandler.GetExperienceByID)
+		}
+
 		// 需要认证的路由
 		authorized := v0.Group("/")
 		authorized.Use(middleware.AuthMiddleware(cfg))
@@ -70,6 +78,14 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				authReviews.GET("/user", reviewHandler.GetUserReviews)
 			}
 
+			// 备考经验相关路由（需认证）
+			authExperiences := authorized.Group("/experiences")
+			{
+				authExperiences.POST("/", studyExperienceHandler.CreateExperience)
+				authExperiences.GET("/user", studyExperienceHandler.GetUserExperiences)
+				authExperiences.POST("/:id/like", studyExperienceHandler.LikeExperience)
+			}
+
 			// 管理员路由
 			admin := authorized.Group("/admin")
 			admin.Use(middleware.AdminMiddleware())
@@ -77,10 +93,18 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				// 评价管理
 				adminReviews := admin.Group("/reviews")
 				{
-					adminReviews.GET("/", adminHandler.GetReviews)
-					adminReviews.POST("/:id/approve", adminHandler.ApproveReview)
-					adminReviews.POST("/:id/reject", adminHandler.RejectReview)
-					adminReviews.DELETE("/:id", adminHandler.DeleteReview)
+					adminReviews.GET("/", reviewHandler.GetReviews)
+					adminReviews.POST("/:id/approve", reviewHandler.ApproveReview)
+					adminReviews.POST("/:id/reject", reviewHandler.RejectReview)
+					adminReviews.DELETE("/:id", reviewHandler.DeleteReview)
+				}
+
+				// 备考经验管理
+				adminExperiences := admin.Group("/experiences")
+				{
+					adminExperiences.GET("/", studyExperienceHandler.GetExperiences)
+					adminExperiences.POST("/:id/approve", studyExperienceHandler.ApproveExperience)
+					adminExperiences.POST("/:id/reject", studyExperienceHandler.RejectExperience)
 				}
 			}
 		}
