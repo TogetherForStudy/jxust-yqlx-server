@@ -113,6 +113,47 @@ type Message struct {
 }
 ```
 
+## 整体接口：
+
+```go
+// Mq defines the interface for a message queue.
+type Mq interface {
+	// Publish sends a message to a specific topic.
+	// All active subscribers on that topic will receive the message.
+	Publish(ctx context.Context, topic string, msg []byte) error
+
+	// Subscribe creates a subscription to a topic.
+	// It returns a read-only channel where received messages (as 'any', typically []byte) will be sent.
+	// Each subscriber instance receives a copy of the message.
+	Subscribe(ctx context.Context, topic string) (<-chan any, error)
+
+	// Unsubscribe removes the subscription for the given topic.
+	// The channel returned by Subscribe will be closed.
+	Unsubscribe(ctx context.Context, topic string) error
+
+	// QueuePublish sends a message to a topic associated with a queue group.
+	// Functionally often the same as Publish on the publisher side.
+	QueuePublish(ctx context.Context, topic string, msg []byte) error
+
+	// QueueSubscribe creates a subscription to a topic within a queue group.
+	// Only one subscriber within the same queue group will receive a given message.
+	// It returns a read-only channel where received messages (as 'any', typically []byte) will be sent.
+	// The specific queue group name might be derived from the topic or configured internally.
+	QueueSubscribe(ctx context.Context, topic string) (<-chan any, error)
+
+	// QueueUnsubscribe removes the queue subscription for the given topic.
+	// The channel returned by QueueSubscribe will be closed.
+	QueueUnsubscribe(ctx context.Context, topic string) error
+
+	// Close cleans up all resources, unsubscribes from all topics, and closes the connection.
+	Close()
+
+	// SetConditions allows configuring parameters like channel buffer capacity.
+	SetConditions(capacity int)
+}
+```
+
+
 ## 实现示例
 
 ### 1. 竞争型消费者实现
