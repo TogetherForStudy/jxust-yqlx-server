@@ -65,7 +65,7 @@ type Cache interface {
 ### 2. 缓存配置
 
 ```go
-type CacheConfig struct {
+type RedisConfig struct {
     Host            string
     Port            int
     Password        string
@@ -103,7 +103,7 @@ func (c *RedisCache) Get(ctx context.Context, key string) (string, error) {
 }
 ```
 
-### 2. 缓存装饰器
+### 2. 缓存装饰器（可选）
 
 ```go
 type CacheDecorator struct {
