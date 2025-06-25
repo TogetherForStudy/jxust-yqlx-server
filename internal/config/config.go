@@ -1,36 +1,44 @@
 package config
 
-import "os"
+import (
+	"sync"
+
+	"github.com/caarlos0/env/v11"
+)
 
 type Config struct {
-	DBHost     string
-	DBPort     string
-	DBUsername string
-	DBPassword string
-	DBName     string
-	JWTSecret  string
-	ServerPort string
-	WechatAppID     string
-	WechatAppSecret string
+	Database `yaml:"database"`
+
+	JWTSecret       string `yaml:"jwt_secret" env:"JWT_SECRET"`
+	ServerPort      string `yaml:"server_port" env:"SERVER_PORT" envDefault:"8085"`
+	WechatAppID     string `yaml:"wechat_app_id" env:"WECHAT_APP_ID"`
+	WechatAppSecret string `yaml:"wechat_app_secret" env:"WECHAT_APP_SECRET" envDefault:""`
 }
 
+// GlobalConfig is a singleton instance of Config that can be accessed globally.
+var GlobalConfig *Config
+
+type Database struct {
+	DBHost     string `yaml:"db_host" env:"DB_HOST" envDefault:"localhost"`
+	DBPort     string `yaml:"db_port" env:"DB_PORT" envDefault:"3306"`
+	DBUsername string `yaml:"db_username" env:"DB_USERNAME" envDefault:"root"`
+	DBPassword string `yaml:"db_password" env:"DB_PASSWORD" envDefault:""`
+	DBName     string `yaml:"db_name" env:"DB_NAME" envDefault:"gojxust"`
+}
+
+var _once sync.Once
+
+// NewConfig initializes and return the configuration by reading environment variables.
+//
+//	If the configuration has already been initialized, it returns the existing instance.
 func NewConfig() *Config {
-	return &Config{
-		DBHost:          getEnv("DB_HOST", "localhost"),
-		DBPort:          getEnv("DB_PORT", "3306"),
-		DBUsername:      getEnv("DB_USERNAME", "root"),
-		DBPassword:      getEnv("DB_PASSWORD", ""),
-		DBName:          getEnv("DB_NAME", "gojxust"),
-		JWTSecret:       getEnv("JWT_SECRET", "default_secret"),
-		ServerPort:      getEnv("SERVER_PORT", "8085"),
-		WechatAppID:     getEnv("WECHAT_APP_ID", ""),
-		WechatAppSecret: getEnv("WECHAT_APP_SECRET", ""),
-	}
-}
+	_once.Do(func() {
+		var cfg Config
+		if err := env.Parse(&cfg); err != nil {
+			panic("Failed to parse environment variables: " + err.Error())
+		}
+		GlobalConfig = &cfg
+	})
 
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
+	return GlobalConfig
 }
