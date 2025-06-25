@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"sync"
 
 	"github.com/caarlos0/env/v11"
@@ -35,7 +36,8 @@ func NewConfig() *Config {
 	_once.Do(func() {
 		var cfg Config
 		if err := env.Parse(&cfg); err != nil {
-			panic("Failed to parse environment variables: " + err.Error())
+			println("Failed to parse environment variables: ", err)
+			os.Exit(1)
 		}
 		GlobalConfig = &cfg
 	})
