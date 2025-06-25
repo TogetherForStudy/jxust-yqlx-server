@@ -3,6 +3,7 @@ module github.com/TogetherForStudy/jxust-yqlx-server
 go 1.23.0
 
 require (
+	github.com/caarlos0/env/v11 v11.3.1
 	github.com/gin-gonic/gin v1.10.1
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/google/uuid v1.6.0

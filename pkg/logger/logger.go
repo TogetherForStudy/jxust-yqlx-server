@@ -20,10 +20,9 @@ var zlog *zap.SugaredLogger
 var once sync.Once
 
 const (
-	ColorRed     = "\033[31m"
-	ColorReset   = "\033[0m"
-	LogFormatStr = "LOG_FORMAT"
-	JsonMode     = "JSON"
+	ColorRed   = "\033[31m"
+	ColorReset = "\033[0m"
+	JsonMode   = "JSON"
 )
 
 var logFormat string
@@ -33,7 +32,7 @@ func L() *zap.SugaredLogger {
 }
 func init() {
 	once.Do(func() {
-		logFormat = os.Getenv(LogFormatStr)
+		logFormat = os.Getenv(constant.ENV_LogFormatStr)
 		zlog = NewLogger()
 		zlog = zlog.WithOptions(zap.AddCallerSkip(1))
 	})

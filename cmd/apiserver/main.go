@@ -6,6 +6,7 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/database"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/router"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 
 	"github.com/gin-gonic/gin"
@@ -33,7 +34,7 @@ func main() {
 	}
 
 	// 设置生产模式
-	if os.Getenv("GIN_MODE") == "release" {
+	if os.Getenv(constant.ENV_GIN_MODE) == "release" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
