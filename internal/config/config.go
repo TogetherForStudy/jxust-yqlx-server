@@ -9,6 +9,7 @@ import (
 
 type Config struct {
 	Database `yaml:"database"`
+	Redis    `yaml:"redis"`
 
 	JWTSecret       string `yaml:"jwt_secret" env:"JWT_SECRET"`
 	ServerPort      string `yaml:"server_port" env:"SERVER_PORT" envDefault:"8085"`
@@ -25,6 +26,12 @@ type Database struct {
 	DBUsername string `yaml:"db_username" env:"DB_USERNAME" envDefault:"root"`
 	DBPassword string `yaml:"db_password" env:"DB_PASSWORD" envDefault:""`
 	DBName     string `yaml:"db_name" env:"DB_NAME" envDefault:"gojxust"`
+}
+type Redis struct {
+	RedisHost     string `yaml:"redis_host" env:"REDIS_HOST" envDefault:"localhost"`
+	RedisPort     int    `yaml:"redis_port" env:"REDIS_PORT" envDefault:"6379"`
+	RedisPassword string `yaml:"redis_password" env:"REDIS_PASSWORD" envDefault:""`
+	RedisDB       int    `yaml:"redis_db" env:"REDIS_DB" envDefault:"0"`
 }
 
 var _once sync.Once
