@@ -16,3 +16,8 @@ type UpdateProfileRequest struct {
 	Major     string `json:"major"`
 	ClassID   string `json:"class_id"`
 }
+
+// MockWechatLoginRequest 模拟微信登录请求
+type MockWechatLoginRequest struct {
+	TestUser string `json:"test_user" binding:"required"` // 测试用户类型: normal, admin, new_user
+}

@@ -21,11 +21,12 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	// 初始化服务
 	authService := services.NewAuthService(db, cfg)
 	reviewService := services.NewReviewService(db)
+	courseTableService := services.NewCourseTableService(db)
 
 	// 初始化处理器
 	authHandler := handlers.NewAuthHandler(authService)
 	reviewHandler := handlers.NewReviewHandler(reviewService)
-	adminHandler := handlers.NewAdminHandler(reviewService)
+	courseTableHandler := handlers.NewCourseTableHandler(courseTableService)
 
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
@@ -43,7 +44,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		auth := v0.Group("/auth")
 		{
 			auth.POST("/wechat-login", authHandler.WechatLogin)
-			auth.POST("/mock-wechat-login", authHandler.MockWechatLogin) // 模拟微信登录接口
+			auth.POST("/mock-wechat-login", authHandler.MockWechatLogin)
 		}
 
 		// 评价相关路由（公开查询）
@@ -68,21 +69,26 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			{
 				authReviews.POST("/", reviewHandler.CreateReview)
 				authReviews.GET("/user", reviewHandler.GetUserReviews)
-			}
 
-			// 管理员路由
-			admin := authorized.Group("/admin")
-			admin.Use(middleware.AdminMiddleware())
-			{
-				// 评价管理
-				adminReviews := admin.Group("/reviews")
+				// 管理员相关路由
+				adminReviews := authReviews.Group("")
+				adminReviews.Use(middleware.AdminMiddleware())
 				{
-					adminReviews.GET("/", adminHandler.GetReviews)
-					adminReviews.POST("/:id/approve", adminHandler.ApproveReview)
-					adminReviews.POST("/:id/reject", adminHandler.RejectReview)
-					adminReviews.DELETE("/:id", adminHandler.DeleteReview)
+					adminReviews.GET("/", reviewHandler.GetReviews)
+					adminReviews.POST("/:id/approve", reviewHandler.ApproveReview)
+					adminReviews.POST("/:id/reject", reviewHandler.RejectReview)
+					adminReviews.DELETE("/:id", reviewHandler.DeleteReview)
 				}
 			}
+
+			// 课程表相关路由（需认证）
+			courseTable := authorized.Group("/coursetable")
+			{
+				courseTable.GET("/", courseTableHandler.GetCourseTable)       // 获取用户课程表
+				courseTable.GET("/search", courseTableHandler.SearchClasses)  // 搜索班级
+				courseTable.PUT("/class", courseTableHandler.UpdateUserClass) // 更新用户班级
+			}
+
 		}
 	}
 

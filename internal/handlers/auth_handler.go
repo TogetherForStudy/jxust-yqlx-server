@@ -53,12 +53,12 @@ func (h *AuthHandler) WechatLogin(c *gin.Context) {
 // @Tags 认证
 // @Accept json
 // @Produce json
-// @Param body body services.MockWechatLoginRequest true "模拟登录请求"
+// @Param body body request.MockWechatLoginRequest true "模拟登录请求"
 // @Success 200 {object} utils.Response{data=services.WechatLoginResponse}
 // @Failure 400 {object} utils.Response
 // @Router /api/auth/mock-wechat-login [post]
 func (h *AuthHandler) MockWechatLogin(c *gin.Context) {
-	var req services.MockWechatLoginRequest
+	var req request.MockWechatLoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		helper.ValidateResponse(c, "参数验证失败")
 		return

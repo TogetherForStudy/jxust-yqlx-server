@@ -2,6 +2,8 @@ package models
 
 import (
 	"time"
+
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -41,27 +43,28 @@ const (
 
 // TeacherReview 教师评价模型
 type TeacherReview struct {
-	ID           uint                 `json:"id" gorm:"type:int unsigned;primaryKey;comment:评价ID"`
-	UserID       uint                 `json:"user_id" gorm:"not null;index:idx_user_id;comment:评价用户ID"`
-	TeacherName  string               `json:"teacher_name" gorm:"type:varchar(50);not null;index:idx_teacher_name;comment:教师姓名"`
-	CourseName   string               `json:"course_name" gorm:"type:varchar(100);comment:课程名称"`
-	Campus       string               `json:"campus" gorm:"type:varchar(50);not null;comment:校区"`
-	Content      string               `json:"content" gorm:"type:text;not null;comment:评价内容"`
-	Attitude     TeacherAttitude      `json:"attitude" gorm:"type:tinyint;default:0;comment:评价态度：3=中立，1=推荐，2=避雷"`
-	Status       TeacherReviewStatus  `json:"status" gorm:"type:tinyint;default:1;comment:评价状态：1=待审核，2=已通过，3=已拒绝"`
-	AdminNote    string               `json:"admin_note" gorm:"type:varchar(500);comment:管理员备注"`
-	CreatedAt    time.Time            `json:"created_at" gorm:"type:datetime;index:idx_status_created_at;comment:创建时间"`
-	UpdatedAt    time.Time            `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
-	DeletedAt    gorm.DeletedAt       `json:"-" gorm:"comment:软删除时间"`
+	ID          uint                `json:"id" gorm:"type:int unsigned;primaryKey;comment:评价ID"`
+	UserID      uint                `json:"user_id" gorm:"not null;index:idx_user_id;comment:评价用户ID"`
+	TeacherName string              `json:"teacher_name" gorm:"type:varchar(50);not null;index:idx_teacher_name;comment:教师姓名"`
+	CourseName  string              `json:"course_name" gorm:"type:varchar(100);comment:课程名称"`
+	Campus      string              `json:"campus" gorm:"type:varchar(50);not null;comment:校区"`
+	Content     string              `json:"content" gorm:"type:text;not null;comment:评价内容"`
+	Attitude    TeacherAttitude     `json:"attitude" gorm:"type:tinyint;default:0;comment:评价态度：3=中立，1=推荐，2=避雷"`
+	Status      TeacherReviewStatus `json:"status" gorm:"type:tinyint;default:1;comment:评价状态：1=待审核，2=已通过，3=已拒绝"`
+	AdminNote   string              `json:"admin_note" gorm:"type:varchar(500);comment:管理员备注"`
+	CreatedAt   time.Time           `json:"created_at" gorm:"type:datetime;index:idx_status_created_at;comment:创建时间"`
+	UpdatedAt   time.Time           `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
+	DeletedAt   gorm.DeletedAt      `json:"-" gorm:"comment:软删除时间"`
 }
 
 // TeacherAttitude 评价态度（自定义类型）
 type TeacherAttitude int8
+
 // 评价态度常量定义（提升可读性）
 const (
-	AttitudeNeutral  TeacherAttitude = 3 // 中立
+	AttitudeNeutral   TeacherAttitude = 3 // 中立
 	AttitudeRecommend TeacherAttitude = 1 // 推荐
-	AttitudeAvoid    TeacherAttitude = 2 // 避雷
+	AttitudeAvoid     TeacherAttitude = 2 // 避雷
 )
 
 type TeacherReviewStatus int8
@@ -72,26 +75,12 @@ const (
 	TeacherReviewStatusRejected TeacherReviewStatus = 3 // 已拒绝
 )
 
-// StudyExperience 备考经验模型
-type StudyExperience struct {
-	ID          uint                   `json:"id" gorm:"type:int unsigned;primaryKey;comment:经验ID"`
-	UserID      uint                   `json:"user_id" gorm:"not null;comment:分享用户ID"`
-	Campus      string                 `json:"campus" gorm:"type:varchar(50);not null;comment:校区"`
-	CourseName  string                 `json:"course_name" gorm:"type:varchar(100);not null;index:idx_course_name;comment:课程名称"`
-	Content     string                 `json:"content" gorm:"type:text;not null;comment:经验内容"`
-	ViewCount   uint                   `json:"view_count" gorm:"type:int unsigned;default:0;comment:累计查看次数"`
-	LikeCount   uint                   `json:"like_count" gorm:"type:int unsigned;default:0;comment:累计点赞次数"`
-	Status      StudyExperienceStatus  `json:"status" gorm:"type:tinyint;default:1;index:idx_status;comment:状态1=待审核2=已通过3=已拒绝"`
-	AdminNote   string                 `json:"admin_note" gorm:"type:varchar(500);comment:管理员备注"`
-	CreatedAt   time.Time              `json:"created_at" gorm:"type:datetime;index:idx_status_created_at;comment:创建时间"`
-	UpdatedAt   time.Time              `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
-	DeletedAt   gorm.DeletedAt         `json:"-" gorm:"comment:软删除时间"`
+// 课程表模型
+type CourseTable struct {
+	ID         uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:课程表ID"`
+	ClassID    string         `json:"class_id" gorm:"type:varchar(50);not null;comment:班级ID;index:idx_class_id"`
+	CourseData datatypes.JSON `json:"course_data" gorm:"type:json;not null;comment:课程数据"`
+	CreatedAt  time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
+	UpdatedAt  time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
+	Semester   string         `json:"semester" gorm:"type:varchar(50);not null;comment:学期;index:idx_semester"`
 }
-
-type StudyExperienceStatus int8
-
-const (
-	StudyExperienceStatusPending  StudyExperienceStatus = 1 // 待审核
-	StudyExperienceStatusApproved StudyExperienceStatus = 2 // 已通过
-	StudyExperienceStatusRejected StudyExperienceStatus = 3 // 已拒绝
-)
