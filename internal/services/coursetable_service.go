@@ -66,15 +66,16 @@ func (s *CourseTableService) SearchClasses(keyword string, page, size int) (*res
 	var total int64
 	if err := s.db.Model(&models.CourseTable{}).
 		Where("class_id LIKE ?", "%"+keyword+"%").
+		Distinct("class_id").
 		Count(&total).Error; err != nil {
 		return nil, fmt.Errorf("查询班级总数失败: %v", err)
 	}
 
 	// 查询班级列表（去重）
 	var courseTables []models.CourseTable
-	if err := s.db.Select("DISTINCT class_id, semester").
+	if err := s.db.Select("DISTINCT class_id").
 		Where("class_id LIKE ?", "%"+keyword+"%").
-		Order("class_id ASC, semester DESC").
+		Order("class_id ASC").
 		Offset(offset).
 		Limit(size).
 		Find(&courseTables).Error; err != nil {

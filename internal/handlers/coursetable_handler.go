@@ -97,7 +97,7 @@ func (h *CourseTableHandler) SearchClasses(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param body body request.UpdateUserClassRequest true "更新班级请求"
-// @Success 200 {object} helper.Response{data=response.UpdateUserClassResponse}
+// @Success 200 {object} helper.Response
 // @Failure 400 {object} helper.Response
 // @Failure 401 {object} helper.Response
 // @Router /api/v0/coursetable/class [put]
