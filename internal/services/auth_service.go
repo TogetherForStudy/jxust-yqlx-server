@@ -127,11 +127,6 @@ func (s *AuthService) UpdateUserProfile(userID uint, profile *models.User) error
 	}).Error
 }
 
-// MockWechatLoginRequest 模拟微信登录请求
-type MockWechatLoginRequest struct {
-	TestUser string `json:"test_user" binding:"required"` // 测试用户类型: normal, admin, new_user
-}
-
 // MockWechatLogin 模拟微信小程序登录 - 仅用于测试
 func (s *AuthService) MockWechatLogin(testUser string) (*response.WechatLoginResponse, error) {
 	// 根据测试用户类型生成不同的模拟数据

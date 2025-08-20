@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
@@ -20,17 +21,8 @@ func NewReviewService(db *gorm.DB) *ReviewService {
 	}
 }
 
-// CreateReviewRequest 创建评价请求
-type CreateReviewRequest struct {
-	TeacherName string                 `json:"teacher_name" binding:"required"`
-	Campus      string                 `json:"campus" binding:"required"`
-	CourseName  string                 `json:"course_name" binding:"required"`
-	Content     string                 `json:"content" binding:"required,max=200"`
-	Attitude    models.TeacherAttitude `json:"attitude" binding:"required,oneof=1 2 3"`
-}
-
 // CreateReview 创建教师评价
-func (s *ReviewService) CreateReview(userID uint, req *CreateReviewRequest) error {
+func (s *ReviewService) CreateReview(userID uint, req *request.CreateReviewRequest) error {
 	// 检查是否已经评价过该教师的这门课程
 	var existingReview models.TeacherReview
 	err := s.db.Where("user_id = ? AND teacher_name = ? AND course_name = ?", userID, req.TeacherName, req.CourseName).First(&existingReview).Error
