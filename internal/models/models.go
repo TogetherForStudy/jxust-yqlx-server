@@ -10,17 +10,17 @@ import (
 // User 用户模型
 type User struct {
 	ID        uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:用户ID"`
-	OpenID    string         `json:"open_id" gorm:"type:varchar(100);uniqueIndex:idx_openid;not null;comment:微信OpenID"`
-	UnionID   string         `json:"union_id" gorm:"type:varchar(100);index:idx_unionid;comment:微信UnionID"`
-	Nickname  string         `json:"nickname" gorm:"type:varchar(20);comment:用户昵称"`
+	OpenID    string         `json:"open_id" gorm:"type:varchar(256);uniqueIndex:idx_openid;not null;comment:微信OpenID"`
+	UnionID   string         `json:"union_id" gorm:"type:varchar(256);index:idx_unionid;comment:微信UnionID"`
+	Nickname  string         `json:"nickname" gorm:"type:varchar(256);comment:用户昵称"`
 	Avatar    string         `json:"avatar" gorm:"type:varchar(500);comment:头像URL"`
 	Phone     string         `json:"phone" gorm:"type:varchar(20);comment:手机号"`
 	Password  string         `json:"-" gorm:"type:varchar(100);comment:密码哈希"`
-	StudentID string         `json:"student_id" gorm:"type:varchar(20);uniqueIndex:idx_student_id;comment:学号"`
+	StudentID string         `json:"student_id" gorm:"type:varchar(20);index:idx_student_id;comment:学号"`
 	RealName  string         `json:"real_name" gorm:"type:varchar(20);comment:真实姓名"`
 	College   string         `json:"college" gorm:"type:varchar(50);comment:学院"`
 	Major     string         `json:"major" gorm:"type:varchar(50);comment:专业"`
-	ClassID   string         `json:"class_id" gorm:"type:varchar(10);comment:班级标识"`
+	ClassID   string         `json:"class_id" gorm:"type:varchar(256);comment:班级标识"`
 	Role      UserRole       `json:"role" gorm:"type:tinyint;default:1;comment:用户角色：1=普通用户，2=管理员"`
 	Status    UserStatus     `json:"status" gorm:"type:tinyint;default:1;comment:用户状态：1=正常，2=禁用"`
 	CreatedAt time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
