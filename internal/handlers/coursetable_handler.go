@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
@@ -122,4 +124,50 @@ func (h *CourseTableHandler) UpdateUserClass(c *gin.Context) {
 	}
 
 	helper.SuccessResponse(c, "班级信息更新成功")
+}
+
+// EditCourseCell 编辑用户个人课表中的单个格子
+// @Summary 编辑用户个人课表中的单个格子
+// @Description 前端发送 index 与 value，将该格子替换进完整课表JSON
+// @Tags 课程表
+// @Accept json
+// @Produce json
+// @Param body body request.EditCourseCellRequest true "编辑格子请求"
+// @Success 200 {object} helper.Response
+// @Failure 400 {object} helper.Response
+// @Failure 401 {object} helper.Response
+// @Router /api/v0/coursetable [put]
+func (h *CourseTableHandler) EditCourseCell(c *gin.Context) {
+	// 从上下文中获取用户ID（通过认证中间件设置）
+	userID, exists := c.Get("user_id")
+	if !exists {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "用户未认证")
+		return
+	}
+
+	var req request.EditCourseCellRequest
+	// 检查 index 是否为 1-35 之间的字符串
+	if err := c.ShouldBindJSON(&req); err != nil {
+		helper.ValidateResponse(c, "参数验证失败")
+		return
+	}
+
+	indexInt, err := strconv.Atoi(req.Index)
+	if err != nil || indexInt < 1 || indexInt > 35 {
+		helper.ValidateResponse(c, "参数校验失败")
+		return
+	}
+
+	// 将任意值编码为 JSON 原样传入服务层
+	bytesValue, err := json.Marshal(req.Value)
+	if err != nil {
+		helper.ErrorResponse(c, http.StatusBadRequest, "无效的值数据")
+		return
+	}
+
+	if err := h.courseTableService.EditUserCourseCell(userID.(uint), req.Semester, req.Index, bytesValue); err != nil {
+		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	helper.SuccessResponse(c, "编辑成功")
 }

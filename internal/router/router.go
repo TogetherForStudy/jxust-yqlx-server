@@ -22,11 +22,17 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	authService := services.NewAuthService(db, cfg)
 	reviewService := services.NewReviewService(db)
 	courseTableService := services.NewCourseTableService(db)
+	failRateService := services.NewFailRateService(db)
+	heroService := services.NewHeroService(db)
+	configService := services.NewConfigService(db)
 
 	// 初始化处理器
 	authHandler := handlers.NewAuthHandler(authService)
 	reviewHandler := handlers.NewReviewHandler(reviewService)
 	courseTableHandler := handlers.NewCourseTableHandler(courseTableService)
+	failRateHandler := handlers.NewFailRateHandler(failRateService)
+	heroHandler := handlers.NewHeroHandler(heroService)
+	configHandler := handlers.NewConfigHandler(configService)
 
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
@@ -87,6 +93,43 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				courseTable.GET("/", courseTableHandler.GetCourseTable)       // 获取用户课程表
 				courseTable.GET("/search", courseTableHandler.SearchClasses)  // 搜索班级
 				courseTable.PUT("/class", courseTableHandler.UpdateUserClass) // 更新用户班级
+				courseTable.PUT("/", courseTableHandler.EditCourseCell)       // 编辑个人课表的单个格子
+			}
+
+			// 挂科率（需认证）
+			failrate := authorized.Group("/failrate")
+			{
+				failrate.GET("/search", failRateHandler.SearchFailRate)
+				failrate.GET("/rand", failRateHandler.RandFailRate)
+			}
+
+			// heroes（需认证）
+			heroes := authorized.Group("/heroes")
+			{
+				heroes.GET("/", heroHandler.ListAll) // 列表：全部，按 sort 升序
+
+				// 仅管理员可改写
+				adminHeroes := heroes.Group("")
+				adminHeroes.Use(middleware.AdminMiddleware())
+				{
+					adminHeroes.POST("/", heroHandler.Create)
+					adminHeroes.PUT("/:id", heroHandler.Update)
+					adminHeroes.DELETE("/:id", heroHandler.Delete)
+				}
+			}
+
+			// 配置写（需管理员）
+			configWrite := authorized.Group("/config")
+			{
+				configWrite.GET("/:key", configHandler.GetByKey)
+
+				adminConfig := configWrite.Group("")
+				adminConfig.Use(middleware.AdminMiddleware())
+				{
+					adminConfig.POST("/", configHandler.Create)
+					adminConfig.PUT("/:key", configHandler.Update)
+					adminConfig.DELETE("/:key", configHandler.Delete)
+				}
 			}
 
 		}
