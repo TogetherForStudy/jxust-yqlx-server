@@ -207,7 +207,7 @@ Result(dto): response.FailRateListResponse
 }
 ```
 
-- 随机Top10
+- 随机10
 ```http
 GET /api/v0/failrate/rand
 
@@ -217,8 +217,8 @@ Result(dto): response.FailRateListResponse
 }
 ```
 
-### Heroes（需认证）
-- 列表（全部，按 sort 升序）
+### Hero
+- 公开列表（全部，按 sort 升序）
 ```http
 GET /api/v0/heroes/
 

@@ -66,6 +66,18 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			reviews.GET("/teacher", reviewHandler.GetReviewsByTeacher)
 		}
 
+		// 配置相关路由（公开查询）
+		configs := v0.Group("/configs")
+		{
+			configs.GET("/:key", configHandler.GetByKey)
+		}
+
+		// 英雄榜相关路由（公开查询）
+		heroes := v0.Group("/heroes")
+		{
+			heroes.GET("/", heroHandler.ListAll)
+		}
+
 		// 需要认证的路由
 		authorized := v0.Group("/")
 		authorized.Use(middleware.AuthMiddleware(cfg))
@@ -113,8 +125,6 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			// heroes（需认证）
 			heroes := authorized.Group("/heroes")
 			{
-				heroes.GET("/", heroHandler.ListAll) // 列表：全部，按 sort 升序
-
 				// 仅管理员可改写
 				adminHeroes := heroes.Group("")
 				adminHeroes.Use(middleware.AdminMiddleware())
@@ -128,7 +138,6 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			// 配置写（需管理员）
 			configWrite := authorized.Group("/config")
 			{
-				configWrite.GET("/:key", configHandler.GetByKey)
 
 				adminConfig := configWrite.Group("")
 				adminConfig.Use(middleware.AdminMiddleware())
