@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
@@ -30,7 +31,7 @@ var (
 	ErrFailedCreateMinioCli = errors.New("failed to create minio client")
 )
 
-func NewMinioClient() (Client, error) {
+func NewMinioClient() Client {
 	endpoint := os.Getenv(constant.ENV_MINIO_ENDPOINT)
 	accessKeyID := os.Getenv(constant.ENV_MINIO_ACCESS_KEY)
 	secretAccessKey := os.Getenv(constant.ENV_MINIO_SECRET_KEY)
@@ -41,7 +42,8 @@ func NewMinioClient() (Client, error) {
 		Secure: useSSL,
 	})
 	if err != nil {
-		return nil, ErrFailedCreateMinioCli
+		logger.Errorf("Failed to create minio client: %v", err)
+		return empty{err: errors.Join(err, ErrFailedCreateMinioCli)}
 	}
-	return &client{Client: cli}, nil
+	return &client{Client: cli}
 }
