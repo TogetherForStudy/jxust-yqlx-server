@@ -28,7 +28,7 @@ func (h *HeroHandler) Create(c *gin.Context) {
 
 	m, err := h.service.Create(req.Name, req.Sort, req.IsShow)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, "创建失败")
+		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	helper.SuccessResponse(c, m)
@@ -48,7 +48,7 @@ func (h *HeroHandler) Update(c *gin.Context) {
 		return
 	}
 	if err := h.service.Update(uint(id64), req.Name, req.Sort, req.IsShow); err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, "更新失败")
+		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	helper.SuccessResponse(c, "更新成功")
@@ -63,7 +63,7 @@ func (h *HeroHandler) Delete(c *gin.Context) {
 		return
 	}
 	if err := h.service.Delete(uint(id64)); err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, "删除失败")
+		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	helper.SuccessResponse(c, "删除成功")
@@ -79,7 +79,7 @@ func (h *HeroHandler) Get(c *gin.Context) {
 	}
 	m, err := h.service.Get(uint(id64))
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, "查询失败")
+		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 	helper.SuccessResponse(c, m)
@@ -93,4 +93,28 @@ func (h *HeroHandler) ListAll(c *gin.Context) {
 		return
 	}
 	helper.SuccessResponse(c, items)
+}
+
+// SearchHeroes 搜索英雄，空query返回全部（支持分页）
+func (h *HeroHandler) SearchHeroes(c *gin.Context) {
+	var req request.SearchHeroRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		helper.ValidateResponse(c, "参数验证失败")
+		return
+	}
+
+	// 设置默认分页参数
+	if req.Page <= 0 {
+		req.Page = 1
+	}
+	if req.Size <= 0 {
+		req.Size = 10
+	}
+
+	items, total, err := h.service.SearchHeroes(req.Query, req.IsShow, req.Page, req.Size)
+	if err != nil {
+		helper.ErrorResponse(c, http.StatusInternalServerError, "搜索失败")
+		return
+	}
+	helper.PageSuccessResponse(c, items, total, req.Page, req.Size)
 }
