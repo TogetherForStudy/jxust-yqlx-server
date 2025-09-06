@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 	"gorm.io/gorm"
 )
 
@@ -71,10 +72,10 @@ func (s *HeroService) Get(id uint) (*models.Hero, error) {
 	return &m, nil
 }
 
-// ListAll 返回仅名称的字符串数组，按 sort 升序
+// ListAll 返回仅名称的字符串数组，按 sort 升序（只返回is_show=true的）
 func (s *HeroService) ListAll() ([]string, error) {
 	var list []models.Hero
-	if err := s.db.Model(&models.Hero{}).Order("sort ASC").Find(&list).Error; err != nil {
+	if err := s.db.Model(&models.Hero{}).Where("is_show = ?", true).Order("sort ASC").Find(&list).Error; err != nil {
 		return nil, err
 	}
 	names := make([]string, 0, len(list))
@@ -82,4 +83,38 @@ func (s *HeroService) ListAll() ([]string, error) {
 		names = append(names, it.Name)
 	}
 	return names, nil
+}
+
+// SearchHeroes 搜索英雄，支持按名称搜索和是否显示过滤，空query返回全部（分页版本）
+func (s *HeroService) SearchHeroes(query string, isShow *bool, page, size int) ([]models.Hero, int64, error) {
+	var list []models.Hero
+	var total int64
+
+	queryBuilder := s.db.Model(&models.Hero{})
+
+	if query != "" {
+		// 模糊搜索名称
+		queryBuilder = queryBuilder.Where("name LIKE ?", "%"+query+"%")
+	}
+
+	if isShow != nil {
+		// 根据is_show字段过滤
+		queryBuilder = queryBuilder.Where("is_show = ?", *isShow)
+	}
+
+	// 先获取总数
+	if err := queryBuilder.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 分页查询
+	pagination := utils.GetPagination(page, size)
+	if err := queryBuilder.Order("sort ASC").
+		Offset(pagination.Offset).
+		Limit(pagination.Size).
+		Find(&list).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return list, total, nil
 }

@@ -40,19 +40,6 @@ Result(dto): response.WechatLoginResponse
 }
 ```
 
-- 模拟微信登录（测试）
-```http
-POST /api/v0/auth/mock-wechat-login
-Content-Type: application/json
-
-Body(dto): request.MockWechatLoginRequest
-{
-  "test_user": "normal | admin | new_user"
-}
-
-Result(dto): response.WechatLoginResponse
-```
-
 ### 用户
 - 获取当前用户资料（需认证）
 ```http
@@ -218,11 +205,40 @@ Result(dto): response.FailRateListResponse
 ```
 
 ### Hero
-- 公开列表（全部，按 sort 升序）
+- 公开列表（全部，按 sort 升序，仅显示 is_show=true 的英雄）
 ```http
 GET /api/v0/heroes/
 
 Result: []string
+```
+
+- 搜索英雄（需管理员，支持分页）
+```http
+GET /api/v0/heroes/search?q=搜索关键词&is_show=true&page=1&size=10
+Authorization: Bearer <JWT_TOKEN>
+
+Parameters:
+- q: 搜索关键词（可选，空则返回全部）
+- is_show: 是否显示过滤（可选，true/false）
+- page: 页码，默认1
+- size: 每页条数，默认10
+
+Result: response.PageResponse
+{
+  "data": [
+    {
+      "id": 1,
+      "name": "英雄名称",
+      "sort": 0,
+      "is_show": true,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    }
+  ],
+  "total": 100,
+  "page": 1,
+  "size": 10
+}
 ```
 
 - 创建（需管理员）
@@ -254,9 +270,38 @@ Authorization: Bearer <JWT_TOKEN>
 ### 系统配置
 - 公开读取
 ```http
-GET /api/v0/config/{key}
+GET /api/v0/configs/{key}
 
 Result: { "key": "string", "value": "string", "value_type": "string", "description": "string" }
+```
+
+- 搜索配置项（需管理员，支持分页）
+```http
+GET /api/v0/config/search?q=搜索关键词&page=1&size=10
+Authorization: Bearer <JWT_TOKEN>
+
+Parameters:
+- q: 搜索关键词（可选，空则返回全部，支持按key和description搜索）
+- page: 页码，默认1
+- size: 每页条数，默认10
+
+Result: response.PageResponse
+{
+  "data": [
+    {
+      "id": 1,
+      "key": "config_key",
+      "value": "config_value",
+      "value_type": "string",
+      "description": "配置描述",
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    }
+  ],
+  "total": 100,
+  "page": 1,
+  "size": 10
+}
 ```
 
 - 创建（需管理员）

@@ -84,3 +84,27 @@ func (h *ConfigHandler) Delete(c *gin.Context) {
 	}
 	helper.SuccessResponse(c, "删除成功")
 }
+
+// SearchConfigs 搜索配置项，空query返回全部（支持分页）
+func (h *ConfigHandler) SearchConfigs(c *gin.Context) {
+	var req request.SearchConfigRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		helper.ValidateResponse(c, "参数验证失败")
+		return
+	}
+
+	// 设置默认分页参数
+	if req.Page <= 0 {
+		req.Page = 1
+	}
+	if req.Size <= 0 {
+		req.Size = 10
+	}
+
+	items, total, err := h.service.SearchConfigs(req.Query, req.Page, req.Size)
+	if err != nil {
+		helper.ErrorResponse(c, http.StatusInternalServerError, "搜索失败")
+		return
+	}
+	helper.PageSuccessResponse(c, items, total, req.Page, req.Size)
+}

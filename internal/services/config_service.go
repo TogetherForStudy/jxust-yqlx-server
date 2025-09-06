@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 	"gorm.io/gorm"
 )
 
@@ -87,4 +88,33 @@ func (s *ConfigService) GetByKey(key string) (*models.SystemConfig, error) {
 		return nil, err
 	}
 	return &m, nil
+}
+
+// SearchConfigs 搜索配置项，支持按key搜索，空query返回全部（分页版本）
+func (s *ConfigService) SearchConfigs(query string, page, size int) ([]models.SystemConfig, int64, error) {
+	var list []models.SystemConfig
+	var total int64
+
+	queryBuilder := s.db.Model(&models.SystemConfig{})
+
+	if query != "" {
+		// 模糊搜索key或description
+		queryBuilder = queryBuilder.Where("`key` LIKE ? OR description LIKE ?", "%"+query+"%", "%"+query+"%")
+	}
+
+	// 先获取总数
+	if err := queryBuilder.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 分页查询
+	pagination := utils.GetPagination(page, size)
+	if err := queryBuilder.Order("created_at DESC").
+		Offset(pagination.Offset).
+		Limit(pagination.Size).
+		Find(&list).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return list, total, nil
 }

@@ -57,7 +57,6 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		auth := v0.Group("/auth")
 		{
 			auth.POST("/wechat-login", authHandler.WechatLogin)
-			auth.POST("/mock-wechat-login", authHandler.MockWechatLogin)
 		}
 
 		// 评价相关路由（公开查询）
@@ -132,6 +131,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 					adminHeroes.POST("/", heroHandler.Create)
 					adminHeroes.PUT("/:id", heroHandler.Update)
 					adminHeroes.DELETE("/:id", heroHandler.Delete)
+					adminHeroes.GET("/search", heroHandler.SearchHeroes)
 				}
 			}
 
@@ -145,6 +145,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 					adminConfig.POST("/", configHandler.Create)
 					adminConfig.PUT("/:key", configHandler.Update)
 					adminConfig.DELETE("/:key", configHandler.Delete)
+					adminConfig.GET("/search", configHandler.SearchConfigs)
 				}
 			}
 
