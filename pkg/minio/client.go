@@ -32,6 +32,7 @@ var (
 )
 
 func NewMinioClient() Client {
+	//todo:修改签名，从国际config加载
 	endpoint := os.Getenv(constant.ENV_MINIO_ENDPOINT)
 	accessKeyID := os.Getenv(constant.ENV_MINIO_ACCESS_KEY)
 	secretAccessKey := os.Getenv(constant.ENV_MINIO_SECRET_KEY)
