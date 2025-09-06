@@ -1,0 +1,31 @@
+name: Remove CI Test Config Before Merge
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  remove-config:
+    if: github.event.review.state == 'approved'  # 仅在审查状态为 approved 时运行
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Remove ci-test-opt.yml
+        run: |
+          FILE_TO_DELETE="ci-test-opt.yml"
+          if [ -f "$FILE_TO_DELETE" ]; then
+            git rm "$FILE_TO_DELETE"
+            git config --global user.name "GitHub Action"
+            git config --global user.email "action@github.com"
+            git commit -m "Remove ci-test-opt.yml after PR approval"
+            git pull --rebase origin ${{ github.event.pull_request.head.ref }}
+            git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          else
+            echo "File $FILE_TO_DELETE does not exist, skipping deletion."
+          fi

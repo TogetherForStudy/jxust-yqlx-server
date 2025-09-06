@@ -1,0 +1,6 @@
+# CI 自动测试文件
+# 如果你需要执行端到端测试，请编辑该文件
+backend:
+  branch: main # 在构建后端和测试时使用的分支 如果是当前分支，请使用 local
+frontend:
+  branch: main # 在构建前端时使用的分支 如果是当前分支，请使用 local
