@@ -28,7 +28,7 @@ func (h *HeroHandler) Create(c *gin.Context) {
 
 	m, err := h.service.Create(req.Name, req.Sort, req.IsShow)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.ErrorResponse(c, http.StatusBadRequest, "创建失败")
 		return
 	}
 	helper.SuccessResponse(c, m)
@@ -48,7 +48,7 @@ func (h *HeroHandler) Update(c *gin.Context) {
 		return
 	}
 	if err := h.service.Update(uint(id64), req.Name, req.Sort, req.IsShow); err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.ErrorResponse(c, http.StatusBadRequest, "更新失败")
 		return
 	}
 	helper.SuccessResponse(c, "更新成功")
@@ -63,7 +63,7 @@ func (h *HeroHandler) Delete(c *gin.Context) {
 		return
 	}
 	if err := h.service.Delete(uint(id64)); err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.ErrorResponse(c, http.StatusBadRequest, "删除失败")
 		return
 	}
 	helper.SuccessResponse(c, "删除成功")
@@ -79,7 +79,7 @@ func (h *HeroHandler) Get(c *gin.Context) {
 	}
 	m, err := h.service.Get(uint(id64))
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.ErrorResponse(c, http.StatusBadRequest, "查询失败")
 		return
 	}
 	helper.SuccessResponse(c, m)

@@ -16,17 +16,17 @@ func NewHeroService(db *gorm.DB) *HeroService {
 	return &HeroService{db: db}
 }
 
-func (s *HeroService) Create(name string, sort int, isShow bool) (*models.Heroes, error) {
+func (s *HeroService) Create(name string, sort int, isShow bool) (*models.Hero, error) {
 	// name 唯一
 	var cnt int64
-	if err := s.db.Model(&models.Heroes{}).Where("name = ?", name).Count(&cnt).Error; err != nil {
+	if err := s.db.Model(&models.Hero{}).Where("name = ?", name).Count(&cnt).Error; err != nil {
 		return nil, err
 	}
 	if cnt > 0 {
 		return nil, fmt.Errorf("名称已存在")
 	}
 
-	hero := &models.Heroes{
+	hero := &models.Hero{
 		Name:      name,
 		Sort:      sort,
 		IsShow:    isShow,
@@ -42,13 +42,13 @@ func (s *HeroService) Create(name string, sort int, isShow bool) (*models.Heroes
 func (s *HeroService) Update(id uint, name string, sort int, isShow bool) error {
 	// 如果修改 name，需要确保唯一（排除自身）
 	var cnt int64
-	if err := s.db.Model(&models.Heroes{}).Where("name = ? AND id <> ?", name, id).Count(&cnt).Error; err != nil {
+	if err := s.db.Model(&models.Hero{}).Where("name = ? AND id <> ?", name, id).Count(&cnt).Error; err != nil {
 		return err
 	}
 	if cnt > 0 {
 		return fmt.Errorf("名称已存在")
 	}
-	return s.db.Model(&models.Heroes{}).Where("id = ?", id).Updates(map[string]any{
+	return s.db.Model(&models.Hero{}).Where("id = ?", id).Updates(map[string]any{
 		"name":       name,
 		"sort":       sort,
 		"is_show":    isShow,
@@ -57,11 +57,11 @@ func (s *HeroService) Update(id uint, name string, sort int, isShow bool) error 
 }
 
 func (s *HeroService) Delete(id uint) error {
-	return s.db.Unscoped().Delete(&models.Heroes{}, id).Error
+	return s.db.Unscoped().Delete(&models.Hero{}, id).Error
 }
 
-func (s *HeroService) Get(id uint) (*models.Heroes, error) {
-	var m models.Heroes
+func (s *HeroService) Get(id uint) (*models.Hero, error) {
+	var m models.Hero
 	if err := s.db.First(&m, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("未找到")
@@ -73,8 +73,8 @@ func (s *HeroService) Get(id uint) (*models.Heroes, error) {
 
 // ListAll 返回仅名称的字符串数组，按 sort 升序
 func (s *HeroService) ListAll() ([]string, error) {
-	var list []models.Heroes
-	if err := s.db.Model(&models.Heroes{}).Order("sort ASC").Find(&list).Error; err != nil {
+	var list []models.Hero
+	if err := s.db.Model(&models.Hero{}).Order("sort ASC").Find(&list).Error; err != nil {
 		return nil, err
 	}
 	names := make([]string, 0, len(list))
