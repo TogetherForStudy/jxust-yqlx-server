@@ -60,7 +60,7 @@ func (h *FailRateHandler) SearchFailRate(c *gin.Context) {
 
 // RandFailRate 随机返回10条
 func (h *FailRateHandler) RandFailRate(c *gin.Context) {
-	list, err := h.service.Top(10)
+	list, err := h.service.Rand(10)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, "查询失败")
 		return

@@ -109,11 +109,11 @@ type FailRate struct {
 }
 
 // Hero 英雄模型
-type Heroes struct {
+type Hero struct {
 	ID        uint      `json:"id" gorm:"type:int unsigned;primaryKey;comment:英雄ID"`
 	Name      string    `json:"name" gorm:"type:varchar(100);uniqueIndex;not null;comment:英雄名称"`
 	Sort      int       `json:"sort" gorm:"type:int;default:0;not null;comment:排序值"`
-	IsShow    bool      `json:"isshow" gorm:"type:tinyint(1);not null;default:1;comment:是否展示"`
+	IsShow    bool      `json:"is_show" gorm:"type:tinyint(1);not null;default:1;comment:是否展示"`
 	CreatedAt time.Time `json:"created_at" gorm:"type:datetime;comment:创建时间"`
 	UpdatedAt time.Time `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
 }

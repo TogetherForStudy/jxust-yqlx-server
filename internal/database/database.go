@@ -53,7 +53,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.CourseTable{},
 		&models.ScheduleUser{},
 		&models.FailRate{},
-		&models.Heroes{},
+		&models.Hero{},
 		&models.SystemConfig{},
 		&models.S3Resource{},
 		&models.S3Data{},

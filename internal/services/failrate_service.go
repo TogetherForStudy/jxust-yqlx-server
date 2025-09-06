@@ -39,8 +39,8 @@ func (s *FailRateService) Search(keyword string, page, size int) ([]models.FailR
 	return list, total, nil
 }
 
-// Top 获取随机 N 条（无筛选）
-func (s *FailRateService) Top(limit int) ([]models.FailRate, error) {
+// Rand 获取随机 N 条（无筛选）
+func (s *FailRateService) Rand(limit int) ([]models.FailRate, error) {
 	if limit <= 0 {
 		limit = 10
 	}

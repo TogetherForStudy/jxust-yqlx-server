@@ -17,7 +17,7 @@ func NewConfigHandler(service *services.ConfigService) *ConfigHandler {
 	return &ConfigHandler{service: service}
 }
 
-// GetByKey 公开读取，按key返回配置项
+// GetByKey 按key返回配置项
 func (h *ConfigHandler) GetByKey(c *gin.Context) {
 	key := c.Param("key")
 	if key == "" {
