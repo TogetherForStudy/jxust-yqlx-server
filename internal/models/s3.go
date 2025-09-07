@@ -15,11 +15,12 @@ type S3Data struct {
 	FileName   string  `gorm:"column:file_name;type:varchar(256);not null" json:"file_name"`
 	FileSize   *int64  `gorm:"column:file_size" json:"file_size"`
 	MimeType   *string `gorm:"column:mime_type;type:varchar(128)" json:"mime_type"`
-	ETag       *string `gorm:"column:e_tag;type:varchar(128);null" json:"e_tag"`
+	ETag       *string `gorm:"column:e_tag;type:json;null" json:"e_tag"`
 }
 type S3Resource struct {
 	ID         uint   `gorm:"primarykey"`
 	ResourceID string `gorm:"type:varchar(64);not null;comment:资源ID;index:idx_resource_id" json:"resource_id"` // 资源ID // 资源ID
+	URL        string `gorm:"type:varchar(512);not null;comment:资源URL" json:"url"`                             // 资源URL
 
 	CreatedAt time.Time      `gorm:"autoCreateTime"`
 	UpdatedAt time.Time      `gorm:"autoUpdateTime"`
