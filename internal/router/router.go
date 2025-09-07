@@ -99,6 +99,9 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	// Minio proxy:
 	minioProxy := r.Group(fmt.Sprintf("/%s", cfg.BucketName))
 	minioProxy.Use(middleware.RequestID())
+	// todo: 这里需要添加认证中间件，确保只有授权用户可以访问MinIO资源
+	//  然后做下资源区分，哪些是公开资源，哪些是私有资源
+	//  公开资源可以直接访问，私有资源需要做权限校验
 	{
 		scheme := "http"
 		if cfg.MinIO.MinIOUseSSL {

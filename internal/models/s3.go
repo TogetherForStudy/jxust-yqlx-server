@@ -18,9 +18,11 @@ type S3Data struct {
 	Tag        *string `gorm:"column:tag;type:json;" json:"tag"`
 }
 type S3Resource struct {
-	ID         uint   `gorm:"primarykey"`
+	ID uint `gorm:"primarykey"`
+
 	ResourceID string `gorm:"type:varchar(64);not null;comment:资源ID;index:idx_resource_id" json:"resource_id"` // 资源ID // 资源ID
 	URL        string `gorm:"type:varchar(512);not null;comment:资源URL" json:"url"`                             // 资源URL
+	UserID     string `gorm:"type:varchar(64);not null;comment:用户ID;index:idx_user_id" json:"-"`               // 该资源URL所属的用户ID（微信OpenID），用于做请求定位
 
 	CreatedAt time.Time      `gorm:"autoCreateTime"`
 	UpdatedAt time.Time      `gorm:"autoUpdateTime"`

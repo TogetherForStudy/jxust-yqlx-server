@@ -149,10 +149,12 @@ func (s *S3Service) ShareObject(ctx context.Context, resourceID string, expires 
 	presignedURL.Host = s.host
 	presignedURL.Scheme = s.scheme
 
+	userId := ctx.Value("open_id").(string) // wechat user openid
 	expiredAt := time.Now().Add(*expires)
 	s3Resource := &models.S3Resource{
 		ResourceID: resourceID,
 		URL:        presignedURL.String(),
+		UserID:     userId,
 		ExpiredAt:  gorm.DeletedAt{Time: expiredAt, Valid: true},
 	}
 
