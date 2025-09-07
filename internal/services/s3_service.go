@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/url"
@@ -12,8 +11,13 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/minio"
 
+	"github.com/bytedance/sonic"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+)
+
+const (
+	defaultExpired = 30 * time.Minute
 )
 
 type S3Service struct {
@@ -70,20 +74,19 @@ func (s *S3Service) AddObject(ctx context.Context, data io.ReadCloser,
 	if tags == nil {
 		tags = make(map[string]string)
 	}
-	etag, err := json.MarshalIndent(tags, "", "  ")
+	tag, err := sonic.MarshalString(tags)
 	if err != nil {
 		return "", err
 	}
-	tagStr := string(etag)
 
 	s3Data := &models.S3Data{
 		ResourceID: resourceID,
 		Bucket:     s.rootBucketName,
 		ObjectKey:  objectKey,
-		FileSize:   &info.Size,
+		FileSize:   info.Size,
 		FileName:   fileName,
-		MimeType:   &mimeType,
-		ETag:       &tagStr,
+		MimeType:   mimeType,
+		Tag:        &tag,
 	}
 
 	if err := s.db.WithContext(ctx).Create(s3Data).Error; err != nil {
@@ -115,7 +118,7 @@ func (s *S3Service) DeleteObject(ctx context.Context, resourceID string) error {
 		}
 		if err := tx.Model(&models.S3Resource{}).
 			Where("resource_id = ?", resourceID).
-			Update("deleted_at", gorm.DeletedAt{Time: time.Now(), Valid: true}).Error; err != nil {
+			Update("expired_at", gorm.DeletedAt{Time: time.Now(), Valid: true}).Error; err != nil {
 			return err
 		}
 		return nil
@@ -130,7 +133,7 @@ func (s *S3Service) ShareObject(ctx context.Context, resourceID string, expires 
 	}
 
 	if expires == nil || *expires == 0 {
-		expiredAt := 30 * time.Minute
+		expiredAt := defaultExpired
 		expires = &expiredAt
 	}
 

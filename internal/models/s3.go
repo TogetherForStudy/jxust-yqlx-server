@@ -13,9 +13,9 @@ type S3Data struct {
 	Bucket     string  `gorm:"column:bucket;type:varchar(256);not null" json:"bucket"`
 	ObjectKey  string  `gorm:"column:object_key;type:varchar(512);not null" json:"object_key"`
 	FileName   string  `gorm:"column:file_name;type:varchar(256);not null" json:"file_name"`
-	FileSize   *int64  `gorm:"column:file_size" json:"file_size"`
-	MimeType   *string `gorm:"column:mime_type;type:varchar(128)" json:"mime_type"`
-	ETag       *string `gorm:"column:e_tag;type:json;null" json:"e_tag"`
+	FileSize   int64   `gorm:"column:file_size;not null" json:"file_size"`
+	MimeType   string  `gorm:"column:mime_type;type:varchar(128);not null" json:"mime_type"`
+	Tag        *string `gorm:"column:tag;type:json;" json:"tag"`
 }
 type S3Resource struct {
 	ID         uint   `gorm:"primarykey"`
