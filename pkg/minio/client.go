@@ -13,6 +13,8 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
+type PutObjectOptions = minio.PutObjectOptions
+
 type Client interface {
 	PresignedGetObject(ctx context.Context, bucketName string, objectName string, expires time.Duration, reqParams url.Values) (u *url.URL, err error)
 	CreateShareLink(ctx context.Context, bucketName, objectName string, time time.Duration) (string, error)
@@ -21,6 +23,7 @@ type Client interface {
 	DeleteObject(ctx context.Context, bucketName, objectName string) error
 	GetObject(ctx context.Context, bucketName, objectName string) (io.ReadCloser, error)
 	StoreObject(ctx context.Context, data io.ReadCloser, bucketName, objectName string) (string, error)
+	PutObject(ctx context.Context, bucketName string, objectName string, reader io.Reader, size int64, opts minio.PutObjectOptions) (info minio.UploadInfo, err error)
 }
 type client struct {
 	*minio.Client

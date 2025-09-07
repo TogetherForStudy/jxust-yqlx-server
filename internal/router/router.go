@@ -1,6 +1,10 @@
 package router
 
 import (
+	"fmt"
+	"net/http/httputil"
+	"net/url"
+
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/middleware"
@@ -92,5 +96,22 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		}
 	}
 
+	// Minio proxy:
+	minioProxy := r.Group(fmt.Sprintf("/%s", cfg.BucketName))
+	minioProxy.Use(middleware.RequestID())
+	{
+		scheme := "http"
+		if cfg.MinIO.MinIOUseSSL {
+			scheme = "https"
+		}
+		remote, err := url.Parse(fmt.Sprintf("%s://%s", scheme, cfg.MinIO.MinIOEndpoint))
+		if err != nil {
+			panic(err)
+		}
+		proxy := httputil.NewSingleHostReverseProxy(remote)
+		minioProxy.Any("/*proxyPath", func(c *gin.Context) {
+			proxy.ServeHTTP(c.Writer, c.Request)
+		})
+	}
 	return r
 }

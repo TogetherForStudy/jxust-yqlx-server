@@ -17,7 +17,8 @@ type Config struct {
 	WechatAppID     string `yaml:"wechat_app_id" env:"WECHAT_APP_ID"`
 	WechatAppSecret string `yaml:"wechat_app_secret" env:"WECHAT_APP_SECRET" envDefault:""`
 
-	Domain string `yaml:"domain" env:"DOMAIN" envDefault:"http://localhost:8085"`
+	Host   string `yaml:"host" env:"HOST" envDefault:"localhost:8085"`
+	Scheme string `yaml:"scheme" env:"SCHEME" envDefault:"http"`
 }
 
 // GlobalConfig is a singleton instance of Config that can be accessed globally.
@@ -41,6 +42,7 @@ type MinIO struct {
 	MinIOAccessKey string `yaml:"minio_access_key" env:"MINIO_ACCESS_KEY" envDefault:"minioadmin"`
 	MinIOSecretKey string `yaml:"minio_secret_key" env:"MINIO_SECRET_KEY" envDefault:"minioadmin"`
 	MinIOUseSSL    bool   `yaml:"minio_use_ssl" env:"MINIO_USE_SSL" envDefault:"false"`
+	BucketName     string `yaml:"bucket_name" env:"BUCKET_NAME" envDefault:"yqlx"`
 }
 
 var _once sync.Once
