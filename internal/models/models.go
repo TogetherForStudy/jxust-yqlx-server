@@ -129,3 +129,13 @@ type SystemConfig struct {
 	UpdatedAt   time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
 	DeletedAt   gorm.DeletedAt `json:"-" gorm:"comment:软删除时间"`
 }
+
+// BindRecord 绑定记录表：记录用户访问绑定接口次数与成功绑定次数
+type BindRecord struct {
+	ID        uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:记录ID"`
+	UserID    uint           `json:"user_id" gorm:"not null;uniqueIndex:idx_bind_user_id;comment:用户ID"`
+	BindCount int            `json:"bind_count" gorm:"type:int;not null;default:0;comment:成功绑定次数"`
+	CreatedAt time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
+	UpdatedAt time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
+	DeletedAt gorm.DeletedAt `json:"-" gorm:"comment:软删除时间"`
+}

@@ -7,6 +7,4 @@ type ConfigResponse struct {
 	Value       string `json:"value"`
 	ValueType   string `json:"value_type"`
 	Description string `json:"description"`
-	CreatedAt   string `json:"created_at"`
-	UpdatedAt   string `json:"updated_at"`
 }
