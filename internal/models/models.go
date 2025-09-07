@@ -88,9 +88,9 @@ type CourseTable struct {
 // 用户个性化课程表模型
 type ScheduleUser struct {
 	ID        uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:记录ID"`
-	UserID    uint           `json:"user_id" gorm:"not null;index:idx_user_semester,unique;comment:用户ID"`
+	UserID    uint           `json:"user_id" gorm:"not null;comment:用户ID"`
 	ClassID   string         `json:"class_id" gorm:"type:varchar(50);not null;comment:班级ID"`
-	Semester  string         `json:"semester" gorm:"type:varchar(50);not null;index:idx_user_semester,unique;comment:学期"`
+	Semester  string         `json:"semester" gorm:"type:varchar(50);not null;comment:学期"`
 	Schedule  datatypes.JSON `json:"schedule" gorm:"type:json;not null;comment:个性化完整课程数据"`
 	CreatedAt time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
 	UpdatedAt time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`

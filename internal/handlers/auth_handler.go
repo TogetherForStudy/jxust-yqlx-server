@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
@@ -96,7 +97,23 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 		return
 	}
 
-	helper.SuccessResponse(c, user)
+	resp := response.UserProfileResponse{
+		ID:        user.ID,
+		Nickname:  user.Nickname,
+		Avatar:    user.Avatar,
+		Phone:     user.Phone,
+		StudentID: user.StudentID,
+		RealName:  user.RealName,
+		College:   user.College,
+		Major:     user.Major,
+		ClassID:   user.ClassID,
+		Role:      user.Role,
+		Status:    user.Status,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+	}
+
+	helper.SuccessResponse(c, resp)
 }
 
 // UpdateProfile 更新用户资料

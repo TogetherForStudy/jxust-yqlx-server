@@ -30,6 +30,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	failRateService := services.NewFailRateService(db)
 	heroService := services.NewHeroService(db)
 	configService := services.NewConfigService(db)
+	ossService := services.NewOSSService(cfg)
 	s3Service := services.NewS3Service(db, cfg)
 
 	// 初始化处理器
@@ -39,6 +40,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	failRateHandler := handlers.NewFailRateHandler(failRateService)
 	heroHandler := handlers.NewHeroHandler(heroService)
 	configHandler := handlers.NewConfigHandler(configService)
+	ossHandler := handlers.NewOSSHandler(ossService)
 	storeHandler := handlers.NewStoreHandler(s3Service)
 
 	// 健康检查
@@ -87,7 +89,11 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				user.GET("/profile", authHandler.GetProfile)
 				user.PUT("/profile", authHandler.UpdateProfile)
 			}
-
+			// OSS/CDN Token （需认证）
+			oss := authorized.Group("/oss")
+			{
+				oss.POST("/token", ossHandler.GetToken)
+			}
 			// 评价相关路由（需认证）
 			authReviews := authorized.Group("/reviews")
 			{

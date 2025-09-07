@@ -39,7 +39,7 @@ func (s *CourseTableService) GetUserCourseTable(userID uint, semester string) (*
 
 	// 优先返回个人课表
 	var userSchedule models.ScheduleUser
-	if err := s.db.Where("user_id = ? AND semester = ?", userID, semester).First(&userSchedule).Error; err == nil {
+	if err := s.db.Where("user_id = ? AND class_id = ? AND semester = ?", userID, user.ClassID, semester).First(&userSchedule).Error; err == nil {
 		return &response.CourseTableResponse{
 			ClassID:    user.ClassID,
 			Semester:   userSchedule.Semester,
@@ -81,7 +81,7 @@ func (s *CourseTableService) EditUserCourseCell(userID uint, semester string, in
 
 	// 查询或初始化个人课表
 	var userSchedule models.ScheduleUser
-	if err := s.db.Where("user_id = ? AND semester = ?", userID, semester).First(&userSchedule).Error; err != nil {
+	if err := s.db.Where("user_id = ? AND class_id = ? AND semester = ?", userID, user.ClassID, semester).First(&userSchedule).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			// 首次编辑：以默认班级课表为基底
 			var courseTable models.CourseTable
@@ -136,7 +136,7 @@ func (s *CourseTableService) EditUserCourseCell(userID uint, semester string, in
 		return fmt.Errorf("序列化课程表失败: %v", e)
 	}
 	if e := s.db.Model(&models.ScheduleUser{}).
-		Where("user_id = ? AND semester = ?", userID, semester).
+		Where("user_id = ? AND class_id = ? AND semester = ?", userID, user.ClassID, semester).
 		Updates(map[string]any{"schedule": datatypes.JSON(bytesData), "class_id": user.ClassID}).Error; e != nil {
 		return fmt.Errorf("更新用户个性课表失败: %v", e)
 	}
