@@ -275,13 +275,8 @@ func (s *CourseTableService) ResetUserBindCountToOne(targetUserID uint) error {
 		var br models.BindRecord
 		if err := tx.Where("user_id = ?", targetUserID).First(&br).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
-				newRecord := models.BindRecord{UserID: targetUserID, BindCount: 1}
-				if e := tx.Create(&newRecord).Error; e != nil {
-					return fmt.Errorf("创建绑定记录失败: %v", e)
-				}
-				return nil
+				return fmt.Errorf("查询绑定记录失败: %v", err)
 			}
-			return fmt.Errorf("查询绑定记录失败: %v", err)
 		}
 		if err := tx.Model(&models.BindRecord{}).
 			Where("user_id = ?", targetUserID).
