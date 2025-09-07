@@ -192,7 +192,7 @@ func (h *CourseTableHandler) ResetUserBindCountToOne(c *gin.Context) {
 	}
 
 	if err := h.courseTableService.ResetUserBindCountToOne(uint(uid)); err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.ErrorResponse(c, http.StatusBadRequest, "重置失败")
 		return
 	}
 	helper.SuccessResponse(c, "重置成功")
