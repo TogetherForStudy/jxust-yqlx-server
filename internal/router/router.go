@@ -26,11 +26,13 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	authService := services.NewAuthService(db, cfg)
 	reviewService := services.NewReviewService(db)
 	courseTableService := services.NewCourseTableService(db)
+	s3Service := services.NewS3Service(db, cfg)
 
 	// 初始化处理器
 	authHandler := handlers.NewAuthHandler(authService)
 	reviewHandler := handlers.NewReviewHandler(reviewService)
 	courseTableHandler := handlers.NewCourseTableHandler(courseTableService)
+	storeHandler := handlers.NewStoreHandler(s3Service)
 
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
@@ -93,6 +95,21 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				courseTable.PUT("/class", courseTableHandler.UpdateUserClass) // 更新用户班级
 			}
 
+			// 存储相关路由
+			store := authorized.Group("/store")
+			{
+				store.GET("/:resource_id/url", storeHandler.GetFileURL)
+				store.GET("/:resource_id/stream", storeHandler.GetFileStream)
+
+				adminStore := store.Group("")
+				adminStore.Use(middleware.AdminMiddleware())
+				{
+					adminStore.POST("/", storeHandler.UploadFile)
+					adminStore.DELETE("/:resource_id", storeHandler.DeleteFile)
+					adminStore.GET("/", storeHandler.ListFiles)
+					adminStore.GET("/expired", storeHandler.ListExpiredFiles)
+				}
+			}
 		}
 	}
 
