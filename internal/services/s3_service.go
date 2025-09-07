@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -10,7 +11,9 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/minio"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
 	"github.com/bytedance/sonic"
 	"github.com/google/uuid"
@@ -147,7 +150,11 @@ func (s *S3Service) ShareObject(ctx context.Context, resourceID string, expires 
 	presignedURL.Host = s.host
 	presignedURL.Scheme = s.scheme
 
-	userId := ctx.Value("open_id").(string) // wechat user openid
+	userId, ok := ctx.Value("open_id").(string) // wechat user openid
+	if !ok {
+		logger.Errorf("open_id not found in context or is not a string, RequestID: %s", utils.GetRequestID(ctx))
+		return "", errors.New("open_id not found in context")
+	}
 	expiredAt := time.Now().Add(*expires)
 	s3Resource := &models.S3Resource{
 		ResourceID: resourceID,
