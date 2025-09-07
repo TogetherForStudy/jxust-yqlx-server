@@ -55,6 +55,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.FailRate{},
 		&models.Hero{},
 		&models.SystemConfig{},
+		&models.BindRecord{},
 		&models.S3Resource{},
 		&models.S3Data{},
 	)

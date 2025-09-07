@@ -68,7 +68,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		}
 
 		// 配置相关路由（公开查询）
-		configs := v0.Group("/configs")
+		configs := v0.Group("/config")
 		{
 			configs.GET("/:key", configHandler.GetByKey)
 		}
@@ -118,6 +118,13 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				courseTable.GET("/search", courseTableHandler.SearchClasses)  // 搜索班级
 				courseTable.PUT("/class", courseTableHandler.UpdateUserClass) // 更新用户班级
 				courseTable.PUT("/", courseTableHandler.EditCourseCell)       // 编辑个人课表的单个格子
+
+				// 管理员-用户绑定次数维护
+				adminCourseTable := courseTable.Group("")
+				adminCourseTable.Use(middleware.AdminMiddleware())
+				{
+					adminCourseTable.POST("/reset/:id", courseTableHandler.ResetUserBindCountToOne)
+				}
 			}
 
 			// 挂科率（需认证）

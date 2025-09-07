@@ -191,22 +191,103 @@ func (s *CourseTableService) SearchClasses(keyword string, page, size int) (*res
 	}, nil
 }
 
-// UpdateUserClass 更新用户班级
+// UpdateUserClass 更新用户班级（普通用户2次绑定限制）
 func (s *CourseTableService) UpdateUserClass(userID uint, classID string) (err error) {
-	// 检查班级是否存在
-	var count int64
-	if err := s.db.Model(&models.CourseTable{}).Where("class_id = ?", classID).Count(&count).Error; err != nil {
-		return fmt.Errorf("查询班级信息失败: %v", err)
-	}
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		// 获取用户信息
+		var user models.User
+		if e := tx.Where("id = ?", userID).First(&user).Error; e != nil {
+			if e == gorm.ErrRecordNotFound {
+				return fmt.Errorf("用户不存在")
+			}
+			return fmt.Errorf("查询用户信息失败: %v", e)
+		}
 
-	if count == 0 {
-		return fmt.Errorf("指定的班级不存在")
-	}
+		// 查询绑定记录（仅用于读取 bind_count，未找到视为0）
+		var br models.BindRecord
+		var hasRecord bool
+		if e := tx.Where("user_id = ?", userID).First(&br).Error; e != nil {
+			if e == gorm.ErrRecordNotFound {
+				hasRecord = false
+			} else {
+				return fmt.Errorf("查询绑定记录失败: %v", e)
+			}
+		} else {
+			hasRecord = true
+		}
 
-	// 更新用户的班级ID
-	if err := s.db.Model(&models.User{}).Where("id = ?", userID).Update("class_id", classID).Error; err != nil {
-		return fmt.Errorf("更新用户班级失败: %v", err)
-	}
+		// 普通用户限制2次绑定（基于 bind_count）
+		if user.Role == models.UserRoleNormal {
+			bindCount := 0
+			if hasRecord {
+				bindCount = br.BindCount
+			}
+			if bindCount >= 2 {
+				return fmt.Errorf("仅可绑定2次")
+			}
+		}
 
-	return nil
+		// 检查班级存在
+		var exists int64
+		if e := tx.Model(&models.CourseTable{}).Where("class_id = ?", classID).Count(&exists).Error; e != nil {
+			return fmt.Errorf("查询班级信息失败: %v", e)
+		}
+		if exists == 0 {
+			return fmt.Errorf("指定的班级不存在")
+		}
+
+		// 如果班级未变化，不增加绑定次数
+		if user.ClassID == classID {
+			return nil
+		}
+
+		// 更新用户班级
+		if e := tx.Model(&models.User{}).Where("id = ?", userID).Update("class_id", classID).Error; e != nil {
+			return fmt.Errorf("更新用户班级失败: %v", e)
+		}
+
+		// 成功绑定：创建或更新绑定记录（仅变更 bind_count）
+		if hasRecord {
+			if e := tx.Model(&models.BindRecord{}).
+				Where("user_id = ?", userID).
+				Updates(map[string]any{
+					"bind_count": gorm.Expr("bind_count + 1"),
+				}).Error; e != nil {
+				return fmt.Errorf("更新绑定次数失败: %v", e)
+			}
+		} else {
+			newRecord := models.BindRecord{
+				UserID:    userID,
+				BindCount: 1,
+			}
+			if e := tx.Create(&newRecord).Error; e != nil {
+				return fmt.Errorf("创建绑定记录失败: %v", e)
+			}
+		}
+
+		return nil
+	})
+}
+
+// ResetUserBindCountToOne 将指定用户的绑定次数置为1（管理员操作）
+func (s *CourseTableService) ResetUserBindCountToOne(targetUserID uint) error {
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		var br models.BindRecord
+		if err := tx.Where("user_id = ?", targetUserID).First(&br).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				newRecord := models.BindRecord{UserID: targetUserID, BindCount: 1}
+				if e := tx.Create(&newRecord).Error; e != nil {
+					return fmt.Errorf("创建绑定记录失败: %v", e)
+				}
+				return nil
+			}
+			return fmt.Errorf("查询绑定记录失败: %v", err)
+		}
+		if err := tx.Model(&models.BindRecord{}).
+			Where("user_id = ?", targetUserID).
+			Update("bind_count", 1).Error; err != nil {
+			return fmt.Errorf("更新绑定次数失败: %v", err)
+		}
+		return nil
+	})
 }

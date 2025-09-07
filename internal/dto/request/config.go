@@ -17,7 +17,7 @@ type UpdateConfigRequest struct {
 
 // SearchConfigRequest 搜索配置项请求
 type SearchConfigRequest struct {
-	Query string `form:"q" json:"q"`                  // 搜索关键词
+	Query string `form:"query" json:"query"`          // 搜索关键词
 	Page  int    `form:"page,default=1" json:"page"`  // 页码
 	Size  int    `form:"size,default=10" json:"size"` // 每页数量
 }

@@ -171,3 +171,29 @@ func (h *CourseTableHandler) EditCourseCell(c *gin.Context) {
 	}
 	helper.SuccessResponse(c, "编辑成功")
 }
+
+// ResetUserBindCountToOne 管理员重置用户绑定次数为1
+// @Summary 管理员重置用户绑定次数为1
+// @Description 仅管理员可用，将指定用户的绑定次数置为1
+// @Tags 课程表-管理员
+// @Accept json
+// @Produce json
+// @Param id path int true "用户ID"
+// @Success 200 {object} helper.Response
+// @Failure 400 {object} helper.Response
+// @Failure 401 {object} helper.Response
+// @Router /api/v0/admin/users/{id}/bind-count/reset [post]
+func (h *CourseTableHandler) ResetUserBindCountToOne(c *gin.Context) {
+	idStr := c.Param("id")
+	uid, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil || uid == 0 {
+		helper.ValidateResponse(c, "参数校验失败")
+		return
+	}
+
+	if err := h.courseTableService.ResetUserBindCountToOne(uint(uid)); err != nil {
+		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	helper.SuccessResponse(c, "重置成功")
+}
