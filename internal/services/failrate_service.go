@@ -41,7 +41,7 @@ func (s *FailRateService) Search(keyword string, page, size int) ([]models.FailR
 	return list, total, nil
 }
 
-// Rand 获取随机 N 条（无筛选）- 高性能版本，避免使用ORDER BY RAND()
+// Rand 获取随机 N 条（无筛选）- 全表均匀抽样，避免使用 ORDER BY RAND()
 func (s *FailRateService) Rand(limit int) ([]models.FailRate, error) {
 	if limit <= 0 {
 		limit = 10
@@ -62,22 +62,25 @@ func (s *FailRateService) Rand(limit int) ([]models.FailRate, error) {
 		return list, nil
 	}
 
-	// 2. 生成随机偏移量，确保有足够的记录可以获取
-	maxOffset := int(total) - limit
-	if maxOffset < 0 {
-		maxOffset = 0
+	// 2. 生成不重复的随机偏移集合，从全表均匀抽样 N 条
+	uniqueOffsets := make(map[int]struct{}, limit)
+	maxIndex := int(total) - 1
+	for len(uniqueOffsets) < limit {
+		idx := rand.Intn(maxIndex + 1)
+		uniqueOffsets[idx] = struct{}{}
 	}
 
-	// Go 1.20+ 全局随机数生成器已自动初始化，无需手动设置种子
-	randomOffset := rand.Intn(maxOffset + 1)
-
-	// 3. 使用随机偏移量获取记录
-	var list []models.FailRate
-	if err := s.db.Model(&models.FailRate{}).
-		Offset(randomOffset).
-		Limit(limit).
-		Find(&list).Error; err != nil {
-		return nil, err
+	list := make([]models.FailRate, 0, limit)
+	for offset := range uniqueOffsets {
+		var item models.FailRate
+		if err := s.db.Model(&models.FailRate{}).
+			Order("id").
+			Offset(offset).
+			Limit(1).
+			Find(&item).Error; err != nil {
+			return nil, err
+		}
+		list = append(list, item)
 	}
 
 	return list, nil
