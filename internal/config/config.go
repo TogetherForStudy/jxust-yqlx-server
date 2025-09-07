@@ -15,6 +15,9 @@ type Config struct {
 	ServerPort      string `yaml:"server_port" env:"SERVER_PORT" envDefault:"8085"`
 	WechatAppID     string `yaml:"wechat_app_id" env:"WECHAT_APP_ID"`
 	WechatAppSecret string `yaml:"wechat_app_secret" env:"WECHAT_APP_SECRET" envDefault:""`
+	// Upyun/CDN Token 防盗链配置
+	UpyunTokenSecret string `yaml:"upyun_token_secret" env:"UPYUN_TOKEN_SECRET" envDefault:""`
+	CdnBaseURL       string `yaml:"cdn_base_url" env:"CDN_BASE_URL" envDefault:""`
 }
 
 // GlobalConfig is a singleton instance of Config that can be accessed globally.
