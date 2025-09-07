@@ -9,15 +9,12 @@ import (
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/minio"
 
 	"github.com/bytedance/sonic"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-)
-
-const (
-	defaultExpired = 30 * time.Minute
 )
 
 type S3Service struct {
@@ -37,6 +34,7 @@ type S3ServiceInterface interface {
 	ShareObject(ctx context.Context, resourceID string, expires *time.Duration, download bool) (string, error)
 	ListObjects(ctx context.Context) ([]models.S3Data, error)
 	ListExpiredObjects(ctx context.Context) ([]models.S3Resource, error)
+	GetObject(ctx context.Context, resourceID string) (io.ReadCloser, *models.S3Data, error)
 }
 
 func NewS3Service(db *gorm.DB, cfg *config.Config) S3ServiceInterface {
@@ -133,7 +131,7 @@ func (s *S3Service) ShareObject(ctx context.Context, resourceID string, expires 
 	}
 
 	if expires == nil || *expires == 0 {
-		expiredAt := defaultExpired
+		expiredAt := constant.DefaultExpired
 		expires = &expiredAt
 	}
 
@@ -181,4 +179,18 @@ func (s *S3Service) ListExpiredObjects(ctx context.Context) ([]models.S3Resource
 		return nil, err
 	}
 	return s3Resources, nil
+}
+
+// GetObject retrieves an object from S3 based on the resource ID.
+func (s *S3Service) GetObject(ctx context.Context, resourceID string) (io.ReadCloser, *models.S3Data, error) {
+	var s3Data models.S3Data
+	if err := s.db.WithContext(ctx).Where("resource_id = ?", resourceID).First(&s3Data).Error; err != nil {
+		return nil, nil, err
+	}
+
+	obj, err := s.S3.GetObject(ctx, s3Data.Bucket, s3Data.ObjectKey)
+	if err != nil {
+		return nil, nil, err
+	}
+	return obj, &s3Data, nil
 }
