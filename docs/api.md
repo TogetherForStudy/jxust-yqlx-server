@@ -130,6 +130,15 @@ Content-Type: multipart/form-data
 # tags: {"key": "value"}
 ```
 
+**Example using curl:**
+```bash
+curl -X POST \
+  http://localhost:8080/api/v0/store \
+  -H "Authorization: Bearer <YOUR_JWT_TOKEN>" \
+  -F "file=@/path/to/your/file.jpg" \
+  -F 'tags={"source":"test-script"}'
+```
+
 #### 删除文件
 ```http
 DELETE /api/v0/store/{resource_id}
