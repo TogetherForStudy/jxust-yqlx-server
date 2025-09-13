@@ -174,7 +174,7 @@ go run main.go
 4. 推送到分支
 5. 创建Pull Request
 
-    a. 管理员会随时审核您的代码,除非你的PR设置为`draft`状态或标题内包含`WIP`/`Work In Progress`/🚧字样。
+    a. 管理员会随时审核您的代码,除非你的PR设置为`draft`状态或标题内包含`WIP`/`Work In Progress`/🚧字样，当然，你也可以手动at管理员/召唤gemini来review你的代码
 
 ## 许可证
 
