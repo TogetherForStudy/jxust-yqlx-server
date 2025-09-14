@@ -17,6 +17,11 @@ type Config struct {
 	WechatAppID     string `yaml:"wechat_app_id" env:"WECHAT_APP_ID"`
 	WechatAppSecret string `yaml:"wechat_app_secret" env:"WECHAT_APP_SECRET" envDefault:""`
 
+	// Upyun/CDN Token 防盗链配置
+	UpyunTokenSecret string `yaml:"upyun_token_secret" env:"UPYUN_TOKEN_SECRET" envDefault:""`
+	CdnBaseURL       string `yaml:"cdn_base_url" env:"CDN_BASE_URL" envDefault:""`
+
+	// For minio signature and correct reverse proxy configuration
 	Host   string `yaml:"host" env:"HOST" envDefault:"localhost:8085"`
 	Scheme string `yaml:"scheme" env:"SCHEME" envDefault:"http"`
 }

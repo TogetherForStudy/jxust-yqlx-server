@@ -84,3 +84,58 @@ type CourseTable struct {
 	UpdatedAt  time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
 	Semester   string         `json:"semester" gorm:"type:varchar(50);not null;comment:学期;index:idx_semester"`
 }
+
+// 用户个性化课程表模型
+type ScheduleUser struct {
+	ID        uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:记录ID"`
+	UserID    uint           `json:"user_id" gorm:"not null;comment:用户ID"`
+	ClassID   string         `json:"class_id" gorm:"type:varchar(50);not null;comment:班级ID"`
+	Semester  string         `json:"semester" gorm:"type:varchar(50);not null;comment:学期"`
+	Schedule  datatypes.JSON `json:"schedule" gorm:"type:json;not null;comment:个性化完整课程数据"`
+	CreatedAt time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
+	UpdatedAt time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
+	DeletedAt gorm.DeletedAt `json:"-" gorm:"comment:软删除时间"`
+}
+
+// FailRate 挂科率模型
+type FailRate struct {
+	ID         uint      `json:"id" gorm:"type:int unsigned;primaryKey;comment:记录ID"`
+	CourseName string    `json:"course_name" gorm:"type:varchar(150);not null;index:idx_failrate_course_name;comment:课程名称"`
+	Department string    `json:"department" gorm:"type:varchar(150);not null;index:idx_failrate_unit;comment:开课单位"`
+	Semester   string    `json:"semester" gorm:"type:varchar(20);not null;index:idx_failrate_semester;comment:学期(如2024-2025-1)"`
+	FailRate   float64   `json:"failrate" gorm:"type:decimal(4,1);not null;default:0.0;comment:挂科率百分比(0-100.0)"`
+	CreatedAt  time.Time `json:"created_at" gorm:"type:datetime;comment:创建时间"`
+	UpdatedAt  time.Time `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
+}
+
+// Hero 英雄模型
+type Hero struct {
+	ID        uint      `json:"id" gorm:"type:int unsigned;primaryKey;comment:英雄ID"`
+	Name      string    `json:"name" gorm:"type:varchar(100);uniqueIndex;not null;comment:英雄名称"`
+	Sort      int       `json:"sort" gorm:"type:int;default:0;not null;comment:排序值"`
+	IsShow    bool      `json:"is_show" gorm:"type:tinyint(1);not null;default:1;comment:是否展示"`
+	CreatedAt time.Time `json:"created_at" gorm:"type:datetime;comment:创建时间"`
+	UpdatedAt time.Time `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
+}
+
+// SystemConfig 配置项模型（键值对）
+type SystemConfig struct {
+	ID          uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:配置ID"`
+	Key         string         `json:"key" gorm:"type:varchar(191);uniqueIndex:idx_config_key;not null;comment:配置键(唯一)"`
+	Value       string         `json:"value" gorm:"type:text;not null;comment:配置值(字符串/JSON/数字/布尔以字符串形式存储)"`
+	ValueType   string         `json:"value_type" gorm:"type:varchar(20);not null;default:'string';comment:值类型: string|number|boolean|json"`
+	Description string         `json:"description" gorm:"type:varchar(500);comment:描述"`
+	CreatedAt   time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
+	UpdatedAt   time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
+	DeletedAt   gorm.DeletedAt `json:"-" gorm:"comment:软删除时间"`
+}
+
+// BindRecord 绑定记录表：记录用户访问绑定接口次数与成功绑定次数
+type BindRecord struct {
+	ID        uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:记录ID"`
+	UserID    uint           `json:"user_id" gorm:"not null;uniqueIndex:idx_bind_user_id;comment:用户ID"`
+	BindCount int            `json:"bind_count" gorm:"type:int;not null;default:0;comment:成功绑定次数"`
+	CreatedAt time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
+	UpdatedAt time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
+	DeletedAt gorm.DeletedAt `json:"-" gorm:"comment:软删除时间"`
+}
