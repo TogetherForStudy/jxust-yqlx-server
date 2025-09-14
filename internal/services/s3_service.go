@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
@@ -150,9 +149,9 @@ func (s *S3Service) ShareObject(ctx context.Context, openid, resourceID string, 
 
 	// Replace the host and scheme with the public-facing ones without parsing and rebuilding the URL.
 	// This avoids any potential re-encoding issues that would invalidate the signature.
-	publicURL := strings.Replace(presignedURL.String(),
-		fmt.Sprintf("%s://%s", presignedURL.Scheme, presignedURL.Host),
-		fmt.Sprintf("%s://%s", s.scheme, s.host), 1)
+	presignedURL.Scheme = s.scheme
+	presignedURL.Host = s.host
+	publicURL := presignedURL.String()
 
 	expiredAt := time.Now().Add(*expires)
 	s3Resource := &models.S3Resource{
