@@ -2,6 +2,7 @@ package router
 
 import (
 	"fmt"
+	"net/http"
 	"net/http/httputil"
 	"net/url"
 
@@ -104,9 +105,10 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				adminStore := store.Group("")
 				adminStore.Use(middleware.AdminMiddleware())
 				{
-					adminStore.POST("/", storeHandler.UploadFile)
+					adminStore.POST("", storeHandler.UploadFile)
 					adminStore.DELETE("/:resource_id", storeHandler.DeleteFile)
-					adminStore.GET("/", storeHandler.ListFiles)
+					adminStore.GET("/list", storeHandler.ListFiles)
+					adminStore.GET("", storeHandler.ListFiles)
 					adminStore.GET("/expired", storeHandler.ListExpiredFiles)
 				}
 			}
@@ -129,6 +131,14 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			panic(err)
 		}
 		proxy := httputil.NewSingleHostReverseProxy(remote)
+		// MinIO会根据Host头来验证签名。
+		// 为了确保签名验证通过，需要重写请求的Host头，使其与MinIO原始的主机名匹配。
+		originalDirector := proxy.Director
+		proxy.Director = func(req *http.Request) {
+			originalDirector(req)
+			req.Host = remote.Host
+		}
+
 		minioProxy.Any("/*proxyPath", func(c *gin.Context) {
 			proxy.ServeHTTP(c.Writer, c.Request)
 		})

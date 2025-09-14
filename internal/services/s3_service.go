@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
@@ -14,6 +15,7 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/minio"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
+	"github.com/gin-gonic/gin"
 
 	"github.com/bytedance/sonic"
 	"github.com/google/uuid"
@@ -147,19 +149,38 @@ func (s *S3Service) ShareObject(ctx context.Context, resourceID string, expires 
 	if err != nil {
 		return "", err
 	}
-	presignedURL.Host = s.host
-	presignedURL.Scheme = s.scheme
+	logger.Debugf("Presigned URL generated: %s, RequestID: %s", presignedURL.String(), utils.GetRequestID(ctx))
 
-	userId, ok := ctx.Value("open_id").(string) // wechat user openid
+	// Replace the host and scheme with the public-facing ones without parsing and rebuilding the URL.
+	// This avoids any potential re-encoding issues that would invalidate the signature.
+	publicURL := strings.Replace(presignedURL.String(),
+		fmt.Sprintf("%s://%s", presignedURL.Scheme, presignedURL.Host),
+		fmt.Sprintf("%s://%s", s.scheme, s.host), 1)
+
+	var userId any
+	var ok bool
+	var c *gin.Context
+	if c, ok = ctx.(*gin.Context); ok {
+		userId, ok = c.Get("open_id")
+		logger.Debugf("Got open_id from gin context: %v, RequestID: %s", userId, utils.GetRequestID(ctx))
+	} else {
+		userId, ok = ctx.Value("open_id").(string)
+		logger.Debugf("Got open_id from context: %v, RequestID: %s", userId, utils.GetRequestID(ctx))
+	}
 	if !ok {
 		logger.Errorf("open_id not found in context or is not a string, RequestID: %s", utils.GetRequestID(ctx))
 		return "", errors.New("open_id not found in context")
 	}
+	userIdStr, ok := userId.(string)
+	if !ok {
+		logger.Errorf("open_id is not a string, RequestID: %s", utils.GetRequestID(ctx))
+		return "", errors.New("open_id is not a string")
+	}
 	expiredAt := time.Now().Add(*expires)
 	s3Resource := &models.S3Resource{
 		ResourceID: resourceID,
-		URL:        presignedURL.String(),
-		UserID:     userId,
+		URL:        publicURL,
+		UserID:     userIdStr,
 		ExpiredAt:  gorm.DeletedAt{Time: expiredAt, Valid: true},
 	}
 
@@ -167,7 +188,7 @@ func (s *S3Service) ShareObject(ctx context.Context, resourceID string, expires 
 		return "", err
 	}
 
-	return presignedURL.String(), nil
+	return publicURL, nil
 }
 
 // ListObjects lists all objects in the S3Data table.

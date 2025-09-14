@@ -27,17 +27,18 @@ func NewStoreHandler(s3Service services.S3ServiceInterface) *StoreHandler {
 }
 
 // UploadFile 上传文件
-// @Summary 上传文件                                                                                             │
-// @Description 管理员上传文件                                                                                   │
-// @Tags 管理员                                                                                                  │
-// @Accept multipart/form-data                                                                                   │
-// @Produce json                                                                                                 │
-// @Security ApiKeyAuth                                                                                          │
-// @Param file formData file true "文件"                                                                         │
-// @Param tags formData string false "标签 (json 格式)"                                                          │
-// @Success 200 {object} response.UploadFileResponse                                                             │
-// @Failure 400 {object} utils.Response                                                                          │
-// @Failure 500 {object} utils.Response                                                                          │
+// @Summary 上传文件
+// @Description 管理员上传文件
+// @Tags 管理员
+// @Accept multipart/form-data
+// @Produce json
+// @Security ApiKeyAuth
+// @Param file formData file true "文件"
+// @Param tags formData string false "标签 (json 格式)"
+// @param mimeType formData string false "MIME类型"
+// @Success 200 {object} response.UploadFileResponse
+// @Failure 400 {object} utils.Response
+// @Failure 500 {object} utils.Response
 // @Router /api/v0/store [post]
 func (h *StoreHandler) UploadFile(c *gin.Context) {
 	file, err := c.FormFile("file")
@@ -64,8 +65,12 @@ func (h *StoreHandler) UploadFile(c *gin.Context) {
 			return
 		}
 	}
+	mimeType := c.PostForm("mimeType")
+	if mimeType == "" {
+		mimeType = file.Header.Get("Content-Type")
+	}
 
-	resourceID, err := h.s3Service.AddObject(c.Request.Context(), src, file.Filename, file.Header.Get("Content-Type"), true, nil, tags)
+	resourceID, err := h.s3Service.AddObject(c.Request.Context(), src, file.Filename, mimeType, true, nil, tags)
 	if err != nil {
 		logger.Errorf("file upload error at minio add object: %+v, RequestID: %s", err, helper.GetRequestID(c))
 		helper.ErrorResponse(c, http.StatusInternalServerError, "failed to store file")
@@ -75,16 +80,16 @@ func (h *StoreHandler) UploadFile(c *gin.Context) {
 	helper.SuccessResponse(c, response.UploadFileResponse{ResourceID: resourceID})
 }
 
-// DeleteFile 删除文件                                                                                           │
-// @Summary 删除文件                                                                                             │
-// @Description 管理员删除文件                                                                                   │
-// @Tags 管理员                                                                                                  │
-// @Accept json                                                                                                  │
-// @Produce json                                                                                                 │
-// @Security ApiKeyAuth                                                                                          │
-// @Param resource_id path string true "资源ID"                                                                  │
-// @Success 200 {object} utils.Response                                                                          │
-// @Failure 500 {object} utils.Response                                                                          │
+// DeleteFile 删除文件
+// @Summary 删除文件
+// @Description 管理员删除文件
+// @Tags 管理员
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param resource_id path string true "资源ID"
+// @Success 200 {object} utils.Response
+// @Failure 500 {object} utils.Response
 // @Router /api/v0/store/{resource_id} [delete]
 func (h *StoreHandler) DeleteFile(c *gin.Context) {
 	resourceID := c.Param("resource_id")
@@ -96,15 +101,15 @@ func (h *StoreHandler) DeleteFile(c *gin.Context) {
 	helper.SuccessResponse(c, gin.H{"message": "file deleted successfully"})
 }
 
-// ListFiles 获取文件列表                                                                                        │
-// @Summary 获取文件列表                                                                                         │
-// @Description 管理员获取文件列表                                                                               │
-// @Tags 管理员                                                                                                  │
-// @Accept json                                                                                                  │
-// @Produce json                                                                                                 │
-// @Security ApiKeyAuth                                                                                          │
-// @Success 200 {object} response.ListFilesResponse                                                              │
-// @Failure 500 {object} utils.Response                                                                          │
+// ListFiles 获取文件列表
+// @Summary 获取文件列表
+// @Description 管理员获取文件列表
+// @Tags 管理员
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Success 200 {object} response.ListFilesResponse
+// @Failure 500 {object} utils.Response
 // @Router /api/v0/store [get]
 func (h *StoreHandler) ListFiles(c *gin.Context) {
 	files, err := h.s3Service.ListObjects(c.Request.Context())
@@ -116,15 +121,15 @@ func (h *StoreHandler) ListFiles(c *gin.Context) {
 	helper.SuccessResponse(c, files)
 }
 
-// ListExpiredFiles 获取过期文件列表                                                                             │
-// @Summary 获取过期文件列表                                                                                     │
-// @Description 管理员获取过期文件列表                                                                           │
-// @Tags 管理员                                                                                                  │
-// @Accept json                                                                                                  │
-// @Produce json                                                                                                 │
-// @Security ApiKeyAuth                                                                                          │
-// @Success 200 {object} response.ListFilesResponse                                                              │
-// @Failure 500 {object} utils.Response                                                                          │
+// ListExpiredFiles 获取过期文件列表
+// @Summary 获取过期文件列表
+// @Description 管理员获取过期文件列表
+// @Tags 管理员
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Success 200 {object} response.ListFilesResponse
+// @Failure 500 {object} utils.Response
 // @Router /api/v0/store/expired [get]
 func (h *StoreHandler) ListExpiredFiles(c *gin.Context) {
 	files, err := h.s3Service.ListExpiredObjects(c.Request.Context())
@@ -163,7 +168,7 @@ func (h *StoreHandler) GetFileURL(c *gin.Context) {
 		expires = constant.DefaultExpired
 	}
 
-	url, err := h.s3Service.ShareObject(c.Request.Context(), resourceID, &expires, req.Download)
+	url, err := h.s3Service.ShareObject(c, resourceID, &expires, req.Download)
 	if err != nil {
 		logger.Errorf("get file url error at minio share object: %+v, RequestID: %s", err, helper.GetRequestID(c))
 		helper.ErrorResponse(c, http.StatusInternalServerError, "failed to get file url")

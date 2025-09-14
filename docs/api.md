@@ -147,7 +147,7 @@ Authorization: Bearer <JWT_TOKEN>
 
 #### 获取文件列表
 ```http
-GET /api/v0/store?page=1&size=10
+GET /api/v0/store/list?page=1&size=10
 Authorization: Bearer <JWT_TOKEN>
 ```
 
