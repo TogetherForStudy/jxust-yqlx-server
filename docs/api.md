@@ -133,7 +133,7 @@ Content-Type: multipart/form-data
 **Example using curl:**
 ```bash
 curl -X POST \
-  http://localhost:8080/api/v0/store \
+  http://localhost:8085/api/v0/store \
   -H "Authorization: Bearer <YOUR_JWT_TOKEN>" \
   -F "file=@/path/to/your/file.jpg" \
   -F 'tags={"source":"test-script"}'
