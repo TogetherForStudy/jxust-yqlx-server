@@ -108,7 +108,6 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 					adminStore.POST("", storeHandler.UploadFile)
 					adminStore.DELETE("/:resource_id", storeHandler.DeleteFile)
 					adminStore.GET("/list", storeHandler.ListFiles)
-					adminStore.GET("", storeHandler.ListFiles)
 					adminStore.GET("/expired", storeHandler.ListExpiredFiles)
 				}
 			}
