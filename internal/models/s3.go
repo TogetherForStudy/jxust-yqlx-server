@@ -9,7 +9,7 @@ import (
 type S3Data struct {
 	gorm.Model
 
-	ResourceID string  `gorm:"column:resource_id;type:varchar(64);not null;uniqueIndex:uidx_resource_id" json:"resource_id"` // 商业资源ID// 商业资源ID
+ResourceID string  `gorm:"column:resource_id;type:varchar(64);not null;uniqueIndex:uidx_resource_id" json:"resource_id"` // 商业资源ID
 	Bucket     string  `gorm:"column:bucket;type:varchar(256);not null" json:"bucket"`
 	ObjectKey  string  `gorm:"column:object_key;type:varchar(512);not null" json:"object_key"`
 	FileName   string  `gorm:"column:file_name;type:varchar(256);not null" json:"file_name"`
