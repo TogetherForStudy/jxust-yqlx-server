@@ -8,7 +8,7 @@
 
 #### 微信小程序登录
 ```http
-POST /api/auth/wechat-login
+POST /api/v0/auth/wechat-login
 Content-Type: application/json
 
 {
@@ -18,13 +18,13 @@ Content-Type: application/json
 
 #### 获取用户资料
 ```http
-GET /api/user/profile
+GET /api/v0/user/profile
 Authorization: Bearer <JWT_TOKEN>
 ```
 
 #### 更新用户资料
 ```http
-PUT /api/user/profile
+PUT /api/v0/user/profile
 Authorization: Bearer <JWT_TOKEN>
 Content-Type: application/json
 
@@ -44,14 +44,14 @@ Content-Type: application/json
 
 #### 搜索教师
 ```http
-GET /api/teachers/search?keyword=教师姓名
+GET /api/v0/teachers/search?keyword=教师姓名
 ```
 
 ### 评价相关
 
 #### 创建教师评价
 ```http
-POST /api/reviews
+POST /api/v0/reviews
 Authorization: Bearer <JWT_TOKEN>
 Content-Type: application/json
 
@@ -66,12 +66,26 @@ Content-Type: application/json
 
 #### 查询教师评价
 ```http
-GET /api/reviews/teacher?teacher_name=教师姓名&page=1&size=10
+GET /api/v0/reviews/teacher?teacher_name=教师姓名&page=1&size=10
 ```
 
 #### 获取用户评价记录
 ```http
-GET /api/reviews/user?page=1&size=10
+GET /api/v0/reviews/user?page=1&size=10
+Authorization: Bearer <JWT_TOKEN>
+```
+
+### 存储相关
+
+#### 获取文件URL
+```http
+GET /api/v0/store/{resource_id}/url
+Authorization: Bearer <JWT_TOKEN>
+```
+
+#### 获取文件流
+```http
+GET /api/v0/store/{resource_id}/stream
 Authorization: Bearer <JWT_TOKEN>
 ```
 
@@ -79,13 +93,13 @@ Authorization: Bearer <JWT_TOKEN>
 
 #### 获取评价列表
 ```http
-GET /api/admin/reviews?page=1&size=10&status=1
+GET /api/v0/admin/reviews?page=1&size=10&status=1
 Authorization: Bearer <JWT_TOKEN>
 ```
 
 #### 审核通过评价
 ```http
-POST /api/admin/reviews/{id}/approve
+POST /api/v0/admin/reviews/{id}/approve
 Authorization: Bearer <JWT_TOKEN>
 Content-Type: application/json
 
@@ -96,11 +110,49 @@ Content-Type: application/json
 
 #### 审核拒绝评价
 ```http
-POST /api/admin/reviews/{id}/reject
+POST /api/v0/admin/reviews/{id}/reject
 Authorization: Bearer <JWT_TOKEN>
 Content-Type: application/json
 
 {
   "admin_note": "拒绝理由"
 }
+```
+
+#### 上传文件
+```http
+POST /api/v0/store
+Authorization: Bearer <JWT_TOKEN>
+Content-Type: multipart/form-data
+
+# Body is form-data
+# file: (binary)
+# tags: {"key": "value"}
+```
+
+**Example using curl:**
+```bash
+curl -X POST \
+  http://localhost:8085/api/v0/store \
+  -H "Authorization: Bearer <YOUR_JWT_TOKEN>" \
+  -F "file=@/path/to/your/file.jpg" \
+  -F 'tags={"source":"test-script"}'
+```
+
+#### 删除文件
+```http
+DELETE /api/v0/store/{resource_id}
+Authorization: Bearer <JWT_TOKEN>
+```
+
+#### 获取文件列表
+```http
+GET /api/v0/store/list?page=1&size=10
+Authorization: Bearer <JWT_TOKEN>
+```
+
+#### 获取过期文件列表
+```http
+GET /api/v0/store/expired?page=1&size=10
+Authorization: Bearer <JWT_TOKEN>
 ```

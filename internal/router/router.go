@@ -1,6 +1,11 @@
 package router
 
 import (
+	"fmt"
+	"net/http"
+	"net/http/httputil"
+	"net/url"
+
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/middleware"
@@ -22,11 +27,13 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	authService := services.NewAuthService(db, cfg)
 	reviewService := services.NewReviewService(db)
 	courseTableService := services.NewCourseTableService(db)
+	s3Service := services.NewS3Service(db, cfg)
 
 	// 初始化处理器
 	authHandler := handlers.NewAuthHandler(authService)
 	reviewHandler := handlers.NewReviewHandler(reviewService)
 	courseTableHandler := handlers.NewCourseTableHandler(courseTableService)
+	storeHandler := handlers.NewStoreHandler(s3Service)
 
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
@@ -89,8 +96,51 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				courseTable.PUT("/class", courseTableHandler.UpdateUserClass) // 更新用户班级
 			}
 
+			// 存储相关路由
+			store := authorized.Group("/store")
+			{
+				store.GET("/:resource_id/url", storeHandler.GetFileURL)
+				store.GET("/:resource_id/stream", storeHandler.GetFileStream)
+
+				adminStore := store.Group("")
+				adminStore.Use(middleware.AdminMiddleware())
+				{
+					adminStore.POST("", storeHandler.UploadFile)
+					adminStore.DELETE("/:resource_id", storeHandler.DeleteFile)
+					adminStore.GET("/list", storeHandler.ListFiles)
+					adminStore.GET("/expired", storeHandler.ListExpiredFiles)
+				}
+			}
 		}
 	}
 
+	// Minio proxy:
+	minioProxy := r.Group(fmt.Sprintf("/%s", cfg.BucketName))
+	minioProxy.Use(middleware.RequestID())
+	// todo: 这里需要添加认证中间件，确保只有授权用户可以访问MinIO资源
+	//  然后做下资源区分，哪些是公开资源，哪些是私有资源
+	//  公开资源可以直接访问，私有资源需要做权限校验
+	{
+		scheme := "http"
+		if cfg.MinIO.MinIOUseSSL {
+			scheme = "https"
+		}
+		remote, err := url.Parse(fmt.Sprintf("%s://%s", scheme, cfg.MinIO.MinIOEndpoint))
+		if err != nil {
+			panic(err)
+		}
+		proxy := httputil.NewSingleHostReverseProxy(remote)
+		// MinIO会根据Host头来验证签名。
+		// 为了确保签名验证通过，需要重写请求的Host头，使其与MinIO原始的主机名匹配。
+		originalDirector := proxy.Director
+		proxy.Director = func(req *http.Request) {
+			originalDirector(req)
+			req.Host = remote.Host
+		}
+
+		minioProxy.Any("/*proxyPath", func(c *gin.Context) {
+			proxy.ServeHTTP(c.Writer, c.Request)
+		})
+	}
 	return r
 }

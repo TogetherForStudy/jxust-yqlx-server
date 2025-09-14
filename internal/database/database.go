@@ -51,5 +51,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.User{},
 		&models.TeacherReview{},
 		&models.CourseTable{},
+		&models.S3Resource{},
+		&models.S3Data{},
 	)
 }
