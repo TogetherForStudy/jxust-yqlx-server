@@ -167,8 +167,13 @@ func (h *StoreHandler) GetFileURL(c *gin.Context) {
 	if req.Expires == 0 {
 		expires = constant.DefaultExpired
 	}
+	openid := helper.GetOpenID(c)
+	if openid == "" {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "failed to get user info")
+		return
+	}
 
-	url, err := h.s3Service.ShareObject(c, resourceID, &expires, req.Download)
+	url, err := h.s3Service.ShareObject(c, openid, resourceID, &expires, req.Download)
 	if err != nil {
 		logger.Errorf("get file url error at minio share object: %+v, RequestID: %s", err, helper.GetRequestID(c))
 		helper.ErrorResponse(c, http.StatusInternalServerError, "failed to get file url")

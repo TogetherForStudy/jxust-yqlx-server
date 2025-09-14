@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -15,8 +14,6 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/minio"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
-	"github.com/gin-gonic/gin"
-
 	"github.com/bytedance/sonic"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -36,7 +33,7 @@ type S3ServiceInterface interface {
 		fileName string, mimeType string, isAdmin bool,
 		customPath *string, tags map[string]string) (string, error)
 	DeleteObject(ctx context.Context, resourceID string) error
-	ShareObject(ctx context.Context, resourceID string, expires *time.Duration, download bool) (string, error)
+	ShareObject(ctx context.Context, openid, resourceID string, expires *time.Duration, download bool) (string, error)
 	ListObjects(ctx context.Context) ([]models.S3Data, error)
 	ListExpiredObjects(ctx context.Context) ([]models.S3Resource, error)
 	GetObject(ctx context.Context, resourceID string) (io.ReadCloser, *models.S3Data, error)
@@ -129,7 +126,7 @@ func (s *S3Service) DeleteObject(ctx context.Context, resourceID string) error {
 }
 
 // ShareObject generates a presigned URL for an object.
-func (s *S3Service) ShareObject(ctx context.Context, resourceID string, expires *time.Duration, download bool) (string, error) {
+func (s *S3Service) ShareObject(ctx context.Context, openid, resourceID string, expires *time.Duration, download bool) (string, error) {
 	var s3Data models.S3Data
 	if err := s.db.WithContext(ctx).Where("resource_id = ?", resourceID).First(&s3Data).Error; err != nil {
 		return "", err
@@ -157,30 +154,11 @@ func (s *S3Service) ShareObject(ctx context.Context, resourceID string, expires 
 		fmt.Sprintf("%s://%s", presignedURL.Scheme, presignedURL.Host),
 		fmt.Sprintf("%s://%s", s.scheme, s.host), 1)
 
-	var userId any
-	var ok bool
-	var c *gin.Context
-	if c, ok = ctx.(*gin.Context); ok {
-		userId, ok = c.Get("open_id")
-		logger.Debugf("Got open_id from gin context: %v, RequestID: %s", userId, utils.GetRequestID(ctx))
-	} else {
-		userId, ok = ctx.Value("open_id").(string)
-		logger.Debugf("Got open_id from context: %v, RequestID: %s", userId, utils.GetRequestID(ctx))
-	}
-	if !ok {
-		logger.Errorf("open_id not found in context or is not a string, RequestID: %s", utils.GetRequestID(ctx))
-		return "", errors.New("open_id not found in context")
-	}
-	userIdStr, ok := userId.(string)
-	if !ok {
-		logger.Errorf("open_id is not a string, RequestID: %s", utils.GetRequestID(ctx))
-		return "", errors.New("open_id is not a string")
-	}
 	expiredAt := time.Now().Add(*expires)
 	s3Resource := &models.S3Resource{
 		ResourceID: resourceID,
 		URL:        publicURL,
-		UserID:     userIdStr,
+		UserID:     openid,
 		ExpiredAt:  gorm.DeletedAt{Time: expiredAt, Valid: true},
 	}
 
