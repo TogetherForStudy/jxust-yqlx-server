@@ -81,7 +81,7 @@ goJxust/
 
 ### 1. 环境准备
 
-- Go 1.23+
+- Go 1.24+
 - MySQL 8.0+
 - 微信小程序开发者账号
 
@@ -113,6 +113,19 @@ SERVER_PORT=8080
 # 微信小程序配置
 WECHAT_APP_ID=your_wechat_app_id
 WECHAT_APP_SECRET=your_wechat_app_secret
+
+# minio 对象存储
+MINIO_ENDPOINT=localhost:9000
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_USE_SSL=false
+BUCKET_NAME=yqlx
+
+# 主机配置（用于确保minio反向代理时签名匹配）
+HOST=localhost:8085
+SCHEME=http
+
+# Redis 配置：Redis暂未启用，可以先不配置
 ```
 
 ### 3. 安装依赖
