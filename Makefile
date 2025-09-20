@@ -17,6 +17,7 @@ endif
 help:
 	@echo "Available targets:"
 	@echo "  docker-build       Build Docker images"
+	@echo "  build-apiserver    Build the apiserver binary"
 	@echo "  test               Run unit tests"
 	@echo "  test-coverage      Run tests with coverage"
 	@echo "  clean              Clean build artifacts"
@@ -29,7 +30,11 @@ help:
 	@echo "   CGO_ENABLED=1 make build-apiserver"
 
 docker-build:
-	docker build -f cmd/apiserver/Dockerfile -t gojxust-app:nightly . \
+	docker build -f cmd/apiserver/Dockerfile -t gojxust-app:nightly .
+
+build-apiserver: # $(or $(CGO_ENABLED),0)
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -v -ldflags "-w -s" \
+	-o ./bin/apiserver ./cmd/apiserver
 
 test:
 	go test -v $(shell go list ./... | grep -v /integration)
