@@ -1,6 +1,6 @@
 # This is a basic workflow to help you get started with Actions
 
-name: Code-Quality
+name: CI
 
 # Controls when the workflow will run
 on:
@@ -27,6 +27,7 @@ on:
 jobs:
   # This workflow contains a single job called "build"
   golangci-lint:
+    name: Code-Quality / GolangCI-Lint
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request' || (!github.event.pull_request.draft && !contains(github.event.pull_request.title, 'WIP'))
@@ -48,6 +49,7 @@ jobs:
           args: --timeout=5m
           version: v2.4
   unit-test:
+    name: Code-Quality / Unit-Test
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request' || (!github.event.pull_request.draft && !contains(github.event.pull_request.title, 'WIP'))
     strategy:
@@ -68,3 +70,38 @@ jobs:
 
       - name: Build Test
         run: make docker-build
+
+  deploy-to-test-env:
+    name: Deploy to Test Environment
+    runs-on: ubuntu-latest
+    needs: [unit-test]
+    if: github.event_name != 'pull_request' || (!github.event.pull_request.draft && !contains(github.event.pull_request.title, 'WIP'))
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build Docker Image
+        run: |
+          set -e
+          go mod download # todo: add cache for optimization
+          make docker-build
+
+      - name: Tag Docker Image
+        run: |
+          IMAGE=ghcr.io/togetherforstudy/jxust-yqlx-server:backend_${{ github.event.number }}_$(openssl rand -hex 3)
+          docker tag gojxust-app:nightly $IMAGE
+          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+          echo "Docker Image: $IMAGE"
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: $IMAGE

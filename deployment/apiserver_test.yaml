@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: yqlx-apiserver-backend_45
+  namespace: yqlx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: yqlx-apiserver-backend_45
+  template:
+    metadata:
+      labels:
+        app: yqlx-apiserver-backend_45
+    spec:
+      containers:
+        - name: yqlx-apiserver-backend_45
+          image: ghcr.io/togetherforstudy/jxust-yqlx-server:backend_eventid_rand
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          env:
+            - name: SERVER_PORT
+              value: "8080"
+            - name: HOST
+              value: "backend-<event-id>.dev.wx.ntrun.com"
+            - name: SCHEME
+              value: https
+            - name: DB_HOST
+              value: "mysql.database.svc.cluster.local"
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_USERNAME
+              value: ""
+            - name: DB_PASSWORD
+              value: ""
+            - name: DB_NAME
+              value: ""
+            - name: MINIO_ENDPOINT
+              value: "10.100.12.191:9000"
+            - name: MINIO_ACCESS_KEY
+              value: ""
+            - name: MINIO_SECRET_KEY
+              value: ""
+            - name: BUCKET_NAME
+              value: ""
+            - name: MINIO_USE_SSL
+              value: "false"
+            - name: JWT_SECRET
+              value: ""
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: yqlx-apiserver-backend_45
+  namespace: yqlx
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      name: http
+      targetPort: 8080
+  selector:
+    app: yqlx-apiserver-backend_45
