@@ -152,6 +152,12 @@ func (s *AuthService) MockWechatLogin(testUser string) (*response.WechatLoginRes
 		nickname = "新用户"
 		avatar = "https://thirdwx.qlogo.cn/mmopen/vi_32/new_avatar.png"
 		role = models.UserRoleNormal
+	case "operator":
+		mockOpenID = "mock_operator_openid_123456"
+		mockUnionID = "mock_operator_unionid_123456"
+		nickname = "测试运营"
+		avatar = "https://thirdwx.qlogo.cn/mmopen/vi_32/operator_avatar.png"
+		role = models.UserRoleOperator
 	default:
 		return nil, fmt.Errorf("不支持的测试用户类型: %s", testUser)
 	}
