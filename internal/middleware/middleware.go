@@ -122,6 +122,24 @@ func AdminMiddleware() gin.HandlerFunc {
 	}
 }
 
+// OperatorMiddleware 运营权限中间件
+func OperatorMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, exists := c.Get("role")
+		if !exists {
+			helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户角色")
+			c.Abort()
+			return
+		}
+
+		if role.(uint8) != 3 && role.(uint8) != 2 { // UserRoleOperator = 3
+			helper.ErrorResponse(c, http.StatusForbidden, "需要运营权限")
+			c.Abort()
+			return
+		}
+	}
+}
+
 func RequestID() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		requestID := c.Request.Header.Get("X-Request-ID")
