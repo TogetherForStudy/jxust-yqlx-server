@@ -16,7 +16,7 @@ COPY . .
 
 # 构建应用
 WORKDIR /app/cmd/apiserver
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /apiserver .
+RUN CGO_ENABLED=0 GOOS=linux go build -v -a -installsuffix cgo -o /apiserver .
 
 # 运行阶段
 FROM alpine:latest
