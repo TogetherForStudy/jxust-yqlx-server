@@ -74,7 +74,7 @@ jobs:
   deploy-to-test-env:
     name: Deploy to Test Environment
     runs-on: ubuntu-latest
-    needs: [unit-test]
+    needs: [unit-test, golangci-lint]
     if: github.event_name != 'pull_request' || (!github.event.pull_request.draft && !contains(github.event.pull_request.title, 'WIP'))
     steps:
       - uses: actions/checkout@v5
@@ -105,3 +105,4 @@ jobs:
           context: .
           push: true
           tags: $IMAGE
+

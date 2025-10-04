@@ -2,5 +2,10 @@
 # 如果你需要执行端到端测试，请编辑该文件
 backend:
   branch: main # 在构建后端和测试时使用的分支 如果是当前分支，请使用 local
+  scheme: https
+  host: <backend-eventId-rand>.dev.wx.ntrun.com
+  image: ghcr.io/togetherforstudy/jxust-yqlx-server:backend_45_7cad65
+  service:
+    port: 8080 # 后端apiserver服务端口
 frontend:
   branch: main # 在构建前端时使用的分支 如果是当前分支，请使用 local
