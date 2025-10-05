@@ -114,7 +114,7 @@ jobs:
           
           echo "Setup SSH"
           mkdir -p ~/.ssh
-          echo "${{ secrets.YQLX_DEPLOY_SSH_KEY }}" > ~/.ssh/id_rsa
+          printf '%s\n' "${{ secrets.YQLX_DEPLOY_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H "${{ secrets.YQLX_DEPLOY_SERVER_IP }}" >> ~/.ssh/known_hosts
           
