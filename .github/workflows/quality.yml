@@ -99,12 +99,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: ${{ env.IMAGE }}
+      - name: Push Docker image
+        run: |
+          set -e
+          docker push ${{ env.IMAGE }}
 
       - name: Prepare and send deployment config
         run: |
