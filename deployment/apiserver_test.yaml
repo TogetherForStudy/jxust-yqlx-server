@@ -38,7 +38,7 @@ spec:
             - name: DB_NAME
               value: ""
             - name: MINIO_ENDPOINT
-              value: "10.100.12.191:9000"
+              value: ""
             - name: MINIO_ACCESS_KEY
               value: ""
             - name: MINIO_SECRET_KEY
