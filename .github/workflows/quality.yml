@@ -112,13 +112,13 @@ jobs:
           set -e
           BRANCH_NAME=${{ github.head_ref || github.ref_name }}
           
-          # Setup SSH
+          echo "Setup SSH"
           mkdir -p ~/.ssh
           echo "${{ secrets.YQLX_DEPLOY_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H "${{ secrets.YQLX_DEPLOY_SERVER_IP }}" >> ~/.ssh/known_hosts
           
-          # Modify config and pipe to remote script
+          echo "Modify config and pipe to remote script"
           sed -e "s|  image: .*|  image: ${{ env.IMAGE }}|" \
-              -e "/backend:/,/frontend:/s/  branch: main/  branch: $BRANCH_NAME/" \
-              ci-test-opt.yml.example | ssh root@${{ secrets.YQLX_DEPLOY_SERVER_IP }} 'python3 /opt/deploy/gateway.py test-deploy'
+              -e "/backend:/,/frontend:/s|  branch: main|  branch: $BRANCH_NAME|" \
+              ci-test-opt.yml.example | ssh -o IdentitiesOnly=yes -i ~/.ssh/id_rsa root@${{ secrets.YQLX_DEPLOY_SERVER_IP }} 'python3 /opt/deploy/gateway.py test-deploy'
