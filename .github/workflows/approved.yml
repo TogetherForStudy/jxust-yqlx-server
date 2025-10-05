@@ -5,7 +5,7 @@ on:
     types: [submitted]
 
 jobs:
-  remove-config:
+  cleanup-and-remove-config:
     if: github.event.review.state == 'approved'  # 仅在审查状态为 approved 时运行
     runs-on: ubuntu-latest
     permissions:
@@ -15,6 +15,21 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Cleanup Test Environment
+        run: |
+          set -e
+          # Setup SSH
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.YQLX_DEPLOY_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "${{ secrets.YQLX_DEPLOY_SERVER_IP }}" >> ~/.ssh/known_hosts
+
+          # Modify config and pipe to remote cleanup script
+          # The image tag needs the PR number for the cleanup script to identify the environment.
+          sed -e "s|  image: .*|  image: ghcr.io/togetherforstudy/jxust-yqlx-server:backend_${{ github.event.pull_request.number }}_cleanup|" \
+              -e "/backend:/,/frontend:/s|  branch: main|  branch: ${{ github.event.pull_request.head.ref }}|" \
+              ci-test-opt.yml.example | ssh -o IdentitiesOnly=yes -i ~/.ssh/id_rsa root@${{ secrets.YQLX_DEPLOY_SERVER_IP }} 'python3 /opt/deploy/gateway.py test-remove'
 
       - name: Remove ci-test-opt.yml
         run: |
