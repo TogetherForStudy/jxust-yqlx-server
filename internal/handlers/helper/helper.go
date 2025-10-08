@@ -16,7 +16,26 @@ func GetOpenID(c *gin.Context) string {
 	return ""
 }
 
-// GetUserId 获取用户ID（与 GetOpenID 相同，保持兼容性）
-func GetUserId(c *gin.Context) string {
-	return GetOpenID(c)
+// GetUserID 获取用户ID (uint类型)
+func GetUserID(c *gin.Context) uint {
+	userID, ok := c.Get("user_id")
+	if !ok {
+		return 0
+	}
+	if id, ok := userID.(uint); ok {
+		return id
+	}
+	return 0
+}
+
+// GetUserRole 获取用户角色
+func GetUserRole(c *gin.Context) uint8 {
+	role, ok := c.Get("role")
+	if !ok {
+		return 0
+	}
+	if roleVal, ok := role.(uint8); ok {
+		return roleVal
+	}
+	return 0
 }
