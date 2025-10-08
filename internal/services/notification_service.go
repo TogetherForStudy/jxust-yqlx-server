@@ -45,11 +45,11 @@ func (s *NotificationService) CreateNotification(userID uint, userRole models.Us
 		return nil, err
 	}
 
-	return s.GetNotificationByID(notification.ID)
+	return s.GetNotificationAdminByID(notification.ID)
 }
 
 // UpdateNotification 更新通知
-func (s *NotificationService) UpdateNotification(notificationID uint, userRole models.UserRole, req *request.UpdateNotificationRequest) (*response.NotificationResponse, error) {
+func (s *NotificationService) UpdateNotification(notificationID uint, userID uint, userRole models.UserRole, req *request.UpdateNotificationRequest) (*response.NotificationResponse, error) {
 	// 查找通知
 	var notification models.Notification
 	if err := s.db.First(&notification, notificationID).Error; err != nil {
@@ -63,6 +63,18 @@ func (s *NotificationService) UpdateNotification(notificationID uint, userRole m
 	if notification.Status == models.NotificationStatusDeleted {
 		return nil, errors.New("已删除的通知不能修改")
 	}
+
+	// 权限校验：管理员无限制，运营人员只能修改草稿状态且是自己创建的通知
+	if userRole == models.UserRoleOperator {
+		// 运营人员的限制
+		if notification.Status != models.NotificationStatusDraft {
+			return nil, errors.New("运营人员只能修改草稿状态的通知")
+		}
+		if notification.PublisherID != userID {
+			return nil, errors.New("运营人员只能修改自己创建的通知")
+		}
+	}
+	// 管理员（UserRoleAdmin）无限制，不需要额外检查
 
 	// 更新字段
 	updates := make(map[string]interface{})
@@ -87,7 +99,7 @@ func (s *NotificationService) UpdateNotification(notificationID uint, userRole m
 		}
 	}
 
-	return s.GetNotificationByID(notificationID)
+	return s.GetNotificationAdminByID(notificationID)
 }
 
 // PublishNotification 发布通知
@@ -111,6 +123,27 @@ func (s *NotificationService) PublishNotification(notificationID uint, userID ui
 	now := time.Now()
 	return s.db.Model(&notification).Updates(map[string]interface{}{
 		"status":       models.NotificationStatusPending,
+		"publisher_id": userID,
+		"published_at": &now,
+	}).Error
+}
+
+// PublishNotificationAdmin 管理员直接发布通知（跳过审核流程）
+func (s *NotificationService) PublishNotificationAdmin(notificationID uint, userID uint, userRole models.UserRole) error {
+
+	// 查找通知
+	var notification models.Notification
+	if err := s.db.First(&notification, notificationID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return errors.New("通知不存在")
+		}
+		return err
+	}
+
+	// 直接更新为已发布状态，跳过审核流程
+	now := time.Now()
+	return s.db.Model(&notification).Updates(map[string]interface{}{
+		"status":       models.NotificationStatusPublished,
 		"publisher_id": userID,
 		"published_at": &now,
 	}).Error
@@ -144,9 +177,9 @@ func (s *NotificationService) GetNotifications(req *request.GetNotificationsRequ
 		return nil, err
 	}
 
-	// 分页查询
+	// 分页查询，排序规则：置顶优先（按置顶时间倒序），然后非置顶按发布时间倒序
 	offset := (req.Page - 1) * req.Size
-	if err := query.Order("published_at DESC").
+	if err := query.Order("is_pinned DESC, pinned_at DESC, published_at DESC").
 		Offset(offset).
 		Limit(req.Size).
 		Find(&notifications).Error; err != nil {
@@ -177,8 +210,11 @@ func (s *NotificationService) GetNotifications(req *request.GetNotificationsRequ
 			ID:          notification.ID,
 			Title:       notification.Title,
 			Categories:  categories,
+			Status:      notification.Status,
 			Schedule:    scheduleData,
 			ViewCount:   notification.ViewCount,
+			IsPinned:    notification.IsPinned,
+			PinnedAt:    notification.PinnedAt,
 			PublishedAt: notification.PublishedAt,
 			CreatedAt:   notification.CreatedAt,
 		})
@@ -246,6 +282,8 @@ func (s *NotificationService) GetNotificationByID(notificationID uint) (*respons
 		Status:        notification.Status,
 		Schedule:      scheduleData,
 		ViewCount:     notification.ViewCount,
+		IsPinned:      notification.IsPinned,
+		PinnedAt:      notification.PinnedAt,
 		PublishedAt:   notification.PublishedAt,
 		CreatedAt:     notification.CreatedAt,
 		UpdatedAt:     notification.UpdatedAt,
@@ -352,6 +390,8 @@ func (s *NotificationService) GetNotificationAdminByID(notificationID uint) (*re
 		Status:          notification.Status,
 		Schedule:        scheduleData,
 		ViewCount:       notification.ViewCount,
+		IsPinned:        notification.IsPinned,
+		PinnedAt:        notification.PinnedAt,
 		PublishedAt:     notification.PublishedAt,
 		CreatedAt:       notification.CreatedAt,
 		UpdatedAt:       notification.UpdatedAt,
@@ -370,35 +410,6 @@ func (s *NotificationService) ConvertToSchedule(notificationID uint, req *reques
 			return errors.New("通知不存在")
 		}
 		return err
-	}
-
-	// 检查是否已经是日程
-	if notification.Schedule != nil {
-		return errors.New("该通知已经是日程")
-	}
-
-	// 验证时间段格式
-	for _, timeSlot := range req.TimeSlots {
-		if _, err := time.Parse("2006-01-02", timeSlot.StartDate); err != nil {
-			return errors.New("时间段开始日期格式错误")
-		}
-		if timeSlot.EndDate != "" {
-			if _, err := time.Parse("2006-01-02", timeSlot.EndDate); err != nil {
-				return errors.New("时间段结束日期格式错误")
-			}
-		}
-		if !timeSlot.IsAllDay {
-			if timeSlot.StartTime != "" {
-				if _, err := time.Parse("15:04", timeSlot.StartTime); err != nil {
-					return errors.New("时间段开始时间格式错误")
-				}
-			}
-			if timeSlot.EndTime != "" {
-				if _, err := time.Parse("15:04", timeSlot.EndTime); err != nil {
-					return errors.New("时间段结束时间格式错误")
-				}
-			}
-		}
 	}
 
 	// 创建日程数据
@@ -658,6 +669,54 @@ func (s *NotificationService) generateApprovalSummary(notificationID uint) (*res
 	// 判断是否可以发布
 	canPublish := approvalRate >= 0.5
 
+	// 获取所有审核记录
+	var approvals []models.NotificationApproval
+	if err := s.db.Where("notification_id = ?", notificationID).
+		Find(&approvals).Error; err != nil {
+		return nil, err
+	}
+
+	// 构建已通过和已拒绝的用户列表
+	var approvedUsers []response.UserSimpleResponse
+	var rejectedUsers []response.UserSimpleResponse
+	reviewedUserIDs := make(map[uint]bool)
+
+	for _, approval := range approvals {
+		var user models.User
+		if err := s.db.First(&user, approval.ReviewerID).Error; err == nil {
+			userInfo := response.UserSimpleResponse{
+				ID:       user.ID,
+				Nickname: user.Nickname,
+			}
+
+			if approval.Status == models.NotificationApprovalStatusApproved {
+				approvedUsers = append(approvedUsers, userInfo)
+			} else if approval.Status == models.NotificationApprovalStatusRejected {
+				rejectedUsers = append(rejectedUsers, userInfo)
+			}
+
+			reviewedUserIDs[approval.ReviewerID] = true
+		}
+	}
+
+	// 获取所有管理员和运营人员
+	var allReviewers []models.User
+	if err := s.db.Where("role IN ?", []models.UserRole{models.UserRoleAdmin, models.UserRoleOperator}).
+		Find(&allReviewers).Error; err != nil {
+		return nil, err
+	}
+
+	// 构建未审核用户列表
+	var pendingUsers []response.UserSimpleResponse
+	for _, reviewer := range allReviewers {
+		if !reviewedUserIDs[reviewer.ID] {
+			pendingUsers = append(pendingUsers, response.UserSimpleResponse{
+				ID:       reviewer.ID,
+				Nickname: reviewer.Nickname,
+			})
+		}
+	}
+
 	return &response.NotificationApprovalSummary{
 		TotalReviewers: totalReviewers,
 		ApprovedCount:  approvedCount,
@@ -666,6 +725,9 @@ func (s *NotificationService) generateApprovalSummary(notificationID uint) (*res
 		ApprovalRate:   approvalRate,
 		RequiredRate:   0.5,
 		CanPublish:     canPublish,
+		ApprovedUsers:  approvedUsers,
+		RejectedUsers:  rejectedUsers,
+		PendingUsers:   pendingUsers,
 	}, nil
 }
 
@@ -705,9 +767,9 @@ func (s *NotificationService) GetAdminNotifications(userRole models.UserRole, re
 		return nil, err
 	}
 
-	// 分页查询，按更新时间倒序
+	// 分页查询，排序规则：置顶优先（按置顶时间倒序），然后非置顶按发布时间倒序，最后按更新时间倒序
 	offset := (req.Page - 1) * req.Size
-	if err := query.Order("updated_at DESC").
+	if err := query.Order("is_pinned DESC, pinned_at DESC, published_at DESC, updated_at DESC").
 		Offset(offset).
 		Limit(req.Size).
 		Find(&notifications).Error; err != nil {
@@ -749,6 +811,8 @@ func (s *NotificationService) GetAdminNotifications(userRole models.UserRole, re
 			Status:          notification.Status,
 			Schedule:        scheduleData,
 			ViewCount:       notification.ViewCount,
+			IsPinned:        notification.IsPinned,
+			PinnedAt:        notification.PinnedAt,
 			PublishedAt:     notification.PublishedAt,
 			CreatedAt:       notification.CreatedAt,
 			ApprovalSummary: approvalSummary,
@@ -761,6 +825,47 @@ func (s *NotificationService) GetAdminNotifications(userRole models.UserRole, re
 		Page:  req.Page,
 		Size:  req.Size,
 	}, nil
+}
+
+// GetNotificationStats 获取通知统计信息
+func (s *NotificationService) GetNotificationStats() (*response.NotificationStatsResponse, error) {
+	stats := &response.NotificationStatsResponse{}
+
+	// 统计总数量（排除软删除）
+	var totalCount int64
+	if err := s.db.Model(&models.Notification{}).Count(&totalCount).Error; err != nil {
+		return nil, err
+	}
+	stats.TotalCount = totalCount
+
+	// 按状态统计
+	var draftCount, pendingCount, publishedCount int64
+
+	// 草稿数量
+	if err := s.db.Model(&models.Notification{}).
+		Where("status = ?", models.NotificationStatusDraft).
+		Count(&draftCount).Error; err != nil {
+		return nil, err
+	}
+	stats.DraftCount = draftCount
+
+	// 待审核数量
+	if err := s.db.Model(&models.Notification{}).
+		Where("status = ?", models.NotificationStatusPending).
+		Count(&pendingCount).Error; err != nil {
+		return nil, err
+	}
+	stats.PendingCount = pendingCount
+
+	// 已发布数量
+	if err := s.db.Model(&models.Notification{}).
+		Where("status = ?", models.NotificationStatusPublished).
+		Count(&publishedCount).Error; err != nil {
+		return nil, err
+	}
+	stats.PublishedCount = publishedCount
+
+	return stats, nil
 }
 
 // 辅助方法：根据分类ID获取分类信息
@@ -794,4 +899,59 @@ func (s *NotificationService) getCategoriesByIDs(categoryIDs []uint8) ([]respons
 	}
 
 	return responses, nil
+}
+
+// PinNotification 置顶通知（管理员专用）
+func (s *NotificationService) PinNotification(notificationID uint, userRole models.UserRole) error {
+	// 查找通知
+	var notification models.Notification
+	if err := s.db.First(&notification, notificationID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return errors.New("通知不存在")
+		}
+		return err
+	}
+
+	// 检查状态，只有已发布的通知才能置顶
+	if notification.Status != models.NotificationStatusPublished {
+		return errors.New("只有已发布的通知才能置顶")
+	}
+
+	// 检查是否已经置顶
+	if notification.IsPinned {
+		return errors.New("通知已经置顶")
+	}
+
+	// 更新置顶状态
+	now := time.Now()
+	return s.db.Model(&notification).Updates(map[string]interface{}{
+		"is_pinned":  true,
+		"pinned_at":  &now,
+		"updated_at": now,
+	}).Error
+}
+
+// UnpinNotification 取消置顶通知（管理员专用）
+func (s *NotificationService) UnpinNotification(notificationID uint, userRole models.UserRole) error {
+	// 查找通知
+	var notification models.Notification
+	if err := s.db.First(&notification, notificationID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return errors.New("通知不存在")
+		}
+		return err
+	}
+
+	// 检查是否已经置顶
+	if !notification.IsPinned {
+		return errors.New("通知未置顶")
+	}
+
+	// 更新置顶状态
+	now := time.Now()
+	return s.db.Model(&notification).Updates(map[string]interface{}{
+		"is_pinned":  false,
+		"pinned_at":  nil,
+		"updated_at": now,
+	}).Error
 }

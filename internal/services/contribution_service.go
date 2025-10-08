@@ -312,6 +312,7 @@ func (s *ContributionService) convertToResponse(contribution *models.UserContrib
 				Title:       notificationData.Title,
 				Categories:  categories,
 				Schedule:    scheduleData,
+				Status:      notificationData.Status,
 				ViewCount:   notificationData.ViewCount,
 				PublishedAt: notificationData.PublishedAt,
 				CreatedAt:   notificationData.CreatedAt,

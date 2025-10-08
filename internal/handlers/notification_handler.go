@@ -119,6 +119,7 @@ func (h *NotificationHandler) GetNotificationAdminByID(c *gin.Context) {
 
 // UpdateNotification 更新通知
 func (h *NotificationHandler) UpdateNotification(c *gin.Context) {
+	userID := helper.GetUserID(c)
 	userRole := helper.GetUserRole(c)
 
 	idStr := c.Param("id")
@@ -134,7 +135,7 @@ func (h *NotificationHandler) UpdateNotification(c *gin.Context) {
 		return
 	}
 
-	result, err := h.notificationService.UpdateNotification(uint(id), models.UserRole(userRole), &req)
+	result, err := h.notificationService.UpdateNotification(uint(id), userID, models.UserRole(userRole), &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -162,6 +163,27 @@ func (h *NotificationHandler) PublishNotification(c *gin.Context) {
 	}
 
 	helper.SuccessResponse(c, gin.H{"message": "通知发布成功"})
+}
+
+// PublishNotificationAdmin 管理员直接发布通知（跳过审核流程）
+func (h *NotificationHandler) PublishNotificationAdmin(c *gin.Context) {
+	userID := helper.GetUserID(c)
+	userRole := helper.GetUserRole(c)
+
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		helper.ErrorResponse(c, http.StatusBadRequest, "无效的通知ID")
+		return
+	}
+
+	err = h.notificationService.PublishNotificationAdmin(uint(id), userID, models.UserRole(userRole))
+	if err != nil {
+		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	helper.SuccessResponse(c, gin.H{"message": "已直接发布"})
 }
 
 // ConvertToSchedule 转换通知为日程
@@ -289,6 +311,17 @@ func (h *NotificationHandler) ApproveNotification(c *gin.Context) {
 	helper.SuccessResponse(c, gin.H{"message": "审核完成"})
 }
 
+// GetNotificationStats 获取通知统计信息
+func (h *NotificationHandler) GetNotificationStats(c *gin.Context) {
+	result, err := h.notificationService.GetNotificationStats()
+	if err != nil {
+		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	helper.SuccessResponse(c, result)
+}
+
 // GetAdminNotifications 获取管理员通知列表（包括待审核的）
 func (h *NotificationHandler) GetAdminNotifications(c *gin.Context) {
 	userRole := helper.GetUserRole(c)
@@ -320,4 +353,44 @@ func (h *NotificationHandler) GetAdminNotifications(c *gin.Context) {
 	}
 
 	helper.SuccessResponse(c, result)
+}
+
+// PinNotification 置顶通知（管理员专用）
+func (h *NotificationHandler) PinNotification(c *gin.Context) {
+	userRole := helper.GetUserRole(c)
+
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		helper.ErrorResponse(c, http.StatusBadRequest, "无效的通知ID")
+		return
+	}
+
+	err = h.notificationService.PinNotification(uint(id), models.UserRole(userRole))
+	if err != nil {
+		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	helper.SuccessResponse(c, gin.H{"message": "通知置顶成功"})
+}
+
+// UnpinNotification 取消置顶通知（管理员专用）
+func (h *NotificationHandler) UnpinNotification(c *gin.Context) {
+	userRole := helper.GetUserRole(c)
+
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		helper.ErrorResponse(c, http.StatusBadRequest, "无效的通知ID")
+		return
+	}
+
+	err = h.notificationService.UnpinNotification(uint(id), models.UserRole(userRole))
+	if err != nil {
+		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	helper.SuccessResponse(c, gin.H{"message": "取消置顶成功"})
 }

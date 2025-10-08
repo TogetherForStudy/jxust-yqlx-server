@@ -166,6 +166,8 @@ type Notification struct {
 	Status        NotificationStatus        `json:"status" gorm:"type:tinyint;default:1;index:idx_status_published;comment:状态：1=草稿，2=待审核，3=已发布，4=已删除"`
 	Schedule      datatypes.JSON            `json:"schedule" gorm:"type:json;comment:日程信息JSON"`
 	ViewCount     uint                      `json:"view_count" gorm:"type:int unsigned;default:0;comment:查看次数"`
+	IsPinned      bool                      `json:"is_pinned" gorm:"type:tinyint(1);default:0;index:idx_pinned;comment:是否置顶"`
+	PinnedAt      *time.Time                `json:"pinned_at" gorm:"type:datetime;index:idx_pinned_at;comment:置顶时间"`
 	PublishedAt   *time.Time                `json:"published_at" gorm:"type:datetime;index:idx_status_published;comment:发布时间"`
 	CreatedAt     time.Time                 `json:"created_at" gorm:"type:datetime;comment:创建时间"`
 	UpdatedAt     time.Time                 `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
@@ -302,7 +304,7 @@ type StudyTask struct {
 	UserID      uint              `json:"user_id" gorm:"not null;index:idx_user_status;comment:用户ID"`
 	Title       string            `json:"title" gorm:"type:varchar(200);not null;comment:任务标题"`
 	Description string            `json:"description" gorm:"type:text;comment:任务描述"`
-	DueDate     *time.Time        `json:"due_date" gorm:"type:date;index:idx_due_date;comment:截止日期"`
+	DueDate     *time.Time        `json:"due_date" gorm:"type:datetime;comment:截止日期"`
 	Priority    StudyTaskPriority `json:"priority" gorm:"type:tinyint;default:2;comment:优先级：1=高，2=中，3=低"`
 	Status      StudyTaskStatus   `json:"status" gorm:"type:tinyint;default:1;index:idx_user_status;comment:状态：1=待完成，2=已完成"`
 	CompletedAt *time.Time        `json:"completed_at" gorm:"type:datetime;comment:完成时间"`

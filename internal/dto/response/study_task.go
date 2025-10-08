@@ -16,8 +16,6 @@ type StudyTaskResponse struct {
 	Priority    models.StudyTaskPriority `json:"priority"`
 	Status      models.StudyTaskStatus   `json:"status"`
 	CompletedAt *time.Time               `json:"completed_at"`
-	DaysLeft    *int                     `json:"days_left"`  // 剩余天数（负数表示已过期）
-	IsOverdue   bool                     `json:"is_overdue"` // 是否过期
 	CreatedAt   time.Time                `json:"created_at"`
 	UpdatedAt   time.Time                `json:"updated_at"`
 }

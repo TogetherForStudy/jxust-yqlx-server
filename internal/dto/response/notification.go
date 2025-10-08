@@ -20,6 +20,8 @@ type NotificationResponse struct {
 	Status          models.NotificationStatus        `json:"status"`
 	Schedule        *models.ScheduleData             `json:"schedule,omitempty"` // 日程信息
 	ViewCount       uint                             `json:"view_count"`
+	IsPinned        bool                             `json:"is_pinned"` // 是否置顶
+	PinnedAt        *time.Time                       `json:"pinned_at"` // 置顶时间
 	PublishedAt     *time.Time                       `json:"published_at"`
 	CreatedAt       time.Time                        `json:"created_at"`
 	UpdatedAt       time.Time                        `json:"updated_at"`
@@ -29,13 +31,16 @@ type NotificationResponse struct {
 
 // NotificationApprovalSummary 通知审核进度汇总
 type NotificationApprovalSummary struct {
-	TotalReviewers int64   `json:"total_reviewers"` // 总审核人数（管理员+运营）
-	ApprovedCount  int64   `json:"approved_count"`  // 已通过人数
-	RejectedCount  int64   `json:"rejected_count"`  // 已拒绝人数
-	PendingCount   int64   `json:"pending_count"`   // 待审核人数
-	ApprovalRate   float64 `json:"approval_rate"`   // 通过率
-	RequiredRate   float64 `json:"required_rate"`   // 所需通过率（0.5）
-	CanPublish     bool    `json:"can_publish"`     // 是否可以发布
+	TotalReviewers int64                `json:"total_reviewers"` // 总审核人数（管理员+运营）
+	ApprovedCount  int64                `json:"approved_count"`  // 已通过人数
+	RejectedCount  int64                `json:"rejected_count"`  // 已拒绝人数
+	PendingCount   int64                `json:"pending_count"`   // 待审核人数
+	ApprovalRate   float64              `json:"approval_rate"`   // 通过率
+	RequiredRate   float64              `json:"required_rate"`   // 所需通过率（0.5）
+	CanPublish     bool                 `json:"can_publish"`     // 是否可以发布
+	ApprovedUsers  []UserSimpleResponse `json:"approved_users"`  // 已通过的用户列表
+	RejectedUsers  []UserSimpleResponse `json:"rejected_users"`  // 已拒绝的用户列表
+	PendingUsers   []UserSimpleResponse `json:"pending_users"`   // 未审核的用户列表
 }
 
 // NotificationSimpleResponse 通知简单响应
@@ -46,6 +51,8 @@ type NotificationSimpleResponse struct {
 	Status          models.NotificationStatus      `json:"status"`             // 添加状态字段
 	Schedule        *models.ScheduleData           `json:"schedule,omitempty"` // 日程信息
 	ViewCount       uint                           `json:"view_count"`
+	IsPinned        bool                           `json:"is_pinned"` // 是否置顶
+	PinnedAt        *time.Time                     `json:"pinned_at"` // 置顶时间
 	PublishedAt     *time.Time                     `json:"published_at"`
 	CreatedAt       time.Time                      `json:"created_at"`
 	ApprovalSummary *NotificationApprovalSummary   `json:"approval_summary,omitempty"` // 审核进度汇总
@@ -74,4 +81,12 @@ type NotificationCategoryResponse struct {
 type UserSimpleResponse struct {
 	ID       uint   `json:"id"`
 	Nickname string `json:"nickname"`
+}
+
+// NotificationStatsResponse 通知统计响应
+type NotificationStatsResponse struct {
+	TotalCount     int64 `json:"total_count"`     // 总通知数量
+	DraftCount     int64 `json:"draft_count"`     // 草稿数量
+	PendingCount   int64 `json:"pending_count"`   // 待审核数量
+	PublishedCount int64 `json:"published_count"` // 已发布数量
 }

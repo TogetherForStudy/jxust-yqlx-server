@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -50,7 +49,6 @@ func (h *StudyTaskHandler) GetStudyTasks(c *gin.Context) {
 		helper.ValidateResponse(c, "参数验证失败")
 		return
 	}
-	fmt.Println(req)
 	// 设置默认分页参数
 	if req.Page <= 0 {
 		req.Page = 1

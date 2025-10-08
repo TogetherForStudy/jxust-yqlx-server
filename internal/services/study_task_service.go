@@ -7,6 +7,7 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
 	"gorm.io/gorm"
 )
@@ -27,11 +28,11 @@ func (s *StudyTaskService) CreateStudyTask(userID uint, req *request.CreateStudy
 	// 解析截止日期
 	var dueDate *time.Time
 	if req.DueDate != "" {
-		dueDateVal, err := time.Parse("2006-01-02", req.DueDate)
+		parsedTime, err := utils.ParseDateTime(req.DueDate)
 		if err != nil {
-			return nil, errors.New("截止日期格式错误")
+			return nil, errors.New("截止时间格式错误")
 		}
-		dueDate = &dueDateVal
+		dueDate = parsedTime
 	}
 
 	// 创建学习任务
@@ -48,7 +49,18 @@ func (s *StudyTaskService) CreateStudyTask(userID uint, req *request.CreateStudy
 		return nil, err
 	}
 
-	return s.convertToResponse(&task), nil
+	return &response.StudyTaskResponse{
+		ID:          task.ID,
+		UserID:      task.UserID,
+		Title:       task.Title,
+		Description: task.Description,
+		DueDate:     task.DueDate,
+		Priority:    task.Priority,
+		Status:      task.Status,
+		CompletedAt: task.CompletedAt,
+		CreatedAt:   task.CreatedAt,
+		UpdatedAt:   task.UpdatedAt,
+	}, nil
 }
 
 // GetStudyTasks 获取用户学习任务列表
@@ -92,7 +104,18 @@ func (s *StudyTaskService) GetStudyTasks(userID uint, req *request.GetStudyTasks
 	// 转换为响应格式
 	var taskResponses []response.StudyTaskResponse
 	for _, task := range tasks {
-		taskResponses = append(taskResponses, *s.convertToResponse(&task))
+		taskResponses = append(taskResponses, response.StudyTaskResponse{
+			ID:          task.ID,
+			UserID:      task.UserID,
+			Title:       task.Title,
+			Description: task.Description,
+			DueDate:     task.DueDate,
+			Priority:    task.Priority,
+			Status:      task.Status,
+			CompletedAt: task.CompletedAt,
+			CreatedAt:   task.CreatedAt,
+			UpdatedAt:   task.UpdatedAt,
+		})
 	}
 
 	return &response.PageResponse{
@@ -113,7 +136,18 @@ func (s *StudyTaskService) GetStudyTaskByID(taskID uint, userID uint) (*response
 		return nil, err
 	}
 
-	return s.convertToResponse(&task), nil
+	return &response.StudyTaskResponse{
+		ID:          task.ID,
+		UserID:      task.UserID,
+		Title:       task.Title,
+		Description: task.Description,
+		DueDate:     task.DueDate,
+		Priority:    task.Priority,
+		Status:      task.Status,
+		CompletedAt: task.CompletedAt,
+		CreatedAt:   task.CreatedAt,
+		UpdatedAt:   task.UpdatedAt,
+	}, nil
 }
 
 // UpdateStudyTask 更新学习任务
@@ -137,11 +171,11 @@ func (s *StudyTaskService) UpdateStudyTask(taskID uint, userID uint, req *reques
 		updates["description"] = req.Description
 	}
 	if req.DueDate != "" {
-		dueDate, err := time.Parse("2006-01-02", req.DueDate)
+		dueDate, err := utils.ParseDateTime(req.DueDate)
 		if err != nil {
 			return nil, errors.New("截止日期格式错误")
 		}
-		updates["due_date"] = &dueDate
+		updates["due_date"] = dueDate
 	}
 	if req.Priority != nil {
 		updates["priority"] = models.StudyTaskPriority(*req.Priority)
@@ -150,7 +184,7 @@ func (s *StudyTaskService) UpdateStudyTask(taskID uint, userID uint, req *reques
 		updates["status"] = models.StudyTaskStatus(*req.Status)
 		// 如果标记为已完成，设置完成时间
 		if *req.Status == 2 { // 已完成
-			now := time.Now()
+			now := utils.GetLocalTime()
 			updates["completed_at"] = &now
 		} else if *req.Status == 1 { // 重新设为待完成
 			updates["completed_at"] = nil
@@ -239,7 +273,18 @@ func (s *StudyTaskService) GetCompletedTasks(userID uint, page, size int) (*resp
 	// 转换为响应格式
 	var taskResponses []response.StudyTaskResponse
 	for _, task := range tasks {
-		taskResponses = append(taskResponses, *s.convertToResponse(&task))
+		taskResponses = append(taskResponses, response.StudyTaskResponse{
+			ID:          task.ID,
+			UserID:      task.UserID,
+			Title:       task.Title,
+			Description: task.Description,
+			DueDate:     task.DueDate,
+			Priority:    task.Priority,
+			Status:      task.Status,
+			CompletedAt: task.CompletedAt,
+			CreatedAt:   task.CreatedAt,
+			UpdatedAt:   task.UpdatedAt,
+		})
 	}
 
 	return &response.PageResponse{
@@ -248,36 +293,4 @@ func (s *StudyTaskService) GetCompletedTasks(userID uint, page, size int) (*resp
 		Page:  page,
 		Size:  size,
 	}, nil
-}
-
-// 辅助方法：转换为响应格式
-func (s *StudyTaskService) convertToResponse(task *models.StudyTask) *response.StudyTaskResponse {
-	// 计算剩余天数和是否过期
-	var daysLeft *int
-	isOverdue := false
-
-	if task.DueDate != nil {
-		now := time.Now()
-		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-		dueDate := time.Date(task.DueDate.Year(), task.DueDate.Month(), task.DueDate.Day(), 0, 0, 0, 0, task.DueDate.Location())
-
-		days := int(dueDate.Sub(today).Hours() / 24)
-		daysLeft = &days
-		isOverdue = days < 0 && task.Status == models.StudyTaskStatusPending
-	}
-
-	return &response.StudyTaskResponse{
-		ID:          task.ID,
-		UserID:      task.UserID,
-		Title:       task.Title,
-		Description: task.Description,
-		DueDate:     task.DueDate,
-		Priority:    task.Priority,
-		Status:      task.Status,
-		CompletedAt: task.CompletedAt,
-		DaysLeft:    daysLeft,
-		IsOverdue:   isOverdue,
-		CreatedAt:   task.CreatedAt,
-		UpdatedAt:   task.UpdatedAt,
-	}
 }

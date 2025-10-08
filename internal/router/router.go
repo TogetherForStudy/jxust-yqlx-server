@@ -128,7 +128,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 				// 管理员相关路由
 				adminReviews := authReviews.Group("")
-				adminReviews.Use(middleware.AdminMiddleware())
+				adminReviews.Use(middleware.RequireRole(2))
 				{
 					adminReviews.GET("/", reviewHandler.GetReviews)
 					adminReviews.POST("/:id/approve", reviewHandler.ApproveReview)
@@ -147,7 +147,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 				// 管理员-用户绑定次数维护
 				adminCourseTable := courseTable.Group("")
-				adminCourseTable.Use(middleware.AdminMiddleware())
+				adminCourseTable.Use(middleware.RequireRole(2))
 				{
 					adminCourseTable.POST("/reset/:id", courseTableHandler.ResetUserBindCountToOne)
 				}
@@ -165,7 +165,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			{
 				// 仅管理员可改写
 				adminHeroes := heroes.Group("")
-				adminHeroes.Use(middleware.AdminMiddleware())
+				adminHeroes.Use(middleware.RequireRole(2))
 				{
 					adminHeroes.POST("/", heroHandler.Create)
 					adminHeroes.PUT("/:id", heroHandler.Update)
@@ -179,7 +179,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			{
 
 				adminConfig := configWrite.Group("")
-				adminConfig.Use(middleware.AdminMiddleware())
+				adminConfig.Use(middleware.RequireRole(2))
 				{
 					adminConfig.POST("/", configHandler.Create)
 					adminConfig.PUT("/:key", configHandler.Update)
@@ -195,7 +195,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				store.GET("/:resource_id/stream", storeHandler.GetFileStream)
 
 				adminStore := store.Group("")
-				adminStore.Use(middleware.AdminMiddleware())
+				adminStore.Use(middleware.RequireRole(2))
 				{
 					adminStore.POST("", storeHandler.UploadFile)
 					adminStore.DELETE("/:resource_id", storeHandler.DeleteFile)
@@ -223,7 +223,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 				// 管理员/运营专用路由
 				adminContributions := contributions.Group("")
-				adminContributions.Use(middleware.OperatorMiddleware())
+				adminContributions.Use(middleware.RequireRole(2, 3))
 				{
 					adminContributions.POST("/:id/review", contributionHandler.ReviewContribution) // 审核投稿
 				}
@@ -253,21 +253,32 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 			// 通知管理路由（需要运营权限）
 			notificationAdmin := authorized.Group("/admin/notifications")
-			notificationAdmin.Use(middleware.OperatorMiddleware())
+			notificationAdmin.Use(middleware.RequireRole(2, 3))
 			{
 				notificationAdmin.GET("/", notificationHandler.GetAdminNotifications)           // 获取管理员通知列表
+				notificationAdmin.GET("/stats", notificationHandler.GetNotificationStats)       // 获取通知统计信息
 				notificationAdmin.GET("/:id", notificationHandler.GetNotificationAdminByID)     // 获取通知详情
 				notificationAdmin.POST("/", notificationHandler.CreateNotification)             // 创建通知
-				notificationAdmin.PUT("/:id", notificationHandler.UpdateNotification)           // 更新通知
 				notificationAdmin.POST("/:id/publish", notificationHandler.PublishNotification) // 发布通知
+				notificationAdmin.PUT("/:id", notificationHandler.UpdateNotification)           // 更新通知
 				notificationAdmin.POST("/:id/approve", notificationHandler.ApproveNotification) // 审核通知
 				notificationAdmin.POST("/:id/schedule", notificationHandler.ConvertToSchedule)  // 转换为日程
-				notificationAdmin.DELETE("/:id", notificationHandler.DeleteNotification)        // 删除通知
+
+			}
+			// 通知管理路由（需要管理员权限）
+			notificationUpdate := authorized.Group("/admin/notifications")
+			notificationUpdate.Use(middleware.RequireRole(2))
+			{
+
+				notificationUpdate.DELETE("/:id", notificationHandler.DeleteNotification)                   // 删除通知
+				notificationUpdate.POST("/:id/publish-admin", notificationHandler.PublishNotificationAdmin) // 管理员直接发布通知（跳过审核）
+				notificationUpdate.POST("/:id/pin", notificationHandler.PinNotification)                    // 置顶通知
+				notificationUpdate.POST("/:id/unpin", notificationHandler.UnpinNotification)                // 取消置顶通知
 			}
 
-			// 分类管理路由（需要运营权限）
+			// 分类管理路由（需要管理员权限）
 			categoryAdmin := authorized.Group("/admin/categories")
-			categoryAdmin.Use(middleware.OperatorMiddleware())
+			categoryAdmin.Use(middleware.RequireRole(2))
 			{
 				categoryAdmin.POST("/", notificationHandler.CreateCategory)   // 创建分类
 				categoryAdmin.PUT("/:id", notificationHandler.UpdateCategory) // 更新分类
