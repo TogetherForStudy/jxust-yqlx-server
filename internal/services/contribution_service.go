@@ -256,6 +256,47 @@ func (s *ContributionService) GetUserContributionStats(userID uint) (map[string]
 	return stats, nil
 }
 
+// GetAdminContributionStats 获取管理员投稿统计（全系统）
+func (s *ContributionService) GetAdminContributionStats() (*response.AdminContributionStatsResponse, error) {
+	stats := &response.AdminContributionStatsResponse{}
+
+	// 总投稿数
+	if err := s.db.Model(&models.UserContribution{}).Count(&stats.TotalCount).Error; err != nil {
+		return nil, err
+	}
+
+	// 待审核数
+	if err := s.db.Model(&models.UserContribution{}).
+		Where("status = ?", models.UserContributionStatusPending).
+		Count(&stats.PendingCount).Error; err != nil {
+		return nil, err
+	}
+
+	// 已采纳数
+	if err := s.db.Model(&models.UserContribution{}).
+		Where("status = ?", models.UserContributionStatusApproved).
+		Count(&stats.ApprovedCount).Error; err != nil {
+		return nil, err
+	}
+
+	// 已拒绝数
+	if err := s.db.Model(&models.UserContribution{}).
+		Where("status = ?", models.UserContributionStatusRejected).
+		Count(&stats.RejectedCount).Error; err != nil {
+		return nil, err
+	}
+
+	// 总发放积分
+	if err := s.db.Model(&models.UserContribution{}).
+		Where("status = ?", models.UserContributionStatusApproved).
+		Select("COALESCE(SUM(points_awarded), 0)").
+		Scan(&stats.TotalPoints).Error; err != nil {
+		return nil, err
+	}
+
+	return stats, nil
+}
+
 // 辅助方法：转换为响应格式
 func (s *ContributionService) convertToResponse(contribution *models.UserContribution) (*response.ContributionResponse, error) {
 	// 解析分类

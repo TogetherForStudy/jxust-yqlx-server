@@ -225,7 +225,8 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				adminContributions := contributions.Group("")
 				adminContributions.Use(middleware.RequireRole(2, 3))
 				{
-					adminContributions.POST("/:id/review", contributionHandler.ReviewContribution) // 审核投稿
+					adminContributions.POST("/:id/review", contributionHandler.ReviewContribution)        // 审核投稿
+					adminContributions.GET("/stats-admin", contributionHandler.GetAdminContributionStats) // 管理员投稿统计
 				}
 			}
 

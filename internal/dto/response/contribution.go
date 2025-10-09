@@ -34,3 +34,12 @@ type ContributionSimpleResponse struct {
 	PointsAwarded uint                          `json:"points_awarded"`
 	CreatedAt     time.Time                     `json:"created_at"`
 }
+
+// AdminContributionStatsResponse 管理员投稿统计响应
+type AdminContributionStatsResponse struct {
+	TotalCount    int64 `json:"total_count"`    // 总数
+	PendingCount  int64 `json:"pending_count"`  // 待审核
+	ApprovedCount int64 `json:"approved_count"` // 已采纳
+	RejectedCount int64 `json:"rejected_count"` // 已拒绝
+	TotalPoints   int64 `json:"total_points"`   // 已发放积分总额
+}

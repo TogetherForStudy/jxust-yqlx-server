@@ -144,3 +144,14 @@ func (h *ContributionHandler) GetUserContributionStats(c *gin.Context) {
 
 	helper.SuccessResponse(c, result)
 }
+
+// GetAdminContributionStats 获取管理员投稿统计（管理员和运营专用）
+func (h *ContributionHandler) GetAdminContributionStats(c *gin.Context) {
+	result, err := h.contributionService.GetAdminContributionStats()
+	if err != nil {
+		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	helper.SuccessResponse(c, result)
+}
