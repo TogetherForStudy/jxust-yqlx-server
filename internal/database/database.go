@@ -58,5 +58,12 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.BindRecord{},
 		&models.S3Resource{},
 		&models.S3Data{},
+		&models.StudyTask{},
+		&models.Countdown{},
+		&models.UserContribution{},
+		&models.PointsTransaction{},
+		&models.Notification{},
+		&models.NotificationApproval{},
+		&models.NotificationCategory{},
 	)
 }

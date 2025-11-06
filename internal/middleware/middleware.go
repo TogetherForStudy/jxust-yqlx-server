@@ -102,8 +102,12 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 	}
 }
 
-// AdminMiddleware 管理员权限中间件
-func AdminMiddleware() gin.HandlerFunc {
+// RequireRole 通用角色权限中间件
+// 接受一个或多个允许的角色，只要用户角色匹配其中之一即可通过
+// 示例: RequireRole(2) - 仅管理员
+//
+//	RequireRole(2, 3) - 管理员或运营
+func RequireRole(allowedRoles ...uint8) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		role, exists := c.Get("role")
 		if !exists {
@@ -112,13 +116,18 @@ func AdminMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		if role.(uint8) != 2 { // UserRoleAdmin = 2
-			helper.ErrorResponse(c, http.StatusForbidden, "需要管理员权限")
-			c.Abort()
-			return
+		userRole := role.(uint8)
+
+		// 检查用户角色是否在允许的角色列表中
+		for _, allowedRole := range allowedRoles {
+			if userRole == allowedRole {
+				c.Next()
+				return
+			}
 		}
 
-		c.Next()
+		helper.ErrorResponse(c, http.StatusForbidden, "权限不足")
+		c.Abort()
 	}
 }
 

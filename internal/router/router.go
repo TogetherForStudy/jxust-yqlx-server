@@ -33,6 +33,12 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	ossService := services.NewOSSService(cfg)
 	s3Service := services.NewS3Service(db, cfg)
 
+	notificationService := services.NewNotificationService(db)
+	contributionService := services.NewContributionService(db)
+	pointsService := services.NewPointsService(db)
+	countdownService := services.NewCountdownService(db)
+	studyTaskService := services.NewStudyTaskService(db)
+
 	// 初始化处理器
 	authHandler := handlers.NewAuthHandler(authService)
 	reviewHandler := handlers.NewReviewHandler(reviewService)
@@ -42,6 +48,13 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	configHandler := handlers.NewConfigHandler(configService)
 	ossHandler := handlers.NewOSSHandler(ossService)
 	storeHandler := handlers.NewStoreHandler(s3Service)
+
+	// 新增处理器
+	notificationHandler := handlers.NewNotificationHandler(notificationService)
+	contributionHandler := handlers.NewContributionHandler(contributionService)
+	pointsHandler := handlers.NewPointsHandler(pointsService)
+	countdownHandler := handlers.NewCountdownHandler(countdownService)
+	studyTaskHandler := handlers.NewStudyTaskHandler(studyTaskService)
 
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
@@ -79,6 +92,19 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			heroes.GET("/", heroHandler.ListAll)
 		}
 
+		// 通知相关路由（公开查询）
+		notifications := v0.Group("/notifications")
+		{
+			notifications.GET("/", notificationHandler.GetNotifications)       // 获取通知列表
+			notifications.GET("/:id", notificationHandler.GetNotificationByID) // 获取通知详情
+		}
+
+		// 通知分类路由（公开查询）
+		categories := v0.Group("/categories")
+		{
+			categories.GET("/", notificationHandler.GetCategories) // 获取所有分类
+		}
+
 		// 需要认证的路由
 		authorized := v0.Group("/")
 		authorized.Use(middleware.AuthMiddleware(cfg))
@@ -102,7 +128,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 				// 管理员相关路由
 				adminReviews := authReviews.Group("")
-				adminReviews.Use(middleware.AdminMiddleware())
+				adminReviews.Use(middleware.RequireRole(2))
 				{
 					adminReviews.GET("/", reviewHandler.GetReviews)
 					adminReviews.POST("/:id/approve", reviewHandler.ApproveReview)
@@ -121,7 +147,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 				// 管理员-用户绑定次数维护
 				adminCourseTable := courseTable.Group("")
-				adminCourseTable.Use(middleware.AdminMiddleware())
+				adminCourseTable.Use(middleware.RequireRole(2))
 				{
 					adminCourseTable.POST("/reset/:id", courseTableHandler.ResetUserBindCountToOne)
 				}
@@ -139,7 +165,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			{
 				// 仅管理员可改写
 				adminHeroes := heroes.Group("")
-				adminHeroes.Use(middleware.AdminMiddleware())
+				adminHeroes.Use(middleware.RequireRole(2))
 				{
 					adminHeroes.POST("/", heroHandler.Create)
 					adminHeroes.PUT("/:id", heroHandler.Update)
@@ -153,7 +179,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			{
 
 				adminConfig := configWrite.Group("")
-				adminConfig.Use(middleware.AdminMiddleware())
+				adminConfig.Use(middleware.RequireRole(2))
 				{
 					adminConfig.POST("/", configHandler.Create)
 					adminConfig.PUT("/:key", configHandler.Update)
@@ -169,7 +195,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				store.GET("/:resource_id/stream", storeHandler.GetFileStream)
 
 				adminStore := store.Group("")
-				adminStore.Use(middleware.AdminMiddleware())
+				adminStore.Use(middleware.RequireRole(2))
 				{
 					adminStore.POST("", storeHandler.UploadFile)
 					adminStore.DELETE("/:resource_id", storeHandler.DeleteFile)
@@ -177,6 +203,88 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 					adminStore.GET("/expired", storeHandler.ListExpiredFiles)
 				}
 			}
+
+			// 积分相关路由（需认证）
+			points := authorized.Group("/points")
+			{
+				points.GET("/", pointsHandler.GetUserPoints)                     // 获取用户积分
+				points.GET("/transactions", pointsHandler.GetPointsTransactions) // 获取积分交易记录
+				points.POST("/spend", pointsHandler.SpendPoints)                 // 消费积分
+				points.GET("/stats", pointsHandler.GetUserPointsStats)           // 获取积分统计
+			}
+
+			// 投稿相关路由（需认证）
+			contributions := authorized.Group("/contributions")
+			{
+				contributions.POST("/", contributionHandler.CreateContribution)           // 创建投稿
+				contributions.GET("/", contributionHandler.GetContributions)              // 获取投稿列表
+				contributions.GET("/:id", contributionHandler.GetContributionByID)        // 获取投稿详情
+				contributions.GET("/stats", contributionHandler.GetUserContributionStats) // 投稿统计
+
+				// 管理员/运营专用路由
+				adminContributions := contributions.Group("")
+				adminContributions.Use(middleware.RequireRole(2, 3))
+				{
+					adminContributions.POST("/:id/review", contributionHandler.ReviewContribution)        // 审核投稿
+					adminContributions.GET("/stats-admin", contributionHandler.GetAdminContributionStats) // 管理员投稿统计
+				}
+			}
+
+			// 倒数日相关路由（需认证）
+			countdowns := authorized.Group("/countdowns")
+			{
+				countdowns.POST("/", countdownHandler.CreateCountdown)      // 创建倒数日
+				countdowns.GET("/", countdownHandler.GetCountdowns)         // 获取倒数日列表
+				countdowns.GET("/:id", countdownHandler.GetCountdownByID)   // 获取倒数日详情
+				countdowns.PUT("/:id", countdownHandler.UpdateCountdown)    // 更新倒数日
+				countdowns.DELETE("/:id", countdownHandler.DeleteCountdown) // 删除倒数日
+			}
+
+			// 学习清单相关路由（需认证）
+			studyTasks := authorized.Group("/study-tasks")
+			{
+				studyTasks.POST("/", studyTaskHandler.CreateStudyTask)           // 创建学习任务
+				studyTasks.GET("/", studyTaskHandler.GetStudyTasks)              // 获取任务列表
+				studyTasks.GET("/:id", studyTaskHandler.GetStudyTaskByID)        // 获取任务详情
+				studyTasks.PUT("/:id", studyTaskHandler.UpdateStudyTask)         // 更新任务
+				studyTasks.DELETE("/:id", studyTaskHandler.DeleteStudyTask)      // 删除任务
+				studyTasks.GET("/stats", studyTaskHandler.GetStudyTaskStats)     // 获取统计
+				studyTasks.GET("/completed", studyTaskHandler.GetCompletedTasks) // 已完成的任务
+			}
+
+			// 通知管理路由（需要运营权限）
+			notificationAdmin := authorized.Group("/admin/notifications")
+			notificationAdmin.Use(middleware.RequireRole(2, 3))
+			{
+				notificationAdmin.GET("/", notificationHandler.GetAdminNotifications)           // 获取管理员通知列表
+				notificationAdmin.GET("/stats", notificationHandler.GetNotificationStats)       // 获取通知统计信息
+				notificationAdmin.GET("/:id", notificationHandler.GetNotificationAdminByID)     // 获取通知详情
+				notificationAdmin.POST("/", notificationHandler.CreateNotification)             // 创建通知
+				notificationAdmin.POST("/:id/publish", notificationHandler.PublishNotification) // 发布通知
+				notificationAdmin.PUT("/:id", notificationHandler.UpdateNotification)           // 更新通知
+				notificationAdmin.POST("/:id/approve", notificationHandler.ApproveNotification) // 审核通知
+				notificationAdmin.POST("/:id/schedule", notificationHandler.ConvertToSchedule)  // 转换为日程
+
+			}
+			// 通知管理路由（需要管理员权限）
+			notificationUpdate := authorized.Group("/admin/notifications")
+			notificationUpdate.Use(middleware.RequireRole(2))
+			{
+
+				notificationUpdate.DELETE("/:id", notificationHandler.DeleteNotification)                   // 删除通知
+				notificationUpdate.POST("/:id/publish-admin", notificationHandler.PublishNotificationAdmin) // 管理员直接发布通知（跳过审核）
+				notificationUpdate.POST("/:id/pin", notificationHandler.PinNotification)                    // 置顶通知
+				notificationUpdate.POST("/:id/unpin", notificationHandler.UnpinNotification)                // 取消置顶通知
+			}
+
+			// 分类管理路由（需要管理员权限）
+			categoryAdmin := authorized.Group("/admin/categories")
+			categoryAdmin.Use(middleware.RequireRole(2))
+			{
+				categoryAdmin.POST("/", notificationHandler.CreateCategory)   // 创建分类
+				categoryAdmin.PUT("/:id", notificationHandler.UpdateCategory) // 更新分类
+			}
+
 		}
 	}
 
