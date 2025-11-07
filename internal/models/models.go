@@ -172,6 +172,10 @@ type Notification struct {
 	CreatedAt     time.Time                 `json:"created_at" gorm:"type:datetime;comment:创建时间"`
 	UpdatedAt     time.Time                 `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
 	DeletedAt     gorm.DeletedAt            `json:"-" gorm:"comment:软删除时间"`
+
+	// 关联关系
+	Publisher   *User `json:"publisher" gorm:"foreignKey:PublisherID;references:ID;constraint:-"`
+	Contributor *User `json:"contributor" gorm:"foreignKey:ContributorID;references:ID;constraint:-"`
 }
 
 // NotificationPublisherType 通知发布者类型
@@ -271,6 +275,11 @@ type UserContribution struct {
 	ReviewedAt     *time.Time             `json:"reviewed_at" gorm:"type:datetime;comment:审核时间"`
 	CreatedAt      time.Time              `json:"created_at" gorm:"type:datetime;index:idx_status_created;comment:创建时间"`
 	UpdatedAt      time.Time              `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
+
+	// 关联关系
+	User         *User         `json:"user" gorm:"foreignKey:UserID;references:ID;constraint:-"`
+	Reviewer     *User         `json:"reviewer" gorm:"foreignKey:ReviewerID;references:ID;constraint:-"`
+	Notification *Notification `json:"notification" gorm:"foreignKey:NotificationID;references:ID;constraint:-"`
 }
 
 // UserContributionStatus 用户投稿状态
@@ -328,4 +337,70 @@ type StudyTaskStatus int8
 const (
 	StudyTaskStatusPending   StudyTaskStatus = 1 // 待完成
 	StudyTaskStatusCompleted StudyTaskStatus = 2 // 已完成
+)
+
+// ==================== 资料管理系统模型 ====================
+
+// Material 资料表
+type Material struct {
+	ID         uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:资料ID"`
+	MD5        string         `json:"md5" gorm:"type:varchar(32);not null;comment:文件MD5"`
+	FileName   string         `json:"file_name" gorm:"type:varchar(255);not null;comment:文件名"`
+	FileSize   int64          `json:"file_size" gorm:"type:bigint;not null;comment:文件大小(字节)"`
+	CategoryID uint           `json:"category_id" gorm:"not null;index:idx_material_category;comment:分类ID"`
+	CreatedAt  time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
+	DeletedAt  gorm.DeletedAt `json:"-" gorm:"comment:软删除时间"`
+	// 关联（仅定义关联关系，不创建数据库外键约束）
+	Category *MaterialCategory `json:"category,omitempty" gorm:"foreignKey:CategoryID;references:ID;constraint:-"`
+	Desc     *MaterialDesc     `json:"desc,omitempty" gorm:"foreignKey:MD5;references:MD5;constraint:-"`
+}
+
+// MaterialDesc 资料描述表
+type MaterialDesc struct {
+	MD5           string         `json:"md5" gorm:"type:varchar(32);primaryKey;comment:文件MD5"`
+	Tags          string         `json:"tags" gorm:"type:varchar(500);comment:标签,用逗号分隔"`
+	Description   string         `json:"description" gorm:"type:text;comment:描述"`
+	ExternalLink  string         `json:"external_link" gorm:"type:varchar(1000);comment:外部下载链接"`
+	TotalHotness  int            `json:"total_hotness" gorm:"type:int;default:0;comment:总热度"`
+	PeriodHotness int            `json:"period_hotness" gorm:"type:int;default:0;comment:期间热度"`
+	IsRecommended bool           `json:"is_recommended" gorm:"type:tinyint(1);default:0;comment:人工推荐"`
+	ViewCount     int            `json:"view_count" gorm:"type:int;default:0;comment:查看次数"`
+	DownloadCount int            `json:"download_count" gorm:"type:int;default:0;comment:下载次数"`
+	Rating        float64        `json:"rating" gorm:"type:decimal(3,2);default:0.00;comment:平均评分(0-5)"`
+	RatingCount   int            `json:"rating_count" gorm:"type:int;default:0;comment:评分人数"`
+	UpdatedAt     time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
+	DeletedAt     gorm.DeletedAt `json:"-" gorm:"comment:软删除时间"`
+}
+
+// MaterialCategory 分类表
+type MaterialCategory struct {
+	ID        uint      `json:"id" gorm:"type:int unsigned;primaryKey;comment:分类ID"`
+	Name      string    `json:"name" gorm:"type:varchar(500);not null;comment:分类名称"`
+	ParentID  uint      `json:"parent_id" gorm:"type:int unsigned;default:0;index:idx_category_parent;comment:上级分类ID,0表示根级别"`
+	Level     int       `json:"level" gorm:"type:tinyint;default:1;comment:层级级别"`
+	Sort      int       `json:"sort" gorm:"type:int;default:0;comment:排序"`
+	CreatedAt time.Time `json:"created_at" gorm:"type:datetime;comment:创建时间"`
+}
+
+// MaterialLog 记录表
+type MaterialLog struct {
+	ID          uint            `json:"id" gorm:"type:int unsigned;primaryKey;comment:日志ID"`
+	UserID      uint            `json:"user_id" gorm:"not null;index:idx_log_user;comment:用户ID"`
+	Type        MaterialLogType `json:"type" gorm:"type:tinyint;not null;index:idx_log_type;comment:记录类型：1=搜索，2=查看，3=评分，4=下载"`
+	Keywords    string          `json:"keywords" gorm:"type:varchar(200);comment:搜索关键词"`
+	MaterialMD5 string          `json:"material_md5" gorm:"type:varchar(32);index:idx_log_material;comment:资料MD5"`
+	Rating      *int            `json:"rating" gorm:"type:tinyint;comment:评分(1-5)"`
+	Count       int             `json:"count" gorm:"type:int;default:0;comment:次数"`
+	CreatedAt   time.Time       `json:"created_at" gorm:"type:datetime;comment:创建时间"`
+	DeletedAt   gorm.DeletedAt  `json:"-" gorm:"comment:软删除时间"`
+}
+
+// MaterialLogType 记录类型
+type MaterialLogType int8
+
+const (
+	MaterialLogTypeSearch   MaterialLogType = 1 // 搜索
+	MaterialLogTypeView     MaterialLogType = 2 // 查看
+	MaterialLogTypeRating   MaterialLogType = 3 // 评分
+	MaterialLogTypeDownload MaterialLogType = 4 // 下载
 )

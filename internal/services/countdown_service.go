@@ -116,14 +116,14 @@ func (s *CountdownService) UpdateCountdown(countdownID uint, userID uint, req *r
 	// 更新字段
 	updates := make(map[string]interface{})
 
-	if req.Title != "" {
-		updates["title"] = req.Title
+	if req.Title != nil {
+		updates["title"] = *req.Title
 	}
-	if req.Description != "" {
-		updates["description"] = req.Description
+	if req.Description != nil {
+		updates["description"] = *req.Description
 	}
-	if req.TargetDate != "" {
-		targetDate, err := time.Parse("2006-01-02", req.TargetDate)
+	if req.TargetDate != nil && *req.TargetDate != "" {
+		targetDate, err := time.Parse("2006-01-02", *req.TargetDate)
 		if err != nil {
 			return nil, errors.New("目标日期格式错误")
 		}

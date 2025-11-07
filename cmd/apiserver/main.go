@@ -2,10 +2,13 @@ package main
 
 import (
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/database"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/router"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/scheduler"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 
@@ -33,6 +36,12 @@ func main() {
 		logger.Fatalf("Failed to migrate database: %v", err)
 	}
 
+	// 初始化并启动定时任务调度器
+	taskScheduler := scheduler.NewScheduler(db)
+	if err := taskScheduler.Start(); err != nil {
+		logger.Fatalf("Failed to start scheduler: %v", err)
+	}
+
 	// 设置生产模式
 	if os.Getenv(constant.ENV_GIN_MODE) == "release" {
 		gin.SetMode(gin.ReleaseMode)
@@ -47,8 +56,24 @@ func main() {
 		port = "8085"
 	}
 
-	logger.Infof("Server starting on port %s", port)
-	if err := r.Run(":" + port); err != nil {
-		logger.Fatalf("Failed to start server: %v", err)
-	}
+	// 设置优雅关闭
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	// 在goroutine中启动gin服务器
+	go func() {
+		logger.Infof("Server starting on port %s", port)
+		if err := r.Run(":" + port); err != nil {
+			logger.Fatalf("Failed to start server: %v", err)
+		}
+	}()
+
+	// 等待关闭信号
+	<-quit
+	logger.Info("Server is shutting down...")
+
+	// 停止定时任务调度器
+	taskScheduler.Stop()
+
+	logger.Info("Server shutdown complete")
 }

@@ -77,11 +77,18 @@ func (s *ContributionService) GetContributions(userID uint, userRole models.User
 		return nil, err
 	}
 
-	// 分页查询
+	// 分页查询并预加载关联关系
 	offset := (req.Page - 1) * req.Size
 	if err := query.Order("created_at DESC").
 		Offset(offset).
 		Limit(req.Size).
+		Preload("User", func(db *gorm.DB) *gorm.DB {
+			return db.Select("id, nickname")
+		}).
+		Preload("Reviewer", func(db *gorm.DB) *gorm.DB {
+			return db.Select("id, nickname")
+		}).
+		Preload("Notification").
 		Find(&contributions).Error; err != nil {
 		return nil, err
 	}
@@ -106,7 +113,11 @@ func (s *ContributionService) GetContributions(userID uint, userRole models.User
 // GetContributionByID 根据ID获取投稿详情
 func (s *ContributionService) GetContributionByID(contributionID uint, userID uint, userRole models.UserRole) (*response.ContributionResponse, error) {
 	var contribution models.UserContribution
-	if err := s.db.First(&contribution, contributionID).Error; err != nil {
+	if err := s.db.Preload("User", func(db *gorm.DB) *gorm.DB {
+		return db.Select("id, nickname")
+	}).Preload("Reviewer", func(db *gorm.DB) *gorm.DB {
+		return db.Select("id, nickname")
+	}).Preload("Notification").First(&contribution, contributionID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, errors.New("投稿不存在")
 		}
@@ -312,52 +323,45 @@ func (s *ContributionService) convertToResponse(contribution *models.UserContrib
 		return nil, err
 	}
 
-	// 获取用户信息
+	// 使用预加载的用户信息
 	var user *response.UserSimpleResponse
-	var userData models.User
-	if err := s.db.Select("id, nickname").Where("id = ?", contribution.UserID).First(&userData).Error; err == nil {
+	if contribution.User != nil {
 		user = &response.UserSimpleResponse{
-			ID:       userData.ID,
-			Nickname: userData.Nickname,
+			ID:       contribution.User.ID,
+			Nickname: contribution.User.Nickname,
 		}
 	}
 
-	// 获取审核者信息
+	// 使用预加载的审核者信息
 	var reviewer *response.UserSimpleResponse
-	if contribution.ReviewerID != nil {
-		var reviewerData models.User
-		if err := s.db.Select("id, nickname").Where("id = ?", *contribution.ReviewerID).First(&reviewerData).Error; err == nil {
-			reviewer = &response.UserSimpleResponse{
-				ID:       reviewerData.ID,
-				Nickname: reviewerData.Nickname,
-			}
+	if contribution.Reviewer != nil {
+		reviewer = &response.UserSimpleResponse{
+			ID:       contribution.Reviewer.ID,
+			Nickname: contribution.Reviewer.Nickname,
 		}
 	}
 
-	// 获取关联通知信息
+	// 使用预加载的通知信息
 	var notification *response.NotificationSimpleResponse
-	if contribution.NotificationID != nil {
-		var notificationData models.Notification
-		if err := s.db.Where("id = ?", *contribution.NotificationID).First(&notificationData).Error; err == nil {
-			// 解析日程数据
-			var scheduleData *models.ScheduleData
-			if notificationData.Schedule != nil {
-				var schedule models.ScheduleData
-				if err := json.Unmarshal(notificationData.Schedule, &schedule); err == nil {
-					scheduleData = &schedule
-				}
+	if contribution.Notification != nil {
+		// 解析日程数据
+		var scheduleData *models.ScheduleData
+		if contribution.Notification.Schedule != nil {
+			var schedule models.ScheduleData
+			if err := json.Unmarshal(contribution.Notification.Schedule, &schedule); err == nil {
+				scheduleData = &schedule
 			}
+		}
 
-			notification = &response.NotificationSimpleResponse{
-				ID:          notificationData.ID,
-				Title:       notificationData.Title,
-				Categories:  categories,
-				Schedule:    scheduleData,
-				Status:      notificationData.Status,
-				ViewCount:   notificationData.ViewCount,
-				PublishedAt: notificationData.PublishedAt,
-				CreatedAt:   notificationData.CreatedAt,
-			}
+		notification = &response.NotificationSimpleResponse{
+			ID:          contribution.Notification.ID,
+			Title:       contribution.Notification.Title,
+			Categories:  categories,
+			Schedule:    scheduleData,
+			Status:      contribution.Notification.Status,
+			ViewCount:   contribution.Notification.ViewCount,
+			PublishedAt: contribution.Notification.PublishedAt,
+			CreatedAt:   contribution.Notification.CreatedAt,
 		}
 	}
 
