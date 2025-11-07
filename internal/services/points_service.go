@@ -82,19 +82,32 @@ func (s *PointsService) GetPointsTransactions(ctx context.Context, userID uint, 
 		return nil, err
 	}
 
+	// 批量获取用户信息（管理员查看时）
+	userMap := make(map[uint]*response.UserSimpleResponse)
+	if userRole == models.UserRoleAdmin && len(transactions) > 0 {
+		var userIDs []uint
+		for _, transaction := range transactions {
+			userIDs = append(userIDs, transaction.UserID)
+		}
+
+		var users []models.User
+		if err := s.db.Select("id, nickname").Where("id IN ?", userIDs).Find(&users).Error; err == nil {
+			for _, user := range users {
+				userMap[user.ID] = &response.UserSimpleResponse{
+					ID:       user.ID,
+					Nickname: user.Nickname,
+				}
+			}
+		}
+	}
+
 	// 转换为响应格式
 	var transactionResponses []response.PointsTransactionResponse
 	for _, transaction := range transactions {
-		// 获取用户信息（管理员查看时）
+		// 使用预查询的用户信息
 		var user *response.UserSimpleResponse
 		if userRole == models.UserRoleAdmin {
-			var userData models.User
-			if err := s.db.Select("id, nickname, avatar").First(&userData, transaction.UserID).Error; err == nil {
-				user = &response.UserSimpleResponse{
-					ID:       userData.ID,
-					Nickname: userData.Nickname,
-				}
-			}
+			user = userMap[transaction.UserID]
 		}
 
 		transactionResponses = append(transactionResponses, response.PointsTransactionResponse{

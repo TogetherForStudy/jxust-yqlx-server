@@ -22,8 +22,13 @@ func NewCourseTableService(db *gorm.DB) *CourseTableService {
 	}
 }
 
-// GetUserCourseTable 获取用户课程表
+// GetUserCourseTable 获取用户课程表 (保持向后兼容)
 func (s *CourseTableService) GetUserCourseTable(ctx context.Context, userID uint, semester string) (*response.CourseTableResponse, error) {
+	return s.GetUserCourseTableWithVersion(ctx, userID, semester, nil)
+}
+
+// GetUserCourseTableWithVersion 获取用户课程表（带版本检测）
+func (s *CourseTableService) GetUserCourseTableWithVersion(ctx context.Context, userID uint, semester string, clientLastModified *int64) (*response.CourseTableResponse, error) {
 	// 先获取用户信息，获取其班级ID
 	var user models.User
 	if err := s.db.WithContext(ctx).Where("id = ?", userID).First(&user).Error; err != nil {
@@ -38,32 +43,52 @@ func (s *CourseTableService) GetUserCourseTable(ctx context.Context, userID uint
 		return nil, fmt.Errorf("用户尚未设置班级信息")
 	}
 
-	// 优先返回个人课表
-	var userSchedule models.ScheduleUser
-	if err := s.db.WithContext(ctx).Where("user_id = ? AND class_id = ? AND semester = ?", userID, user.ClassID, semester).First(&userSchedule).Error; err == nil {
+	// 获取最新的数据修改时间和数据
+	latestModified, courseData, classID, err := s.getLatestCourseData(userID, user.ClassID, semester)
+	if err != nil {
+		return nil, err
+	}
+
+	// 检查客户端数据是否为最新
+	if clientLastModified != nil && *clientLastModified >= latestModified {
 		return &response.CourseTableResponse{
-			ClassID:    user.ClassID,
-			Semester:   userSchedule.Semester,
-			CourseData: userSchedule.Schedule,
+			ClassID:      classID,
+			Semester:     semester,
+			LastModified: latestModified,
+			HasChanges:   false,
 		}, nil
-	} else if err != gorm.ErrRecordNotFound {
-		return nil, fmt.Errorf("查询用户个性课表失败: %v", err)
 	}
 
-	// 根据班级ID和学期查询默认课程表
-	var courseTable models.CourseTable
-	if err := s.db.WithContext(ctx).Where("class_id = ? AND semester = ?", user.ClassID, semester).First(&courseTable).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("未找到该班级在指定学期的课程表")
-		}
-		return nil, fmt.Errorf("查询课程表失败: %v", err)
-	}
-
+	// 返回完整数据
 	return &response.CourseTableResponse{
-		ClassID:    courseTable.ClassID,
-		Semester:   courseTable.Semester,
-		CourseData: courseTable.CourseData,
+		ClassID:      classID,
+		Semester:     semester,
+		CourseData:   courseData,
+		LastModified: latestModified,
+		HasChanges:   true,
 	}, nil
+}
+
+// getLatestCourseData 获取最新课程数据和修改时间
+func (s *CourseTableService) getLatestCourseData(userID uint, classID, semester string) (int64, datatypes.JSON, string, error) {
+	// 优先检查用户个性化课表
+	var userSchedule models.ScheduleUser
+	if err := s.db.Where("user_id = ? AND class_id = ? AND semester = ?", userID, classID, semester).First(&userSchedule).Error; err == nil {
+		return userSchedule.UpdatedAt.Unix(), userSchedule.Schedule, userSchedule.ClassID, nil
+	} else if err != gorm.ErrRecordNotFound {
+		return 0, nil, "", fmt.Errorf("查询用户个性课表失败: %v", err)
+	}
+
+	// 查询班级默认课表
+	var courseTable models.CourseTable
+	if err := s.db.Where("class_id = ? AND semester = ?", classID, semester).First(&courseTable).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return 0, nil, "", fmt.Errorf("未找到该班级在指定学期的课程表")
+		}
+		return 0, nil, "", fmt.Errorf("查询课程表失败: %v", err)
+	}
+
+	return courseTable.UpdatedAt.Unix(), courseTable.CourseData, courseTable.ClassID, nil
 }
 
 // EditUserCourseCell 编辑用户课程表的单个格子（1-35）

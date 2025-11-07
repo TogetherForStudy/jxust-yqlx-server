@@ -165,14 +165,14 @@ func (s *StudyTaskService) UpdateStudyTask(ctx context.Context, taskID uint, use
 	// 更新字段
 	updates := make(map[string]interface{})
 
-	if req.Title != "" {
-		updates["title"] = req.Title
+	if req.Title != nil {
+		updates["title"] = *req.Title
 	}
-	if req.Description != "" {
-		updates["description"] = req.Description
+	if req.Description != nil {
+		updates["description"] = *req.Description
 	}
-	if req.DueDate != "" {
-		dueDate, err := utils.ParseDateTime(req.DueDate)
+	if req.DueDate != nil && *req.DueDate != "" {
+		dueDate, err := utils.ParseDateTime(*req.DueDate)
 		if err != nil {
 			return nil, errors.New("截止日期格式错误")
 		}

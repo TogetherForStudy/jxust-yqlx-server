@@ -67,5 +67,9 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.NotificationCategory{},
 		&models.Feature{},
 		&models.UserFeatureWhitelist{},
+		&models.MaterialCategory{},
+		&models.Material{},
+		&models.MaterialDesc{},
+		&models.MaterialLog{},
 	)
 }

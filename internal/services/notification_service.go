@@ -79,11 +79,11 @@ func (s *NotificationService) UpdateNotification(ctx context.Context, notificati
 
 	// 更新字段
 	updates := make(map[string]interface{})
-	if req.Title != "" {
-		updates["title"] = req.Title
+	if req.Title != nil {
+		updates["title"] = *req.Title
 	}
-	if req.Content != "" {
-		updates["content"] = req.Content
+	if req.Content != nil {
+		updates["content"] = *req.Content
 	}
 	if len(req.Categories) > 0 {
 		// 序列化分类
@@ -294,7 +294,11 @@ func (s *NotificationService) GetNotificationByID(ctx context.Context, notificat
 // GetNotificationByID 根据ID获取通知详情
 func (s *NotificationService) GetNotificationAdminByID(ctx context.Context, notificationID uint) (*response.NotificationResponse, error) {
 	var notification models.Notification
-	if err := s.db.WithContext(ctx).First(&notification, notificationID).Error; err != nil {
+	if err := s.db.Preload("Publisher", func(db *gorm.DB) *gorm.DB {
+		return db.Select("id, nickname")
+	}).Preload("Contributor", func(db *gorm.DB) *gorm.DB {
+		return db.Select("id, nickname")
+	}).WithContext(ctx).First(&notification, notificationID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, errors.New("通知不存在")
 		}
@@ -331,23 +335,19 @@ func (s *NotificationService) GetNotificationAdminByID(ctx context.Context, noti
 	var approvals []response.NotificationApprovalResponse
 	var approvalSummary *response.NotificationApprovalSummary
 
-	// 获取发布者信息
-	var publisherUser models.User
-	if err := s.db.WithContext(ctx).Select("id, nickname").First(&publisherUser, notification.PublisherID).Error; err == nil {
+	// 使用预加载的发布者信息
+	if notification.Publisher != nil {
 		publisher = &response.UserSimpleResponse{
-			ID:       publisherUser.ID,
-			Nickname: publisherUser.Nickname,
+			ID:       notification.Publisher.ID,
+			Nickname: notification.Publisher.Nickname,
 		}
 	}
 
-	// 获取投稿者信息
-	if notification.ContributorID != nil {
-		var contributorUser models.User
-		if err := s.db.WithContext(ctx).Select("id, nickname").First(&contributorUser, *notification.ContributorID).Error; err == nil {
-			contributor = &response.UserSimpleResponse{
-				ID:       contributorUser.ID,
-				Nickname: contributorUser.Nickname,
-			}
+	// 使用预加载的投稿者信息
+	if notification.Contributor != nil {
+		contributor = &response.UserSimpleResponse{
+			ID:       notification.Contributor.ID,
+			Nickname: notification.Contributor.Nickname,
 		}
 	}
 
@@ -497,11 +497,11 @@ func (s *NotificationService) UpdateCategory(ctx context.Context, categoryID uin
 
 	// 更新字段
 	updates := make(map[string]interface{})
-	if req.Name != "" {
-		updates["name"] = req.Name
+	if req.Name != nil {
+		updates["name"] = *req.Name
 	}
-	if req.Sort != 0 {
-		updates["sort"] = req.Sort
+	if req.Sort != nil {
+		updates["sort"] = *req.Sort
 	}
 	if req.IsActive != nil {
 		updates["is_active"] = *req.IsActive
@@ -677,14 +677,29 @@ func (s *NotificationService) generateApprovalSummary(ctx context.Context, notif
 		return nil, err
 	}
 
+	// 批量获取所有审核用户的信息
+	var reviewerIDs []uint
+	for _, approval := range approvals {
+		reviewerIDs = append(reviewerIDs, approval.ReviewerID)
+	}
+
+	var reviewers []models.User
+	userMap := make(map[uint]models.User)
+	if len(reviewerIDs) > 0 {
+		if err := s.db.Select("id, nickname").Where("id IN ?", reviewerIDs).Find(&reviewers).Error; err == nil {
+			for _, user := range reviewers {
+				userMap[user.ID] = user
+			}
+		}
+	}
+
 	// 构建已通过和已拒绝的用户列表
 	var approvedUsers []response.UserSimpleResponse
 	var rejectedUsers []response.UserSimpleResponse
 	reviewedUserIDs := make(map[uint]bool)
 
 	for _, approval := range approvals {
-		var user models.User
-		if err := s.db.WithContext(ctx).First(&user, approval.ReviewerID).Error; err == nil {
+		if user, exists := userMap[approval.ReviewerID]; exists {
 			userInfo := response.UserSimpleResponse{
 				ID:       user.ID,
 				Nickname: user.Nickname,

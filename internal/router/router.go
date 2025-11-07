@@ -42,6 +42,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	countdownService := services.NewCountdownService(db)
 	studyTaskService := services.NewStudyTaskService(db)
 	featureService := services.NewFeatureService(db)
+	materialService := services.NewMaterialService(db)
 
 	// 初始化处理器
 	authHandler := handlers.NewAuthHandler(authService)
@@ -58,6 +59,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	countdownHandler := handlers.NewCountdownHandler(countdownService)
 	studyTaskHandler := handlers.NewStudyTaskHandler(studyTaskService)
 	featureHandler := handlers.NewFeatureHandler(featureService)
+	materialHandler := handlers.NewMaterialHandler(materialService)
 
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
@@ -278,6 +280,24 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				studyTasks.GET("/completed", studyTaskHandler.GetCompletedTasks)                                // 已完成的任务
 			}
 
+			// 资料相关路由（需认证）
+			materials := authorized.Group("/materials")
+			{
+				materials.GET("/", materialHandler.GetMaterialList)                // 获取资料列表
+				materials.GET("/top", materialHandler.GetTopMaterials)             // 获取热门资料
+				materials.GET("/hot-words", materialHandler.GetHotWords)           // 获取热词
+				materials.GET("/search", materialHandler.SearchMaterials)          // 搜索资料
+				materials.GET("/:md5", materialHandler.GetMaterialDetail)          // 获取资料详情
+				materials.POST("/:md5/rating", materialHandler.RateMaterial)       // 资料评分
+				materials.POST("/:md5/download", materialHandler.DownloadMaterial) // 下载资料
+			}
+
+			// 资料分类路由（需认证）
+			materialCategories := authorized.Group("/material-categories")
+			{
+				materialCategories.GET("/", materialHandler.GetCategories) // 获取分类列表
+			}
+
 			// 通知管理路由（需要运营权限）
 			notificationAdmin := authorized.Group("/admin/notifications")
 			notificationAdmin.Use(middleware.RequireRole(2, 3))
@@ -331,6 +351,17 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			userFeatureAdmin.Use(middleware.RequireRole(2))
 			{
 				userFeatureAdmin.GET("/:id/features", featureHandler.GetUserFeatureDetails) // 查看用户功能权限详情
+			}
+
+			// 资料管理路由（需要管理员权限）
+			materialAdmin := authorized.Group("/admin")
+			materialAdmin.Use(middleware.RequireRole(2))
+			{
+				// 资料管理
+				materialAdmin.DELETE("/materials/:md5", materialHandler.DeleteMaterial) // 删除资料
+
+				// 资料描述管理
+				materialAdmin.PUT("/material-desc/:md5", materialHandler.UpdateMaterialDesc) // 更新资料描述
 			}
 
 		}

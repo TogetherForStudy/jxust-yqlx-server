@@ -24,12 +24,13 @@ func NewCourseTableHandler(courseTableService *services.CourseTableService) *Cou
 
 // GetCourseTable 获取课程表
 // @Summary 获取用户课程表
-// @Description 根据当前用户ID和学期获取课程表数据
+// @Description 根据当前用户ID和学期获取课程表数据，支持版本检测以减少不必要的数据传输
 // @Tags 课程表
 // @Accept json
 // @Produce json
 // @Param semester query string true "学期"
-// @Success 200 {object} helper.Response{data=response.CourseTableResponse}
+// @Param last_modified query int false "客户端上次获取数据的时间戳"
+// @Success 200 {object} helper.Response{data=response.CourseTableResponse} "返回课程表数据，has_changes字段标识是否有数据变化"
 // @Failure 400 {object} helper.Response
 // @Failure 401 {object} helper.Response
 // @Router /api/v0/coursetable [get]
@@ -47,12 +48,13 @@ func (h *CourseTableHandler) GetCourseTable(c *gin.Context) {
 		return
 	}
 
-	result, err := h.courseTableService.GetUserCourseTable(c, userID.(uint), req.Semester)
+	result, err := h.courseTableService.GetUserCourseTableWithVersion(c, userID.(uint), req.Semester, req.LastModified)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
+	// 统一返回200状态码，通过has_changes字段标识数据变化
 	helper.SuccessResponse(c, result)
 }
 
