@@ -358,6 +358,7 @@ func (s *ContributionService) convertToResponse(ctx context.Context, contributio
 			ID:          contribution.Notification.ID,
 			Title:       contribution.Notification.Title,
 			Categories:  categories,
+			PublisherID: contribution.Notification.PublisherID,
 			Schedule:    scheduleData,
 			Status:      contribution.Notification.Status,
 			ViewCount:   contribution.Notification.ViewCount,
