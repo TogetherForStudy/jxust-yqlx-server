@@ -15,7 +15,7 @@ require (
 	golang.org/x/crypto v0.42.0
 	gorm.io/datatypes v1.2.7
 	gorm.io/driver/mysql v1.6.0
-	gorm.io/gorm v1.31.0
+	gorm.io/gorm v1.31.1
 )
 
 require (
