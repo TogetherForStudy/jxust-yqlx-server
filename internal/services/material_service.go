@@ -577,7 +577,7 @@ func (s *MaterialService) CalculateHotness() error {
 	// 计算最近7天的热度
 	sevenDaysAgo := time.Now().AddDate(0, 0, -7)
 
-	var results []struct {
+	var periodResults []struct {
 		MaterialMD5   string
 		ViewCount     int
 		DownloadCount int
@@ -593,20 +593,51 @@ func (s *MaterialService) CalculateHotness() error {
 			models.MaterialLogTypeView, models.MaterialLogTypeDownload, models.MaterialLogTypeRating).
 		Where("created_at >= ? AND material_md5 != ''", sevenDaysAgo).
 		Group("material_md5").
-		Scan(&results).Error; err != nil {
-		return fmt.Errorf("统计热度数据失败: %w", err)
+		Scan(&periodResults).Error; err != nil {
+		return fmt.Errorf("统计期间热度数据失败: %w", err)
 	}
 
-	// 更新每个资料的期间热度
-	for _, result := range results {
+	// 统计所有时间的活动（总热度）
+	var totalResults []struct {
+		MaterialMD5   string
+		ViewCount     int
+		DownloadCount int
+		RatingCount   int
+	}
+
+	if err := s.db.Model(&models.MaterialLog{}).
+		Select("material_md5, "+
+			"SUM(CASE WHEN type = ? THEN count ELSE 0 END) as view_count, "+
+			"SUM(CASE WHEN type = ? THEN count ELSE 0 END) as download_count, "+
+			"SUM(CASE WHEN type = ? THEN count ELSE 0 END) as rating_count",
+			models.MaterialLogTypeView, models.MaterialLogTypeDownload, models.MaterialLogTypeRating).
+		Where("material_md5 != ''").
+		Group("material_md5").
+		Scan(&totalResults).Error; err != nil {
+		return fmt.Errorf("统计总热度数据失败: %w", err)
+	}
+
+	// 构建期间热度映射
+	periodHotnessMap := make(map[string]int)
+	for _, result := range periodResults {
 		// 热度计算公式：查看次数 + 下载次数*3 + 评分次数*2
 		periodHotness := result.ViewCount + result.DownloadCount*3 + result.RatingCount*2
+		periodHotnessMap[result.MaterialMD5] = periodHotness
+	}
 
-		// 更新期间热度，同时累加到总热度
+	// 更新每个资料的总热度和期间热度
+	for _, result := range totalResults {
+		// 计算总热度（基于所有历史数据）
+		totalHotness := result.ViewCount + result.DownloadCount*3 + result.RatingCount*2
+
+		// 获取期间热度（如果有的话）
+		periodHotness := periodHotnessMap[result.MaterialMD5]
+
+		// 更新热度数据
 		if err := s.db.Model(&models.MaterialDesc{}).Where("md5 = ?", result.MaterialMD5).
 			Updates(map[string]interface{}{
 				"period_hotness": periodHotness,
-				"total_hotness":  gorm.Expr("total_hotness + ?", periodHotness),
+				"total_hotness":  totalHotness,
 				"updated_at":     time.Now(),
 			}).Error; err != nil {
 			fmt.Printf("更新资料热度失败 MD5=%s: %v\n", result.MaterialMD5, err)
