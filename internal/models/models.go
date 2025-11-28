@@ -404,3 +404,76 @@ const (
 	MaterialLogTypeRating   MaterialLogType = 3 // 评分
 	MaterialLogTypeDownload MaterialLogType = 4 // 下载
 )
+
+// =============== 刷题功能相关模型 ===============
+
+// QuestionProject 题目项目（题库分类）
+type QuestionProject struct {
+	ID          uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:项目ID"`
+	Name        string         `json:"name" gorm:"type:varchar(100);not null;comment:项目名称"`
+	Description string         `json:"description" gorm:"type:text;comment:项目描述"`
+	Sort        int            `json:"sort" gorm:"type:int;default:0;comment:排序"`
+	IsActive    bool           `json:"is_active" gorm:"type:tinyint(1);default:1;comment:是否启用"`
+	CreatedAt   time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
+	UpdatedAt   time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
+	DeletedAt   gorm.DeletedAt `json:"-" gorm:"comment:软删除时间"`
+}
+
+// Question 题目
+type Question struct {
+	ID          uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:题目ID"`
+	ProjectID   uint           `json:"project_id" gorm:"not null;index:idx_project_question;comment:项目ID"`
+	ParentID    *uint          `json:"parent_id" gorm:"type:int unsigned;index:idx_parent_question;comment:父题目ID（用于题目分组，null表示主题或独立题）"`
+	Type        QuestionType   `json:"type" gorm:"type:tinyint;not null;comment:题目类型：1=选择题，2=简答题"`
+	Title       string         `json:"title" gorm:"type:text;not null;comment:题目标题"`
+	Options     datatypes.JSON `json:"options" gorm:"type:json;comment:选项（JSON数组，仅选择题使用）"`
+	Answer      string         `json:"answer" gorm:"type:text;not null;comment:答案"`
+	Sort        int            `json:"sort" gorm:"type:int;default:0;comment:排序"`
+	IsActive    bool           `json:"is_active" gorm:"type:tinyint(1);default:1;comment:是否启用"`
+	CreatedAt   time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
+	UpdatedAt   time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
+	DeletedAt   gorm.DeletedAt `json:"deleted_at" gorm:"type:datetime;index;comment:删除时间"`
+	// 关联
+	Project    *QuestionProject `json:"project,omitempty" gorm:"foreignKey:ProjectID;references:ID;constraint:-"`
+	Parent     *Question        `json:"parent,omitempty" gorm:"foreignKey:ParentID;references:ID;constraint:-"`
+	SubQuestions []Question     `json:"sub_questions,omitempty" gorm:"foreignKey:ParentID;references:ID;constraint:-"`
+}
+
+// QuestionType 题目类型
+type QuestionType int8
+
+const (
+	QuestionTypeChoice QuestionType = 1 // 选择题
+	QuestionTypeEssay  QuestionType = 2 // 简答题
+)
+
+// UserProjectUsage 用户对项目的使用记录
+type UserProjectUsage struct {
+	ID         uint      `json:"id" gorm:"type:int unsigned;primaryKey;comment:记录ID"`
+	UserID     uint      `json:"user_id" gorm:"not null;uniqueIndex:idx_user_project_usage;comment:用户ID"`
+	ProjectID  uint      `json:"project_id" gorm:"not null;uniqueIndex:idx_user_project_usage;comment:项目ID"`
+	UsageCount int       `json:"usage_count" gorm:"type:int;default:0;comment:使用次数"`
+	LastUsedAt time.Time `json:"last_used_at" gorm:"type:datetime;comment:最后使用时间"`
+	CreatedAt  time.Time `json:"created_at" gorm:"type:datetime;comment:创建时间"`
+	UpdatedAt  time.Time `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
+	// 关联
+	User    *User            `json:"user,omitempty" gorm:"foreignKey:UserID;references:ID;constraint:-"`
+	Project *QuestionProject `json:"project,omitempty" gorm:"foreignKey:ProjectID;references:ID;constraint:-"`
+}
+
+// UserQuestionUsage 用户对题目的使用记录
+type UserQuestionUsage struct {
+	ID          uint      `json:"id" gorm:"type:int unsigned;primaryKey;comment:记录ID"`
+	UserID      uint      `json:"user_id" gorm:"not null;uniqueIndex:idx_user_question_usage;comment:用户ID"`
+	QuestionID  uint      `json:"question_id" gorm:"not null;uniqueIndex:idx_user_question_usage;comment:题目ID"`
+	StudyCount  int       `json:"study_count" gorm:"type:int;default:0;comment:学习次数"`
+	PracticeCount int     `json:"practice_count" gorm:"type:int;default:0;comment:做题次数"`
+	LastStudiedAt *time.Time `json:"last_studied_at" gorm:"type:datetime;comment:最后学习时间"`
+	LastPracticedAt *time.Time `json:"last_practiced_at" gorm:"type:datetime;comment:最后做题时间"`
+	CreatedAt   time.Time `json:"created_at" gorm:"type:datetime;comment:创建时间"`
+	UpdatedAt   time.Time `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
+	// 关联
+	User     *User     `json:"user,omitempty" gorm:"foreignKey:UserID;references:ID;constraint:-"`
+	Question *Question `json:"question,omitempty" gorm:"foreignKey:QuestionID;references:ID;constraint:-"`
+}
+

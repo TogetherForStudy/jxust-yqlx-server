@@ -71,5 +71,9 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.Material{},
 		&models.MaterialDesc{},
 		&models.MaterialLog{},
+		&models.QuestionProject{},
+		&models.Question{},
+		&models.UserProjectUsage{},
+		&models.UserQuestionUsage{},
 	)
 }

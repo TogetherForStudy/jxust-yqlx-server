@@ -43,6 +43,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	studyTaskService := services.NewStudyTaskService(db)
 	featureService := services.NewFeatureService(db)
 	materialService := services.NewMaterialService(db)
+	questionService := services.NewQuestionService(db)
 
 	// 初始化处理器
 	authHandler := handlers.NewAuthHandler(authService)
@@ -60,6 +61,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	studyTaskHandler := handlers.NewStudyTaskHandler(studyTaskService)
 	featureHandler := handlers.NewFeatureHandler(featureService)
 	materialHandler := handlers.NewMaterialHandler(materialService)
+	questionHandler := handlers.NewQuestionHandler(questionService)
 
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
@@ -362,6 +364,25 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 				// 资料描述管理
 				materialAdmin.PUT("/material-desc/:md5", materialHandler.UpdateMaterialDesc) // 更新资料描述
+			}
+
+			// 刷题功能路由（需认证）
+			questions := authorized.Group("/questions")
+			{
+				// 项目列表
+				questions.GET("/projects", questionHandler.GetProjects) // 获取项目列表
+
+				// 获取题目列表（返回题目ID数组，支持顺序/乱序）
+				questions.GET("/list", questionHandler.GetQuestions) // 获取题目ID列表
+
+				// 获取题目详情
+				questions.GET("/:id", questionHandler.GetQuestionByID) // 获取题目详情
+
+				// 记录学习
+				questions.POST("/study", questionHandler.RecordStudy) // 记录学习次数
+
+				// 记录做题
+				questions.POST("/practice", questionHandler.SubmitPractice) // 记录做题次数
 			}
 
 		}
