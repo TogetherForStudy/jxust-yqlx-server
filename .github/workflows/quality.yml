@@ -131,6 +131,7 @@ jobs:
           MINIO_USE_SSL: false
           BUCKET_NAME: yqlx
         run: |
+          go mod download # todo: add cache for optimization
           go run cmd/apiserver/main.go &
           echo "Waiting for server to start..."
           for i in {1..30}; do
