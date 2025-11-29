@@ -5,11 +5,13 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/middleware"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -72,6 +74,9 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		auth := v0.Group("/auth")
 		{
 			auth.POST("/wechat-login", authHandler.WechatLogin)
+			if os.Getenv(constant.ENV_GIN_MODE) != "release" {
+				auth.POST("/mock-wechat-login", authHandler.MockWechatLogin)
+			}
 		}
 
 		// 评价相关路由（公开查询）
