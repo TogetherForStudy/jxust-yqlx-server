@@ -69,7 +69,8 @@ goJxust/
 │   └── router/          # 路由配置
 │       └── router.go
 └── scripts/             # 脚本文件
-    └── init.sql         # 数据库初始化脚本
+    ├── init.sql         # 数据库初始化脚本(deprecated because of GORM automatically initializes)
+    └── e2e_test.py      # E2E测试脚本
 ```
 
 ## 快速开始
@@ -136,6 +137,28 @@ go run main.go
 ```
 
 应用将在 `http://localhost:8080` 启动
+
+### 5. 运行E2E测试
+
+E2E测试使用Python + httpx编写，通过模拟微信登录接口获取授权token进行测试。
+
+```bash
+# 安装Python依赖
+pip install httpx
+
+# 运行E2E测试（需要先启动API服务，且非release模式）
+python scripts/e2e_test.py
+
+# 指定自定义API地址
+python scripts/e2e_test.py --base-url http://localhost:8085
+```
+
+测试覆盖的接口：
+- 公开接口：健康检查、教师评价查询、配置获取、英雄榜、通知列表、分类列表
+- 认证接口：用户资料、评价CRUD、课程表、挂科率、积分系统、投稿、倒数日、学习任务
+- 管理员接口：评价管理、通知管理、英雄管理、配置管理
+
+> 注意：E2E测试使用 `/api/v0/auth/mock-wechat-login` 接口获取测试token，该接口仅在非release模式下可用。
 
 ## 部署说明
 

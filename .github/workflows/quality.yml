@@ -70,11 +70,84 @@ jobs:
 
       - name: Build Test
         run: make docker-build
+  e2e-test:
+    name: Code-Quality / E2E-Test
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || (!github.event.pull_request.draft && !contains(github.event.pull_request.title, 'WIP'))
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: 123456
+          MYSQL_DATABASE: yqlx
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.24'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: pip install httpx
+
+      - name: Wait for MySQL
+        run: |
+          until mysqladmin ping -h 127.0.0.1 --silent; do
+            echo "Waiting for MySQL..."
+            sleep 2
+          done
+
+      - name: Start API Server
+        env:
+          JWT_SECRET: 123456
+          SERVER_PORT: 8080
+          WECHAT_APP_ID: ""
+          WECHAT_APP_SECRET: ""
+          HOST: localhost
+          SCHEME: http
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USERNAME: root
+          DB_PASSWORD: 123456
+          DB_NAME: yqlx
+          UPYUN_TOKEN_SECRET: jxustyqlxweapp
+          CDN_BASE_URL: https://cdn.ntrun.com
+          MINIO_ENDPOINT: localhost:9000
+          MINIO_ACCESS_KEY: minioadmin
+          MINIO_SECRET_KEY: minioadmin
+          MINIO_USE_SSL: false
+          BUCKET_NAME: yqlx
+        run: |
+          go run cmd/apiserver/main.go &
+          echo "Waiting for server to start..."
+          for i in {1..30}; do
+            if curl -s http://localhost:8080/health > /dev/null; then
+              echo "Server is ready"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Run E2E Tests
+        run: python scripts/e2e_test.py --base-url http://localhost:8080
 
   deploy-to-test-env:
     name: Deploy to Test Environment
     runs-on: ubuntu-latest
-    needs: [unit-test, golangci-lint]
+    needs: [unit-test, golangci-lint, e2e-test]
     if: github.event_name == 'pull_request' && (!github.event.pull_request.draft && !contains(github.event.pull_request.title, 'WIP'))
     permissions:
       contents: read
