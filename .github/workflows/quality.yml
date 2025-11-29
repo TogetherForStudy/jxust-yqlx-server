@@ -73,6 +73,7 @@ jobs:
   e2e-test:
     name: Code-Quality / E2E-Test
     runs-on: ubuntu-latest
+    needs: [unit-test, golangci-lint]
     if: github.event_name != 'pull_request' || (!github.event.pull_request.draft && !contains(github.event.pull_request.title, 'WIP'))
     services:
       mysql:
@@ -179,7 +180,7 @@ jobs:
   deploy-to-test-env:
     name: Deploy to Test Environment
     runs-on: ubuntu-latest
-    needs: [unit-test, golangci-lint, e2e-test]
+    needs: [e2e-test]
     if: github.event_name == 'pull_request' && (!github.event.pull_request.draft && !contains(github.event.pull_request.title, 'WIP'))
     permissions:
       contents: read
