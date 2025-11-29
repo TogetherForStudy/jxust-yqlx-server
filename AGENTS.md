@@ -42,11 +42,31 @@ cp .env.example .env
 
 And then edit the `.env` file with your database, JWT, and other settings.
 
-**Run tests:**
+**Run unit tests:**
 
 ```shell
 make test
 ```
+
+**Run E2E tests:**
+
+E2E tests are written in Python using httpx. Before running, ensure the API server is running in non-release mode (to enable mock login endpoint).
+
+```shell
+# Install dependencies
+pip install httpx
+
+# Run E2E tests (server must be running on localhost:8080)
+python scripts/e2e_test.py
+
+# Or specify a custom base URL
+python scripts/e2e_test.py --base-url http://localhost:8085
+```
+
+The E2E test script (`scripts/e2e_test.py`) covers:
+- Public endpoints: health check, reviews, config, heroes, notifications, categories
+- Authenticated endpoints: user profile, reviews CRUD, course table, fail rate, points, contributions, countdowns, study tasks
+- Admin endpoints: reviews management, notifications management, heroes management, config management
 
 **Build a Docker image:**
 

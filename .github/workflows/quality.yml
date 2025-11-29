@@ -70,11 +70,116 @@ jobs:
 
       - name: Build Test
         run: make docker-build
+  e2e-test:
+    name: Code-Quality / E2E-Test
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || (!github.event.pull_request.draft && !contains(github.event.pull_request.title, 'WIP'))
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: 123456
+          MYSQL_DATABASE: yqlx
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.24'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: pip install httpx
+
+      - name: Wait for MySQL
+        run: |
+          until mysqladmin ping -h 127.0.0.1 --silent; do
+            echo "Waiting for MySQL..."
+            sleep 2
+          done
+
+      - name: Start API Server and Run E2E Tests
+        env:
+          JWT_SECRET: 123456
+          SERVER_PORT: 8080
+          WECHAT_APP_ID: ""
+          WECHAT_APP_SECRET: ""
+          HOST: localhost
+          SCHEME: http
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USERNAME: root
+          DB_PASSWORD: 123456
+          DB_NAME: yqlx
+          UPYUN_TOKEN_SECRET: jxustyqlxweapp
+          CDN_BASE_URL: https://cdn.ntrun.com
+          MINIO_ENDPOINT: localhost:9000
+          MINIO_ACCESS_KEY: minioadmin
+          MINIO_SECRET_KEY: minioadmin
+          MINIO_USE_SSL: false
+          BUCKET_NAME: yqlx
+        run: |
+          # Build and start server in background
+          echo "Building API server..."
+          go build -o ./bin/apiserver cmd/apiserver/main.go
+          echo "Starting API server..."
+          ./bin/apiserver > server.log 2>&1 &
+          SERVER_PID=$!
+          echo "Server PID: $SERVER_PID"
+
+          # Wait for server to be ready
+          echo "Waiting for server to start..."
+          for i in {1..60}; do
+            if curl -s http://localhost:8080/health > /dev/null 2>&1; then
+              echo "Server is ready after ${i}s"
+              break
+            fi
+            if ! kill -0 $SERVER_PID 2>/dev/null; then
+              echo "Server process died. Logs:"
+              cat server.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+          # Check if server started
+          if ! curl -s http://localhost:8080/health > /dev/null 2>&1; then
+            echo "Server failed to start. Logs:"
+            cat server.log
+            exit 1
+          fi
+
+          # Run E2E tests
+          echo "Running E2E tests..."
+          python scripts/e2e_test.py --base-url http://localhost:8080
+          TEST_EXIT_CODE=$?
+
+          # Show server logs if tests failed
+          if [ $TEST_EXIT_CODE -ne 0 ]; then
+            echo "Server logs:"
+            cat server.log
+          fi
+
+          # Cleanup
+          kill $SERVER_PID 2>/dev/null || true
+          exit $TEST_EXIT_CODE
 
   deploy-to-test-env:
     name: Deploy to Test Environment
     runs-on: ubuntu-latest
-    needs: [unit-test, golangci-lint]
+    needs: [unit-test, golangci-lint, e2e-test]
     if: github.event_name == 'pull_request' && (!github.event.pull_request.draft && !contains(github.event.pull_request.title, 'WIP'))
     permissions:
       contents: read
