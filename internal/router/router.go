@@ -74,7 +74,16 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	{
 		mcpGroup.Use(middleware.RequestID())
 		mcpGroup.Use(middleware.AuthMiddleware(cfg))
-		mcpHandler := handlers.NewMCPHandler()
+		mcpHandler := handlers.NewMCPHandler(
+			heroService,
+			notificationService,
+			authService,
+			reviewService,
+			courseTableService,
+			failRateService,
+			countdownService,
+			studyTaskService,
+		)
 		mcpGroup.Any("", mcpHandler.Handle)
 	}
 
