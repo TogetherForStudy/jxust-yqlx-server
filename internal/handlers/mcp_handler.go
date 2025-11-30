@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
 
@@ -82,10 +83,11 @@ func NewMCPHandler(
 
 // Handle processes MCP requests via Gin context
 func (h *MCPHandler) Handle(c *gin.Context) {
-	// Inject user context into request
-	userID, _ := c.Get("user_id")
-	userRole, _ := c.Get("user_role")
+	// Get user info from Gin context (set by AuthMiddleware)
+	userID := helper.GetUserID(c)
+	userRole := helper.GetUserRole(c)
 
+	// Inject user info into request context for MCP tool handlers
 	ctx := context.WithValue(c.Request.Context(), mcpUserIDKey, userID)
 	ctx = context.WithValue(ctx, mcpUserRoleKey, userRole)
 
