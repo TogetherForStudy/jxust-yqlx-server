@@ -18,8 +18,9 @@ func NewMCPHandler() *MCPHandler {
 	// Create MCP server with GoJxust implementation info
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "gojxust-mcp-server",
+		Title:   "江理一起来学智能助理 MCP 服务，提供各种校园服务、学习类服务工具调用接口",
 		Version: "0.1.0",
-	}, nil)
+	}, &mcp.ServerOptions{HasTools: true})
 
 	// TODO: Add GoJxust service tools here
 	// Example:
