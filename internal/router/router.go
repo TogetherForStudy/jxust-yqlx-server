@@ -68,6 +68,25 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 	// API路由组
 	api := r.Group("/api")
+
+	// MCP endpoint for LLM tool calling
+	mcpGroup := api.Group("/mcp")
+	{
+		mcpGroup.Use(middleware.RequestID())
+		mcpGroup.Use(middleware.AuthMiddleware(cfg))
+		mcpHandler := handlers.NewMCPHandler(
+			heroService,
+			notificationService,
+			authService,
+			reviewService,
+			courseTableService,
+			failRateService,
+			countdownService,
+			studyTaskService,
+		)
+		mcpGroup.Any("", mcpHandler.Handle)
+	}
+
 	v0 := api.Group("/v0")
 	v0.Use(middleware.RequestID())
 	{ // 认证相关路由

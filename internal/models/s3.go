@@ -9,7 +9,7 @@ import (
 type S3Data struct {
 	gorm.Model
 
-ResourceID string  `gorm:"column:resource_id;type:varchar(64);not null;uniqueIndex:uidx_resource_id" json:"resource_id"` // 商业资源ID
+	ResourceID string  `gorm:"column:resource_id;type:varchar(64);not null;uniqueIndex:uidx_resource_id" json:"resource_id"` // 商业资源ID
 	Bucket     string  `gorm:"column:bucket;type:varchar(256);not null" json:"bucket"`
 	ObjectKey  string  `gorm:"column:object_key;type:varchar(512);not null" json:"object_key"`
 	FileName   string  `gorm:"column:file_name;type:varchar(256);not null" json:"file_name"`
@@ -20,7 +20,7 @@ ResourceID string  `gorm:"column:resource_id;type:varchar(64);not null;uniqueInd
 type S3Resource struct {
 	ID uint `gorm:"primarykey"`
 
-ResourceID string `gorm:"type:varchar(64);not null;comment:资源ID;index:idx_resource_id" json:"resource_id"` // 资源ID
+	ResourceID string `gorm:"type:varchar(64);not null;comment:资源ID;index:idx_resource_id" json:"resource_id"` // 资源ID
 	URL        string `gorm:"type:varchar(512);not null;comment:资源URL" json:"url"`                             // 资源URL
 	UserID     string `gorm:"type:varchar(64);not null;comment:用户ID;index:idx_user_id" json:"-"`               // 该资源URL所属的用户ID（微信OpenID），用于做请求定位
 	Private    bool   `gorm:"type:boolean;not null;default:false;comment:是否私有" json:"private"`                 // 是否私有，私有资源只能用户自己访问
