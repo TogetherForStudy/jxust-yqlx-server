@@ -172,73 +172,73 @@ type ListHeroesParams struct{}
 
 // NotificationsParams for notifications tool
 type NotificationsParams struct {
-	Action string `json:"action" jsonschema:"required,enum=list|get,description=操作类型: list(获取列表) 或 get(获取详情)"`
-	ID     uint   `json:"id,omitempty" jsonschema:"description=通知ID，action=get时必填"`
-	Page   int    `json:"page,omitempty" jsonschema:"description=页码，默认1"`
-	Size   int    `json:"size,omitempty" jsonschema:"description=每页数量，默认20"`
+	Action string `json:"action" jsonschema:"操作类型: list(获取列表) 或 get(获取详情)"`
+	ID     uint   `json:"id,omitempty" jsonschema:"通知ID，当action为get时必填"`
+	Page   int    `json:"page,omitempty" jsonschema:"页码，默认1"`
+	Size   int    `json:"size,omitempty" jsonschema:"每页数量，默认20"`
 }
 
 // UserProfileParams for user profile tool
 type UserProfileParams struct {
-	Action   string `json:"action" jsonschema:"required,enum=get|update,description=操作类型: get(获取信息) 或 update(更新信息)"`
-	Nickname string `json:"nickname,omitempty" jsonschema:"description=昵称"`
-	RealName string `json:"real_name,omitempty" jsonschema:"description=真名"`
-	College  string `json:"college,omitempty" jsonschema:"description=学院"`
-	Major    string `json:"major,omitempty" jsonschema:"description=专业"`
-	ClassID  string `json:"class_id,omitempty" jsonschema:"description=班级"`
+	Action   string `json:"action" jsonschema:"操作类型: get(获取信息) 或 update(更新信息)"`
+	Nickname string `json:"nickname,omitempty" jsonschema:"昵称"`
+	RealName string `json:"real_name,omitempty" jsonschema:"真名"`
+	College  string `json:"college,omitempty" jsonschema:"学院"`
+	Major    string `json:"major,omitempty" jsonschema:"专业"`
+	ClassID  string `json:"class_id,omitempty" jsonschema:"班级"`
 }
 
 // TeacherReviewParams for teacher review tool
 type TeacherReviewParams struct {
-	Action      string `json:"action" jsonschema:"required,enum=create|get,description=操作类型: create(创建评价) 或 get(获取评价)"`
-	TeacherName string `json:"teacher_name" jsonschema:"description=教师姓名，action=get或create时必填"`
-	Campus      string `json:"campus,omitempty" jsonschema:"description=校区，action=create时必填"`
-	CourseName  string `json:"course_name,omitempty" jsonschema:"description=课程名称，action=create时必填"`
-	Content     string `json:"content,omitempty" jsonschema:"description=评价内容，action=create时必填，最多200字"`
-	Attitude    uint8  `json:"attitude,omitempty" jsonschema:"description=教师态度评分: 1=好 2=一般 3=差，action=create时必填"`
-	Page        int    `json:"page,omitempty" jsonschema:"description=页码，默认1"`
-	Size        int    `json:"size,omitempty" jsonschema:"description=每页数量，默认10"`
+	Action      string `json:"action" jsonschema:"操作类型: create(创建评价) 或 get(获取评价)"`
+	TeacherName string `json:"teacher_name" jsonschema:"教师姓名，当action为get或create时必填"`
+	Campus      string `json:"campus,omitempty" jsonschema:"校区，当action为create时必填"`
+	CourseName  string `json:"course_name,omitempty" jsonschema:"课程名称，当action为create时必填"`
+	Content     string `json:"content,omitempty" jsonschema:"评价内容，当action为create时必填，最多200字"`
+	Attitude    uint8  `json:"attitude,omitempty" jsonschema:"教师态度评分: 1好 2一般 3差，当action为create时必填"`
+	Page        int    `json:"page,omitempty" jsonschema:"页码，默认1"`
+	Size        int    `json:"size,omitempty" jsonschema:"每页数量，默认10"`
 }
 
 // GetCourseTableParams for getting course table
 type GetCourseTableParams struct {
-	Semester string `json:"semester" jsonschema:"required,description=学期，如2024-2025-1"`
+	Semester string `json:"semester" jsonschema:"学期，如2024-2025-1"`
 }
 
 // EditCourseCellParams for editing course cell
 type EditCourseCellParams struct {
-	Semester string `json:"semester" jsonschema:"required,description=学期，如2024-2025-1"`
-	Index    string `json:"index" jsonschema:"required,description=格子索引，1-35之间的字符串"`
-	Value    any    `json:"value" jsonschema:"required,description=格子数据"`
+	Semester string `json:"semester" jsonschema:"学期，如2024-2025-1"`
+	Index    string `json:"index" jsonschema:"格子索引，1到35之间的字符串"`
+	Value    any    `json:"value" jsonschema:"格子数据"`
 }
 
 // QueryFailRateParams for querying fail rate
 type QueryFailRateParams struct {
-	Keyword string `json:"keyword,omitempty" jsonschema:"description=课程名关键词，不填则随机返回10条"`
-	Page    int    `json:"page,omitempty" jsonschema:"description=页码，默认1"`
-	Size    int    `json:"size,omitempty" jsonschema:"description=每页数量，默认10"`
+	Keyword string `json:"keyword,omitempty" jsonschema:"课程名关键词，不填则随机返回10条"`
+	Page    int    `json:"page,omitempty" jsonschema:"页码，默认1"`
+	Size    int    `json:"size,omitempty" jsonschema:"每页数量，默认10"`
 }
 
 // CountdownParams for countdown tool
 type CountdownParams struct {
-	Action      string `json:"action" jsonschema:"required,enum=create|list|get|update|delete,description=操作类型"`
-	ID          uint   `json:"id,omitempty" jsonschema:"description=倒数日ID，action=get|update|delete时必填"`
-	Title       string `json:"title,omitempty" jsonschema:"description=标题，action=create时必填"`
-	Description string `json:"description,omitempty" jsonschema:"description=描述"`
-	TargetDate  string `json:"target_date,omitempty" jsonschema:"description=目标日期，格式YYYY-MM-DD，action=create时必填"`
+	Action      string `json:"action" jsonschema:"操作类型: create/list/get/update/delete"`
+	ID          uint   `json:"id,omitempty" jsonschema:"倒数日ID，当action为get/update/delete时必填"`
+	Title       string `json:"title,omitempty" jsonschema:"标题，当action为create时必填"`
+	Description string `json:"description,omitempty" jsonschema:"描述"`
+	TargetDate  string `json:"target_date,omitempty" jsonschema:"目标日期，格式YYYY-MM-DD，当action为create时必填"`
 }
 
 // StudyTaskParams for study task tool
 type StudyTaskParams struct {
-	Action      string `json:"action" jsonschema:"required,enum=create|list|get|update|delete|stats,description=操作类型"`
-	ID          uint   `json:"id,omitempty" jsonschema:"description=任务ID，action=get|update|delete时必填"`
-	Title       string `json:"title,omitempty" jsonschema:"description=任务标题，action=create时必填"`
-	Description string `json:"description,omitempty" jsonschema:"description=任务描述"`
-	DueDate     string `json:"due_date,omitempty" jsonschema:"description=截止日期，格式YYYY-MM-DD HH:MM"`
-	Priority    *uint8 `json:"priority,omitempty" jsonschema:"description=优先级: 1=高 2=中 3=低"`
-	Status      *uint8 `json:"status,omitempty" jsonschema:"description=状态: 1=待完成 2=已完成"`
-	Page        int    `json:"page,omitempty" jsonschema:"description=页码，默认1"`
-	Size        int    `json:"size,omitempty" jsonschema:"description=每页数量，默认20"`
+	Action      string `json:"action" jsonschema:"操作类型: create/list/get/update/delete/stats"`
+	ID          uint   `json:"id,omitempty" jsonschema:"任务ID，当action为get/update/delete时必填"`
+	Title       string `json:"title,omitempty" jsonschema:"任务标题，当action为create时必填"`
+	Description string `json:"description,omitempty" jsonschema:"任务描述"`
+	DueDate     string `json:"due_date,omitempty" jsonschema:"截止日期，格式YYYY-MM-DD HH:MM"`
+	Priority    *uint8 `json:"priority,omitempty" jsonschema:"优先级: 1高 2中 3低"`
+	Status      *uint8 `json:"status,omitempty" jsonschema:"状态: 1待完成 2已完成"`
+	Page        int    `json:"page,omitempty" jsonschema:"页码，默认1"`
+	Size        int    `json:"size,omitempty" jsonschema:"每页数量，默认20"`
 }
 
 // ============== Tool Handlers ==============
