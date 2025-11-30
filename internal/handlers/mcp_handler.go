@@ -125,7 +125,7 @@ func registerMCPTools(server *mcp.Server) {
 	// 3. User profile tool
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "userProfile",
-		Description: "用户信息管理 - 获取或更新用户信息（昵称、真名、学院、年级、班级）",
+		Description: "用户信息管理 - 获取或更新用户信息（昵称、真名、学院、专业、班级）",
 	}, handleUserProfile)
 
 	// 4. Teacher review tool
