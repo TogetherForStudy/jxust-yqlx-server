@@ -8,7 +8,7 @@ import (
 
 // WechatLoginResponse 微信登录响应
 type WechatLoginResponse struct {
-	Token    string      `json:"token"`
+	Token    string      `json:"token"` // jwt token
 	UserInfo models.User `json:"user_info"`
 }
 
