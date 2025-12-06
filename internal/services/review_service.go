@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -22,10 +23,10 @@ func NewReviewService(db *gorm.DB) *ReviewService {
 }
 
 // CreateReview 创建教师评价
-func (s *ReviewService) CreateReview(userID uint, req *request.CreateReviewRequest) error {
+func (s *ReviewService) CreateReview(ctx context.Context, userID uint, req *request.CreateReviewRequest) error {
 	// 检查是否已经评价过该教师的这门课程
 	var existingReview models.TeacherReview
-	err := s.db.Where("user_id = ? AND teacher_name = ? AND course_name = ?", userID, req.TeacherName, req.CourseName).First(&existingReview).Error
+	err := s.db.WithContext(ctx).Where("user_id = ? AND teacher_name = ? AND course_name = ?", userID, req.TeacherName, req.CourseName).First(&existingReview).Error
 	if err == nil {
 		return fmt.Errorf("您已经评价过该教师的这门课程")
 	} else if err != gorm.ErrRecordNotFound {
@@ -45,15 +46,15 @@ func (s *ReviewService) CreateReview(userID uint, req *request.CreateReviewReque
 		UpdatedAt:   time.Now(),
 	}
 
-	return s.db.Create(review).Error
+	return s.db.WithContext(ctx).Create(review).Error
 }
 
 // GetReviews 获取评价列表
-func (s *ReviewService) GetReviews(page, size int, teacherName string, status models.TeacherReviewStatus) ([]models.TeacherReview, int64, error) {
+func (s *ReviewService) GetReviews(ctx context.Context, page, size int, teacherName string, status models.TeacherReviewStatus) ([]models.TeacherReview, int64, error) {
 	var reviews []models.TeacherReview
 	var total int64
 
-	query := s.db.Model(&models.TeacherReview{})
+	query := s.db.WithContext(ctx).Model(&models.TeacherReview{})
 
 	// 按教师名称筛选
 	if teacherName != "" {
@@ -81,11 +82,11 @@ func (s *ReviewService) GetReviews(page, size int, teacherName string, status mo
 }
 
 // GetReviewsByTeacher 获取指定教师的评价
-func (s *ReviewService) GetReviewsByTeacher(teacherName string, page, size int) ([]models.TeacherReview, int64, error) {
+func (s *ReviewService) GetReviewsByTeacher(ctx context.Context, teacherName string, page, size int) ([]models.TeacherReview, int64, error) {
 	var reviews []models.TeacherReview
 	var total int64
 
-	query := s.db.Model(&models.TeacherReview{}).
+	query := s.db.WithContext(ctx).Model(&models.TeacherReview{}).
 		Where("teacher_name = ? AND status = ?", teacherName, models.TeacherReviewStatusApproved)
 
 	// 获取总数
@@ -104,11 +105,11 @@ func (s *ReviewService) GetReviewsByTeacher(teacherName string, page, size int) 
 }
 
 // GetUserReviews 获取用户的评价记录
-func (s *ReviewService) GetUserReviews(userID uint, page, size int) ([]models.TeacherReview, int64, error) {
+func (s *ReviewService) GetUserReviews(ctx context.Context, userID uint, page, size int) ([]models.TeacherReview, int64, error) {
 	var reviews []models.TeacherReview
 	var total int64
 
-	query := s.db.Model(&models.TeacherReview{}).
+	query := s.db.WithContext(ctx).Model(&models.TeacherReview{}).
 		Where("user_id = ?", userID)
 
 	// 获取总数
@@ -127,8 +128,8 @@ func (s *ReviewService) GetUserReviews(userID uint, page, size int) ([]models.Te
 }
 
 // ApproveReview 审核通过评价
-func (s *ReviewService) ApproveReview(reviewID uint, adminNote string) error {
-	return s.db.Model(&models.TeacherReview{}).
+func (s *ReviewService) ApproveReview(ctx context.Context, reviewID uint, adminNote string) error {
+	return s.db.WithContext(ctx).Model(&models.TeacherReview{}).
 		Where("id = ?", reviewID).
 		Updates(map[string]any{
 			"status":     models.TeacherReviewStatusApproved,
@@ -138,8 +139,8 @@ func (s *ReviewService) ApproveReview(reviewID uint, adminNote string) error {
 }
 
 // RejectReview 审核拒绝评价
-func (s *ReviewService) RejectReview(reviewID uint, adminNote string) error {
-	return s.db.Model(&models.TeacherReview{}).
+func (s *ReviewService) RejectReview(ctx context.Context, reviewID uint, adminNote string) error {
+	return s.db.WithContext(ctx).Model(&models.TeacherReview{}).
 		Where("id = ?", reviewID).
 		Updates(map[string]any{
 			"status":     models.TeacherReviewStatusRejected,
@@ -149,14 +150,14 @@ func (s *ReviewService) RejectReview(reviewID uint, adminNote string) error {
 }
 
 // DeleteReview 删除评价
-func (s *ReviewService) DeleteReview(reviewID uint) error {
-	return s.db.Delete(&models.TeacherReview{}, reviewID).Error
+func (s *ReviewService) DeleteReview(ctx context.Context, reviewID uint) error {
+	return s.db.WithContext(ctx).Delete(&models.TeacherReview{}, reviewID).Error
 }
 
 // GetReviewByID 根据ID获取评价
-func (s *ReviewService) GetReviewByID(reviewID uint) (*models.TeacherReview, error) {
+func (s *ReviewService) GetReviewByID(ctx context.Context, reviewID uint) (*models.TeacherReview, error) {
 	var review models.TeacherReview
-	err := s.db.First(&review, reviewID).Error
+	err := s.db.WithContext(ctx).First(&review, reviewID).Error
 	if err != nil {
 		return nil, err
 	}

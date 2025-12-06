@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"math/rand"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
@@ -17,11 +18,11 @@ func NewFailRateService(db *gorm.DB) *FailRateService {
 }
 
 // Search 按课程名关键词分页查询，默认按 failrate 降序
-func (s *FailRateService) Search(keyword string, page, size int) ([]models.FailRate, int64, error) {
+func (s *FailRateService) Search(ctx context.Context, keyword string, page, size int) ([]models.FailRate, int64, error) {
 	var list []models.FailRate
 	var total int64
 
-	query := s.db.Model(&models.FailRate{})
+	query := s.db.WithContext(ctx).WithContext(ctx).Model(&models.FailRate{})
 	if keyword != "" {
 		query = query.Where("course_name LIKE ?", "%"+keyword+"%")
 	}
@@ -42,21 +43,21 @@ func (s *FailRateService) Search(keyword string, page, size int) ([]models.FailR
 }
 
 // Rand 获取随机 N 条（无筛选）- 全表均匀抽样，避免使用 ORDER BY RAND()
-func (s *FailRateService) Rand(limit int) ([]models.FailRate, error) {
+func (s *FailRateService) Rand(ctx context.Context, limit int) ([]models.FailRate, error) {
 	if limit <= 0 {
 		limit = 10
 	}
 
 	// 1. 获取总记录数
 	var total int64
-	if err := s.db.Model(&models.FailRate{}).Count(&total).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&models.FailRate{}).Count(&total).Error; err != nil {
 		return nil, err
 	}
 
 	// 如果总数不够，直接返回所有记录
 	if total <= int64(limit) {
 		var list []models.FailRate
-		if err := s.db.Model(&models.FailRate{}).Find(&list).Error; err != nil {
+		if err := s.db.WithContext(ctx).Model(&models.FailRate{}).Find(&list).Error; err != nil {
 			return nil, err
 		}
 		return list, nil
@@ -73,7 +74,7 @@ func (s *FailRateService) Rand(limit int) ([]models.FailRate, error) {
 	list := make([]models.FailRate, 0, limit)
 	for offset := range uniqueOffsets {
 		var item models.FailRate
-		if err := s.db.Model(&models.FailRate{}).
+		if err := s.db.WithContext(ctx).Model(&models.FailRate{}).
 			Order("id").
 			Offset(offset).
 			Limit(1).

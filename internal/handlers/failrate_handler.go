@@ -33,7 +33,7 @@ func (h *FailRateHandler) SearchFailRate(c *gin.Context) {
 		req.Size = 10
 	}
 
-	list, total, err := h.service.Search(req.Keyword, req.Page, req.Size)
+	list, total, err := h.service.Search(c, req.Keyword, req.Page, req.Size)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, "查询失败")
 		return
@@ -60,7 +60,7 @@ func (h *FailRateHandler) SearchFailRate(c *gin.Context) {
 
 // RandFailRate 随机返回10条
 func (h *FailRateHandler) RandFailRate(c *gin.Context) {
-	list, err := h.service.Rand(10)
+	list, err := h.service.Rand(c, 10)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, "查询失败")
 		return

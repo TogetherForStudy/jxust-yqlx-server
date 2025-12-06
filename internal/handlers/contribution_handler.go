@@ -38,7 +38,7 @@ func (h *ContributionHandler) CreateContribution(c *gin.Context) {
 		return
 	}
 
-	err := h.contributionService.CreateContribution(userID, &req)
+	err := h.contributionService.CreateContribution(c, userID, &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -72,7 +72,7 @@ func (h *ContributionHandler) GetContributions(c *gin.Context) {
 		req.UserID = nil
 	}
 
-	result, err := h.contributionService.GetContributions(userID, models.UserRole(userRole), &req)
+	result, err := h.contributionService.GetContributions(c, userID, models.UserRole(userRole), &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
@@ -92,7 +92,7 @@ func (h *ContributionHandler) GetContributionByID(c *gin.Context) {
 		return
 	}
 
-	result, err := h.contributionService.GetContributionByID(uint(id), userID, models.UserRole(helper.GetUserRole(c)))
+	result, err := h.contributionService.GetContributionByID(c, uint(id), userID, models.UserRole(helper.GetUserRole(c)))
 	if err != nil {
 		if err.Error() == "投稿不存在" {
 			helper.ErrorResponse(c, http.StatusNotFound, err.Error())
@@ -123,7 +123,7 @@ func (h *ContributionHandler) ReviewContribution(c *gin.Context) {
 		return
 	}
 
-	err = h.contributionService.ReviewContribution(uint(id), reviewerID, models.UserRole(reviewerRole), &req)
+	err = h.contributionService.ReviewContribution(c, uint(id), reviewerID, models.UserRole(reviewerRole), &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -136,7 +136,7 @@ func (h *ContributionHandler) ReviewContribution(c *gin.Context) {
 func (h *ContributionHandler) GetUserContributionStats(c *gin.Context) {
 	userID := helper.GetUserID(c)
 
-	result, err := h.contributionService.GetUserContributionStats(userID)
+	result, err := h.contributionService.GetUserContributionStats(c, userID)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
@@ -147,7 +147,7 @@ func (h *ContributionHandler) GetUserContributionStats(c *gin.Context) {
 
 // GetAdminContributionStats 获取管理员投稿统计（管理员和运营专用）
 func (h *ContributionHandler) GetAdminContributionStats(c *gin.Context) {
-	result, err := h.contributionService.GetAdminContributionStats()
+	result, err := h.contributionService.GetAdminContributionStats(c)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return

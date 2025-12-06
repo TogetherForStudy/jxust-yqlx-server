@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"time"
@@ -23,7 +24,7 @@ func NewNotificationService(db *gorm.DB) *NotificationService {
 }
 
 // CreateNotification 创建通知（管理员专用）
-func (s *NotificationService) CreateNotification(userID uint, userRole models.UserRole, req *request.CreateNotificationRequest) (*response.NotificationResponse, error) {
+func (s *NotificationService) CreateNotification(ctx context.Context, userID uint, userRole models.UserRole, req *request.CreateNotificationRequest) (*response.NotificationResponse, error) {
 
 	// 序列化分类
 	categoriesJSON, err := json.Marshal(req.Categories)
@@ -41,18 +42,18 @@ func (s *NotificationService) CreateNotification(userID uint, userRole models.Us
 		Status:        models.NotificationStatusDraft,
 	}
 
-	if err := s.db.Create(&notification).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(&notification).Error; err != nil {
 		return nil, err
 	}
 
-	return s.GetNotificationAdminByID(notification.ID)
+	return s.GetNotificationAdminByID(ctx, notification.ID)
 }
 
 // UpdateNotification 更新通知
-func (s *NotificationService) UpdateNotification(notificationID uint, userID uint, userRole models.UserRole, req *request.UpdateNotificationRequest) (*response.NotificationResponse, error) {
+func (s *NotificationService) UpdateNotification(ctx context.Context, notificationID uint, userID uint, userRole models.UserRole, req *request.UpdateNotificationRequest) (*response.NotificationResponse, error) {
 	// 查找通知
 	var notification models.Notification
-	if err := s.db.First(&notification, notificationID).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&notification, notificationID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, errors.New("通知不存在")
 		}
@@ -94,20 +95,20 @@ func (s *NotificationService) UpdateNotification(notificationID uint, userID uin
 	}
 
 	if len(updates) > 0 {
-		if err := s.db.Model(&notification).Updates(updates).Error; err != nil {
+		if err := s.db.WithContext(ctx).Model(&notification).Updates(updates).Error; err != nil {
 			return nil, err
 		}
 	}
 
-	return s.GetNotificationAdminByID(notificationID)
+	return s.GetNotificationAdminByID(ctx, notificationID)
 }
 
 // PublishNotification 发布通知
-func (s *NotificationService) PublishNotification(notificationID uint, userID uint, userRole models.UserRole) error {
+func (s *NotificationService) PublishNotification(ctx context.Context, notificationID uint, userID uint, userRole models.UserRole) error {
 
 	// 查找通知
 	var notification models.Notification
-	if err := s.db.First(&notification, notificationID).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&notification, notificationID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return errors.New("通知不存在")
 		}
@@ -121,7 +122,7 @@ func (s *NotificationService) PublishNotification(notificationID uint, userID ui
 
 	// 更新状态
 	now := time.Now()
-	return s.db.Model(&notification).Updates(map[string]interface{}{
+	return s.db.WithContext(ctx).Model(&notification).Updates(map[string]interface{}{
 		"status":       models.NotificationStatusPending,
 		"publisher_id": userID,
 		"published_at": &now,
@@ -129,11 +130,11 @@ func (s *NotificationService) PublishNotification(notificationID uint, userID ui
 }
 
 // PublishNotificationAdmin 管理员直接发布通知（跳过审核流程）
-func (s *NotificationService) PublishNotificationAdmin(notificationID uint, userID uint, userRole models.UserRole) error {
+func (s *NotificationService) PublishNotificationAdmin(ctx context.Context, notificationID uint, userID uint, userRole models.UserRole) error {
 
 	// 查找通知
 	var notification models.Notification
-	if err := s.db.First(&notification, notificationID).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&notification, notificationID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return errors.New("通知不存在")
 		}
@@ -142,7 +143,7 @@ func (s *NotificationService) PublishNotificationAdmin(notificationID uint, user
 
 	// 直接更新为已发布状态，跳过审核流程
 	now := time.Now()
-	return s.db.Model(&notification).Updates(map[string]interface{}{
+	return s.db.WithContext(ctx).Model(&notification).Updates(map[string]interface{}{
 		"status":       models.NotificationStatusPublished,
 		"publisher_id": userID,
 		"published_at": &now,
@@ -150,12 +151,12 @@ func (s *NotificationService) PublishNotificationAdmin(notificationID uint, user
 }
 
 // GetNotifications 获取通知列表
-func (s *NotificationService) GetNotifications(req *request.GetNotificationsRequest) (*response.PageResponse, error) {
+func (s *NotificationService) GetNotifications(ctx context.Context, req *request.GetNotificationsRequest) (*response.PageResponse, error) {
 	var notifications []models.Notification
 	var total int64
 
 	// 构建查询
-	query := s.db.Model(&models.Notification{}).Where("status = ?", models.NotificationStatusPublished)
+	query := s.db.WithContext(ctx).Model(&models.Notification{}).Where("status = ?", models.NotificationStatusPublished)
 
 	// 分类过滤
 	if len(req.Categories) > 0 {
@@ -195,7 +196,7 @@ func (s *NotificationService) GetNotifications(req *request.GetNotificationsRequ
 			continue
 		}
 
-		categories, _ := s.getCategoriesByIDs(categoryIDs)
+		categories, _ := s.getCategoriesByIDs(ctx, categoryIDs)
 
 		// 解析日程数据
 		var scheduleData *models.ScheduleData
@@ -229,9 +230,9 @@ func (s *NotificationService) GetNotifications(req *request.GetNotificationsRequ
 }
 
 // GetNotificationByID 根据ID获取通知详情
-func (s *NotificationService) GetNotificationByID(notificationID uint) (*response.NotificationResponse, error) {
+func (s *NotificationService) GetNotificationByID(ctx context.Context, notificationID uint) (*response.NotificationResponse, error) {
 	var notification models.Notification
-	if err := s.db.First(&notification, notificationID).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&notification, notificationID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, errors.New("通知不存在")
 		}
@@ -252,7 +253,7 @@ func (s *NotificationService) GetNotificationByID(notificationID uint) (*respons
 		return nil, err
 	}
 
-	categories, err := s.getCategoriesByIDs(categoryIDs)
+	categories, err := s.getCategoriesByIDs(ctx, categoryIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -291,9 +292,9 @@ func (s *NotificationService) GetNotificationByID(notificationID uint) (*respons
 }
 
 // GetNotificationByID 根据ID获取通知详情
-func (s *NotificationService) GetNotificationAdminByID(notificationID uint) (*response.NotificationResponse, error) {
+func (s *NotificationService) GetNotificationAdminByID(ctx context.Context, notificationID uint) (*response.NotificationResponse, error) {
 	var notification models.Notification
-	if err := s.db.First(&notification, notificationID).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&notification, notificationID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, errors.New("通知不存在")
 		}
@@ -302,7 +303,7 @@ func (s *NotificationService) GetNotificationAdminByID(notificationID uint) (*re
 
 	// 如果是已发布的通知，增加查看次数
 	if notification.Status == models.NotificationStatusPublished {
-		s.db.Model(&notification).UpdateColumn("view_count", gorm.Expr("view_count + ?", 1))
+		s.db.WithContext(ctx).Model(&notification).UpdateColumn("view_count", gorm.Expr("view_count + ?", 1))
 	}
 
 	// 解析分类
@@ -311,7 +312,7 @@ func (s *NotificationService) GetNotificationAdminByID(notificationID uint) (*re
 		return nil, err
 	}
 
-	categories, err := s.getCategoriesByIDs(categoryIDs)
+	categories, err := s.getCategoriesByIDs(ctx, categoryIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -332,7 +333,7 @@ func (s *NotificationService) GetNotificationAdminByID(notificationID uint) (*re
 
 	// 获取发布者信息
 	var publisherUser models.User
-	if err := s.db.Select("id, nickname").First(&publisherUser, notification.PublisherID).Error; err == nil {
+	if err := s.db.WithContext(ctx).Select("id, nickname").First(&publisherUser, notification.PublisherID).Error; err == nil {
 		publisher = &response.UserSimpleResponse{
 			ID:       publisherUser.ID,
 			Nickname: publisherUser.Nickname,
@@ -342,7 +343,7 @@ func (s *NotificationService) GetNotificationAdminByID(notificationID uint) (*re
 	// 获取投稿者信息
 	if notification.ContributorID != nil {
 		var contributorUser models.User
-		if err := s.db.Select("id, nickname").First(&contributorUser, *notification.ContributorID).Error; err == nil {
+		if err := s.db.WithContext(ctx).Select("id, nickname").First(&contributorUser, *notification.ContributorID).Error; err == nil {
 			contributor = &response.UserSimpleResponse{
 				ID:       contributorUser.ID,
 				Nickname: contributorUser.Nickname,
@@ -353,10 +354,10 @@ func (s *NotificationService) GetNotificationAdminByID(notificationID uint) (*re
 	// 获取审核记录
 	if notification.Status == models.NotificationStatusPending || notification.Status == models.NotificationStatusPublished {
 		var approvalRecords []models.NotificationApproval
-		if err := s.db.Where("notification_id = ?", notification.ID).Find(&approvalRecords).Error; err == nil {
+		if err := s.db.WithContext(ctx).Where("notification_id = ?", notification.ID).Find(&approvalRecords).Error; err == nil {
 			for _, approval := range approvalRecords {
 				var reviewer models.User
-				if err := s.db.Select("id, nickname").First(&reviewer, approval.ReviewerID).Error; err == nil {
+				if err := s.db.WithContext(ctx).Select("id, nickname").First(&reviewer, approval.ReviewerID).Error; err == nil {
 					approvals = append(approvals, response.NotificationApprovalResponse{
 						ID: approval.ID,
 						Reviewer: response.UserSimpleResponse{
@@ -372,7 +373,7 @@ func (s *NotificationService) GetNotificationAdminByID(notificationID uint) (*re
 		}
 
 		// 生成审核进度汇总
-		if summary, err := s.generateApprovalSummary(notification.ID); err == nil {
+		if summary, err := s.generateApprovalSummary(ctx, notification.ID); err == nil {
 			approvalSummary = summary
 		}
 	}
@@ -401,11 +402,11 @@ func (s *NotificationService) GetNotificationAdminByID(notificationID uint) (*re
 }
 
 // ConvertToSchedule 转换通知为日程
-func (s *NotificationService) ConvertToSchedule(notificationID uint, req *request.ConvertToScheduleRequest) error {
+func (s *NotificationService) ConvertToSchedule(ctx context.Context, notificationID uint, req *request.ConvertToScheduleRequest) error {
 
 	// 查找通知
 	var notification models.Notification
-	if err := s.db.First(&notification, notificationID).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&notification, notificationID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return errors.New("通知不存在")
 		}
@@ -437,18 +438,18 @@ func (s *NotificationService) ConvertToSchedule(notificationID uint, req *reques
 	}
 
 	// 更新通知的日程字段
-	return s.db.Model(&notification).Update("schedule", scheduleJSON).Error
+	return s.db.WithContext(ctx).Model(&notification).Update("schedule", scheduleJSON).Error
 }
 
 // CreateCategory 创建分类
-func (s *NotificationService) CreateCategory(req *request.CreateCategoryRequest) (*response.NotificationCategoryResponse, error) {
+func (s *NotificationService) CreateCategory(ctx context.Context, req *request.CreateCategoryRequest) (*response.NotificationCategoryResponse, error) {
 	category := models.NotificationCategory{
 		Name:     req.Name,
 		Sort:     req.Sort,
 		IsActive: req.IsActive,
 	}
 
-	if err := s.db.Create(&category).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(&category).Error; err != nil {
 		return nil, err
 	}
 
@@ -463,9 +464,9 @@ func (s *NotificationService) CreateCategory(req *request.CreateCategoryRequest)
 }
 
 // GetCategories 获取所有分类
-func (s *NotificationService) GetCategories() ([]response.NotificationCategoryResponse, error) {
+func (s *NotificationService) GetCategories(ctx context.Context) ([]response.NotificationCategoryResponse, error) {
 	var categories []models.NotificationCategory
-	if err := s.db.Where("is_active = ?", true).Order("sort ASC, id ASC").Find(&categories).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("is_active = ?", true).Order("sort ASC, id ASC").Find(&categories).Error; err != nil {
 		return nil, err
 	}
 
@@ -485,9 +486,9 @@ func (s *NotificationService) GetCategories() ([]response.NotificationCategoryRe
 }
 
 // UpdateCategory 更新分类
-func (s *NotificationService) UpdateCategory(categoryID uint8, req *request.UpdateCategoryRequest) (*response.NotificationCategoryResponse, error) {
+func (s *NotificationService) UpdateCategory(ctx context.Context, categoryID uint8, req *request.UpdateCategoryRequest) (*response.NotificationCategoryResponse, error) {
 	var category models.NotificationCategory
-	if err := s.db.First(&category, categoryID).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&category, categoryID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, errors.New("分类不存在")
 		}
@@ -507,7 +508,7 @@ func (s *NotificationService) UpdateCategory(categoryID uint8, req *request.Upda
 	}
 
 	if len(updates) > 0 {
-		if err := s.db.Model(&category).Updates(updates).Error; err != nil {
+		if err := s.db.WithContext(ctx).Model(&category).Updates(updates).Error; err != nil {
 			return nil, err
 		}
 	}
@@ -523,11 +524,11 @@ func (s *NotificationService) UpdateCategory(categoryID uint8, req *request.Upda
 }
 
 // DeleteNotification 删除通知（软删除）
-func (s *NotificationService) DeleteNotification(notificationID uint, userID uint, userRole models.UserRole) error {
+func (s *NotificationService) DeleteNotification(ctx context.Context, notificationID uint, userID uint, userRole models.UserRole) error {
 
 	// 查找通知
 	var notification models.Notification
-	if err := s.db.First(&notification, notificationID).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&notification, notificationID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return errors.New("通知不存在")
 		}
@@ -539,10 +540,10 @@ func (s *NotificationService) DeleteNotification(notificationID uint, userID uin
 }
 
 // ApproveNotification 审核通知
-func (s *NotificationService) ApproveNotification(notificationID uint, reviewerID uint, userRole models.UserRole, req *request.ApproveNotificationRequest) error {
+func (s *NotificationService) ApproveNotification(ctx context.Context, notificationID uint, reviewerID uint, userRole models.UserRole, req *request.ApproveNotificationRequest) error {
 	// 查找通知
 	var notification models.Notification
-	if err := s.db.First(&notification, notificationID).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&notification, notificationID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return errors.New("通知不存在")
 		}
@@ -556,7 +557,7 @@ func (s *NotificationService) ApproveNotification(notificationID uint, reviewerI
 
 	// 检查是否已经审核过
 	var existingApproval models.NotificationApproval
-	if err := s.db.Where("notification_id = ? AND reviewer_id = ?", notificationID, reviewerID).First(&existingApproval).Error; err == nil {
+	if err := s.db.WithContext(ctx).Where("notification_id = ? AND reviewer_id = ?", notificationID, reviewerID).First(&existingApproval).Error; err == nil {
 		return errors.New("您已经审核过该通知")
 	}
 
@@ -569,7 +570,7 @@ func (s *NotificationService) ApproveNotification(notificationID uint, reviewerI
 	}
 
 	// 开始事务
-	tx := s.db.Begin()
+	tx := s.db.WithContext(ctx).Begin()
 	defer func() {
 		if r := recover(); r != nil {
 			tx.Rollback()
@@ -585,14 +586,14 @@ func (s *NotificationService) ApproveNotification(notificationID uint, reviewerI
 	// 如果是同意，检查是否达到发布条件
 	if req.Status == request.NotificationApprovalStatusRequestApproved {
 		// 获取管理员和运营人员总数
-		totalAdminCount, err := s.getAdminAndOperatorCount()
+		totalAdminCount, err := s.getAdminAndOperatorCount(ctx)
 		if err != nil {
 			tx.Rollback()
 			return err
 		}
 
 		// 获取已通过审核的人数
-		approvedCount, err := s.getApprovedCount(notificationID)
+		approvedCount, err := s.getApprovedCount(ctx, notificationID)
 		if err != nil {
 			tx.Rollback()
 			return err
@@ -622,36 +623,36 @@ func (s *NotificationService) ApproveNotification(notificationID uint, reviewerI
 }
 
 // getAdminAndOperatorCount 获取管理员和运营人员总数
-func (s *NotificationService) getAdminAndOperatorCount() (int64, error) {
+func (s *NotificationService) getAdminAndOperatorCount(ctx context.Context) (int64, error) {
 	var count int64
-	err := s.db.Model(&models.User{}).Where("role IN ?", []models.UserRole{models.UserRoleAdmin, models.UserRoleOperator}).Count(&count).Error
+	err := s.db.WithContext(ctx).Model(&models.User{}).Where("role IN ?", []models.UserRole{models.UserRoleAdmin, models.UserRoleOperator}).Count(&count).Error
 	return count, err
 }
 
 // getApprovedCount 获取某通知已通过审核的人数
-func (s *NotificationService) getApprovedCount(notificationID uint) (int64, error) {
+func (s *NotificationService) getApprovedCount(ctx context.Context, notificationID uint) (int64, error) {
 	var count int64
-	err := s.db.Model(&models.NotificationApproval{}).Where("notification_id = ? AND status = ?", notificationID, models.NotificationApprovalStatusApproved).Count(&count).Error
+	err := s.db.WithContext(ctx).Model(&models.NotificationApproval{}).Where("notification_id = ? AND status = ?", notificationID, models.NotificationApprovalStatusApproved).Count(&count).Error
 	return count, err
 }
 
 // generateApprovalSummary 生成审核进度汇总
-func (s *NotificationService) generateApprovalSummary(notificationID uint) (*response.NotificationApprovalSummary, error) {
+func (s *NotificationService) generateApprovalSummary(ctx context.Context, notificationID uint) (*response.NotificationApprovalSummary, error) {
 	// 获取管理员和运营人员总数
-	totalReviewers, err := s.getAdminAndOperatorCount()
+	totalReviewers, err := s.getAdminAndOperatorCount(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	// 获取已通过审核的人数
-	approvedCount, err := s.getApprovedCount(notificationID)
+	approvedCount, err := s.getApprovedCount(ctx, notificationID)
 	if err != nil {
 		return nil, err
 	}
 
 	// 获取已拒绝审核的人数
 	var rejectedCount int64
-	if err := s.db.Model(&models.NotificationApproval{}).
+	if err := s.db.WithContext(ctx).Model(&models.NotificationApproval{}).
 		Where("notification_id = ? AND status = ?", notificationID, models.NotificationApprovalStatusRejected).
 		Count(&rejectedCount).Error; err != nil {
 		return nil, err
@@ -671,7 +672,7 @@ func (s *NotificationService) generateApprovalSummary(notificationID uint) (*res
 
 	// 获取所有审核记录
 	var approvals []models.NotificationApproval
-	if err := s.db.Where("notification_id = ?", notificationID).
+	if err := s.db.WithContext(ctx).Where("notification_id = ?", notificationID).
 		Find(&approvals).Error; err != nil {
 		return nil, err
 	}
@@ -683,7 +684,7 @@ func (s *NotificationService) generateApprovalSummary(notificationID uint) (*res
 
 	for _, approval := range approvals {
 		var user models.User
-		if err := s.db.First(&user, approval.ReviewerID).Error; err == nil {
+		if err := s.db.WithContext(ctx).First(&user, approval.ReviewerID).Error; err == nil {
 			userInfo := response.UserSimpleResponse{
 				ID:       user.ID,
 				Nickname: user.Nickname,
@@ -701,7 +702,7 @@ func (s *NotificationService) generateApprovalSummary(notificationID uint) (*res
 
 	// 获取所有管理员和运营人员
 	var allReviewers []models.User
-	if err := s.db.Where("role IN ?", []models.UserRole{models.UserRoleAdmin, models.UserRoleOperator}).
+	if err := s.db.WithContext(ctx).Where("role IN ?", []models.UserRole{models.UserRoleAdmin, models.UserRoleOperator}).
 		Find(&allReviewers).Error; err != nil {
 		return nil, err
 	}
@@ -732,12 +733,12 @@ func (s *NotificationService) generateApprovalSummary(notificationID uint) (*res
 }
 
 // GetAdminNotifications 获取管理员通知列表（包括所有状态的通知）
-func (s *NotificationService) GetAdminNotifications(userRole models.UserRole, req *request.GetNotificationsRequest) (*response.PageResponse, error) {
+func (s *NotificationService) GetAdminNotifications(ctx context.Context, userRole models.UserRole, req *request.GetNotificationsRequest) (*response.PageResponse, error) {
 	var notifications []models.Notification
 	var total int64
 
 	// 构建查询
-	query := s.db.Model(&models.Notification{})
+	query := s.db.WithContext(ctx).Model(&models.Notification{})
 
 	// 状态过滤
 	if req.Status != nil {
@@ -785,7 +786,7 @@ func (s *NotificationService) GetAdminNotifications(userRole models.UserRole, re
 			continue
 		}
 
-		categories, _ := s.getCategoriesByIDs(categoryIDs)
+		categories, _ := s.getCategoriesByIDs(ctx, categoryIDs)
 
 		// 解析日程数据
 		var scheduleData *models.ScheduleData
@@ -799,7 +800,7 @@ func (s *NotificationService) GetAdminNotifications(userRole models.UserRole, re
 		// 为待审核状态的通知生成审核进度汇总
 		var approvalSummary *response.NotificationApprovalSummary
 		if notification.Status == models.NotificationStatusPending {
-			if summary, err := s.generateApprovalSummary(notification.ID); err == nil {
+			if summary, err := s.generateApprovalSummary(ctx, notification.ID); err == nil {
 				approvalSummary = summary
 			}
 		}
@@ -828,12 +829,12 @@ func (s *NotificationService) GetAdminNotifications(userRole models.UserRole, re
 }
 
 // GetNotificationStats 获取通知统计信息
-func (s *NotificationService) GetNotificationStats() (*response.NotificationStatsResponse, error) {
+func (s *NotificationService) GetNotificationStats(ctx context.Context) (*response.NotificationStatsResponse, error) {
 	stats := &response.NotificationStatsResponse{}
 
 	// 统计总数量（排除软删除）
 	var totalCount int64
-	if err := s.db.Model(&models.Notification{}).Count(&totalCount).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&models.Notification{}).Count(&totalCount).Error; err != nil {
 		return nil, err
 	}
 	stats.TotalCount = totalCount
@@ -842,7 +843,7 @@ func (s *NotificationService) GetNotificationStats() (*response.NotificationStat
 	var draftCount, pendingCount, publishedCount int64
 
 	// 草稿数量
-	if err := s.db.Model(&models.Notification{}).
+	if err := s.db.WithContext(ctx).Model(&models.Notification{}).
 		Where("status = ?", models.NotificationStatusDraft).
 		Count(&draftCount).Error; err != nil {
 		return nil, err
@@ -850,7 +851,7 @@ func (s *NotificationService) GetNotificationStats() (*response.NotificationStat
 	stats.DraftCount = draftCount
 
 	// 待审核数量
-	if err := s.db.Model(&models.Notification{}).
+	if err := s.db.WithContext(ctx).Model(&models.Notification{}).
 		Where("status = ?", models.NotificationStatusPending).
 		Count(&pendingCount).Error; err != nil {
 		return nil, err
@@ -858,7 +859,7 @@ func (s *NotificationService) GetNotificationStats() (*response.NotificationStat
 	stats.PendingCount = pendingCount
 
 	// 已发布数量
-	if err := s.db.Model(&models.Notification{}).
+	if err := s.db.WithContext(ctx).Model(&models.Notification{}).
 		Where("status = ?", models.NotificationStatusPublished).
 		Count(&publishedCount).Error; err != nil {
 		return nil, err
@@ -869,7 +870,7 @@ func (s *NotificationService) GetNotificationStats() (*response.NotificationStat
 }
 
 // 辅助方法：根据分类ID获取分类信息
-func (s *NotificationService) getCategoriesByIDs(categoryIDs []uint8) ([]response.NotificationCategoryResponse, error) {
+func (s *NotificationService) getCategoriesByIDs(ctx context.Context, categoryIDs []uint8) ([]response.NotificationCategoryResponse, error) {
 	// 如果分类ID列表为空，直接返回空结果
 	if len(categoryIDs) == 0 {
 		return []response.NotificationCategoryResponse{}, nil
@@ -882,7 +883,7 @@ func (s *NotificationService) getCategoriesByIDs(categoryIDs []uint8) ([]respons
 	}
 
 	var categories []models.NotificationCategory
-	if err := s.db.Where("id IN ?", interfaceIDs).Find(&categories).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("id IN ?", interfaceIDs).Find(&categories).Error; err != nil {
 		return nil, err
 	}
 
@@ -902,10 +903,10 @@ func (s *NotificationService) getCategoriesByIDs(categoryIDs []uint8) ([]respons
 }
 
 // PinNotification 置顶通知（管理员专用）
-func (s *NotificationService) PinNotification(notificationID uint, userRole models.UserRole) error {
+func (s *NotificationService) PinNotification(ctx context.Context, notificationID uint, userRole models.UserRole) error {
 	// 查找通知
 	var notification models.Notification
-	if err := s.db.First(&notification, notificationID).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&notification, notificationID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return errors.New("通知不存在")
 		}
@@ -924,7 +925,7 @@ func (s *NotificationService) PinNotification(notificationID uint, userRole mode
 
 	// 更新置顶状态
 	now := time.Now()
-	return s.db.Model(&notification).Updates(map[string]interface{}{
+	return s.db.WithContext(ctx).Model(&notification).Updates(map[string]interface{}{
 		"is_pinned":  true,
 		"pinned_at":  &now,
 		"updated_at": now,
@@ -932,10 +933,10 @@ func (s *NotificationService) PinNotification(notificationID uint, userRole mode
 }
 
 // UnpinNotification 取消置顶通知（管理员专用）
-func (s *NotificationService) UnpinNotification(notificationID uint, userRole models.UserRole) error {
+func (s *NotificationService) UnpinNotification(ctx context.Context, notificationID uint, userRole models.UserRole) error {
 	// 查找通知
 	var notification models.Notification
-	if err := s.db.First(&notification, notificationID).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&notification, notificationID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return errors.New("通知不存在")
 		}
@@ -949,7 +950,7 @@ func (s *NotificationService) UnpinNotification(notificationID uint, userRole mo
 
 	// 更新置顶状态
 	now := time.Now()
-	return s.db.Model(&notification).Updates(map[string]interface{}{
+	return s.db.WithContext(ctx).Model(&notification).Updates(map[string]interface{}{
 		"is_pinned":  false,
 		"pinned_at":  nil,
 		"updated_at": now,

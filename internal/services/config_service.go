@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -18,9 +19,9 @@ func NewConfigService(db *gorm.DB) *ConfigService {
 }
 
 // Create 创建配置项（key唯一）
-func (s *ConfigService) Create(key, value, valueType, description string) (*models.SystemConfig, error) {
+func (s *ConfigService) Create(ctx context.Context, key, value, valueType, description string) (*models.SystemConfig, error) {
 	var cnt int64
-	if err := s.db.Model(&models.SystemConfig{}).Where("`key` = ?", key).Count(&cnt).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&models.SystemConfig{}).Where("`key` = ?", key).Count(&cnt).Error; err != nil {
 		return nil, err
 	}
 	if cnt > 0 {
@@ -39,14 +40,14 @@ func (s *ConfigService) Create(key, value, valueType, description string) (*mode
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
-	if err := s.db.Create(m).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(m).Error; err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
 // Update 根据key更新配置项
-func (s *ConfigService) Update(key, value, valueType, description string) error {
+func (s *ConfigService) Update(ctx context.Context, key, value, valueType, description string) error {
 	if valueType == "" {
 		valueType = "string"
 	}
@@ -56,7 +57,7 @@ func (s *ConfigService) Update(key, value, valueType, description string) error 
 		"description": description,
 		"updated_at":  time.Now(),
 	}
-	tx := s.db.Model(&models.SystemConfig{}).Where("`key` = ?", key).Updates(updates)
+	tx := s.db.WithContext(ctx).Model(&models.SystemConfig{}).Where("`key` = ?", key).Updates(updates)
 	if tx.Error != nil {
 		return tx.Error
 	}
@@ -67,8 +68,8 @@ func (s *ConfigService) Update(key, value, valueType, description string) error 
 }
 
 // Delete 软删除（按key）
-func (s *ConfigService) Delete(key string) error {
-	tx := s.db.Where("`key` = ?", key).Delete(&models.SystemConfig{})
+func (s *ConfigService) Delete(ctx context.Context, key string) error {
+	tx := s.db.WithContext(ctx).Where("`key` = ?", key).Delete(&models.SystemConfig{})
 	if tx.Error != nil {
 		return tx.Error
 	}
@@ -79,9 +80,9 @@ func (s *ConfigService) Delete(key string) error {
 }
 
 // GetByKey 通过key获取配置项
-func (s *ConfigService) GetByKey(key string) (*models.SystemConfig, error) {
+func (s *ConfigService) GetByKey(ctx context.Context, key string) (*models.SystemConfig, error) {
 	var m models.SystemConfig
-	if err := s.db.Where("`key` = ?", key).First(&m).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("`key` = ?", key).First(&m).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("未找到key")
 		}
@@ -91,25 +92,25 @@ func (s *ConfigService) GetByKey(key string) (*models.SystemConfig, error) {
 }
 
 // SearchConfigs 搜索配置项，支持按key搜索，空query返回全部（分页版本）
-func (s *ConfigService) SearchConfigs(query string, page, size int) ([]models.SystemConfig, int64, error) {
+func (s *ConfigService) SearchConfigs(ctx context.Context, query string, page, size int) ([]models.SystemConfig, int64, error) {
 	var list []models.SystemConfig
 	var total int64
 
-	queryBuilder := s.db.Model(&models.SystemConfig{})
+	queryBuilder := s.db.WithContext(ctx).Model(&models.SystemConfig{})
 
 	if query != "" {
 		// 模糊搜索key或description
-		queryBuilder = queryBuilder.Where("`key` LIKE ? OR description LIKE ?", "%"+query+"%", "%"+query+"%")
+		queryBuilder = queryBuilder.WithContext(ctx).Where("`key` LIKE ? OR description LIKE ?", "%"+query+"%", "%"+query+"%")
 	}
 
 	// 先获取总数
-	if err := queryBuilder.Count(&total).Error; err != nil {
+	if err := queryBuilder.WithContext(ctx).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
 	// 分页查询
 	pagination := utils.GetPagination(page, size)
-	if err := queryBuilder.Order("created_at DESC").
+	if err := queryBuilder.WithContext(ctx).Order("created_at DESC").
 		Offset(pagination.Offset).
 		Limit(pagination.Size).
 		Find(&list).Error; err != nil {

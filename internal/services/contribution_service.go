@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"time"
@@ -27,7 +28,7 @@ func NewContributionService(db *gorm.DB) *ContributionService {
 }
 
 // CreateContribution 创建投稿
-func (s *ContributionService) CreateContribution(userID uint, req *request.CreateContributionRequest) error {
+func (s *ContributionService) CreateContribution(ctx context.Context, userID uint, req *request.CreateContributionRequest) error {
 
 	// 序列化分类
 	categoriesJSON, err := json.Marshal(req.Categories)
@@ -44,7 +45,7 @@ func (s *ContributionService) CreateContribution(userID uint, req *request.Creat
 		Status:     models.UserContributionStatusPending,
 	}
 
-	if err := s.db.Create(&contribution).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(&contribution).Error; err != nil {
 		return err
 	}
 
@@ -52,12 +53,12 @@ func (s *ContributionService) CreateContribution(userID uint, req *request.Creat
 }
 
 // GetContributions 获取投稿列表
-func (s *ContributionService) GetContributions(userID uint, userRole models.UserRole, req *request.GetContributionsRequest) (*response.PageResponse, error) {
+func (s *ContributionService) GetContributions(ctx context.Context, userID uint, userRole models.UserRole, req *request.GetContributionsRequest) (*response.PageResponse, error) {
 	var contributions []models.UserContribution
 	var total int64
 
 	// 构建查询
-	query := s.db.Model(&models.UserContribution{})
+	query := s.db.WithContext(ctx).Model(&models.UserContribution{})
 
 	// 普通用户只能看自己的投稿
 	if userRole == models.UserRoleNormal {
@@ -88,7 +89,7 @@ func (s *ContributionService) GetContributions(userID uint, userRole models.User
 	// 转换为响应格式
 	var contributionResponses []response.ContributionResponse
 	for _, contribution := range contributions {
-		contributionResponse, err := s.convertToResponse(&contribution)
+		contributionResponse, err := s.convertToResponse(ctx, &contribution)
 		if err != nil {
 			return nil, err
 		}
@@ -104,9 +105,9 @@ func (s *ContributionService) GetContributions(userID uint, userRole models.User
 }
 
 // GetContributionByID 根据ID获取投稿详情
-func (s *ContributionService) GetContributionByID(contributionID uint, userID uint, userRole models.UserRole) (*response.ContributionResponse, error) {
+func (s *ContributionService) GetContributionByID(ctx context.Context, contributionID uint, userID uint, userRole models.UserRole) (*response.ContributionResponse, error) {
 	var contribution models.UserContribution
-	if err := s.db.First(&contribution, contributionID).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&contribution, contributionID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, errors.New("投稿不存在")
 		}
@@ -118,15 +119,15 @@ func (s *ContributionService) GetContributionByID(contributionID uint, userID ui
 		return nil, errors.New("无权限")
 	}
 
-	return s.convertToResponse(&contribution)
+	return s.convertToResponse(ctx, &contribution)
 }
 
 // ReviewContribution 审核投稿
-func (s *ContributionService) ReviewContribution(contributionID uint, reviewerID uint, reviewerRole models.UserRole, req *request.ReviewContributionRequest) error {
+func (s *ContributionService) ReviewContribution(ctx context.Context, contributionID uint, reviewerID uint, reviewerRole models.UserRole, req *request.ReviewContributionRequest) error {
 
 	// 查找投稿
 	var contribution models.UserContribution
-	if err := s.db.First(&contribution, contributionID).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&contribution, contributionID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return errors.New("投稿不存在")
 		}
@@ -139,7 +140,7 @@ func (s *ContributionService) ReviewContribution(contributionID uint, reviewerID
 	}
 
 	// 开启事务
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		now := time.Now()
 
 		// 更新投稿状态
@@ -194,7 +195,7 @@ func (s *ContributionService) ReviewContribution(contributionID uint, reviewerID
 
 			// 奖励积分
 			if req.Points > 0 {
-				if err := s.pointsService.AddPoints(tx, contribution.UserID, int(req.Points),
+				if err := s.pointsService.AddPoints(ctx, tx, contribution.UserID, int(req.Points),
 					models.PointsTransactionSourceContribution, "投稿被采纳", &contributionID); err != nil {
 					return err
 				}
@@ -206,19 +207,19 @@ func (s *ContributionService) ReviewContribution(contributionID uint, reviewerID
 }
 
 // GetUserContributionStats 获取用户投稿统计
-func (s *ContributionService) GetUserContributionStats(userID uint) (map[string]interface{}, error) {
+func (s *ContributionService) GetUserContributionStats(ctx context.Context, userID uint) (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
 
 	// 总投稿数
 	var totalCount int64
-	if err := s.db.Model(&models.UserContribution{}).Where("user_id = ?", userID).Count(&totalCount).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&models.UserContribution{}).Where("user_id = ?", userID).Count(&totalCount).Error; err != nil {
 		return nil, err
 	}
 	stats["total_count"] = totalCount
 
 	// 待审核数
 	var pendingCount int64
-	if err := s.db.Model(&models.UserContribution{}).
+	if err := s.db.WithContext(ctx).Model(&models.UserContribution{}).
 		Where("user_id = ? AND status = ?", userID, models.UserContributionStatusPending).
 		Count(&pendingCount).Error; err != nil {
 		return nil, err
@@ -227,7 +228,7 @@ func (s *ContributionService) GetUserContributionStats(userID uint) (map[string]
 
 	// 已采纳数
 	var approvedCount int64
-	if err := s.db.Model(&models.UserContribution{}).
+	if err := s.db.WithContext(ctx).Model(&models.UserContribution{}).
 		Where("user_id = ? AND status = ?", userID, models.UserContributionStatusApproved).
 		Count(&approvedCount).Error; err != nil {
 		return nil, err
@@ -236,7 +237,7 @@ func (s *ContributionService) GetUserContributionStats(userID uint) (map[string]
 
 	// 已拒绝数
 	var rejectedCount int64
-	if err := s.db.Model(&models.UserContribution{}).
+	if err := s.db.WithContext(ctx).Model(&models.UserContribution{}).
 		Where("user_id = ? AND status = ?", userID, models.UserContributionStatusRejected).
 		Count(&rejectedCount).Error; err != nil {
 		return nil, err
@@ -245,7 +246,7 @@ func (s *ContributionService) GetUserContributionStats(userID uint) (map[string]
 
 	// 总获得积分
 	var totalPoints int64
-	if err := s.db.Model(&models.UserContribution{}).
+	if err := s.db.WithContext(ctx).Model(&models.UserContribution{}).
 		Where("user_id = ? AND status = ?", userID, models.UserContributionStatusApproved).
 		Select("COALESCE(SUM(points_awarded), 0)").
 		Scan(&totalPoints).Error; err != nil {
@@ -257,37 +258,37 @@ func (s *ContributionService) GetUserContributionStats(userID uint) (map[string]
 }
 
 // GetAdminContributionStats 获取管理员投稿统计（全系统）
-func (s *ContributionService) GetAdminContributionStats() (*response.AdminContributionStatsResponse, error) {
+func (s *ContributionService) GetAdminContributionStats(ctx context.Context) (*response.AdminContributionStatsResponse, error) {
 	stats := &response.AdminContributionStatsResponse{}
 
 	// 总投稿数
-	if err := s.db.Model(&models.UserContribution{}).Count(&stats.TotalCount).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&models.UserContribution{}).Count(&stats.TotalCount).Error; err != nil {
 		return nil, err
 	}
 
 	// 待审核数
-	if err := s.db.Model(&models.UserContribution{}).
+	if err := s.db.WithContext(ctx).Model(&models.UserContribution{}).
 		Where("status = ?", models.UserContributionStatusPending).
 		Count(&stats.PendingCount).Error; err != nil {
 		return nil, err
 	}
 
 	// 已采纳数
-	if err := s.db.Model(&models.UserContribution{}).
+	if err := s.db.WithContext(ctx).Model(&models.UserContribution{}).
 		Where("status = ?", models.UserContributionStatusApproved).
 		Count(&stats.ApprovedCount).Error; err != nil {
 		return nil, err
 	}
 
 	// 已拒绝数
-	if err := s.db.Model(&models.UserContribution{}).
+	if err := s.db.WithContext(ctx).Model(&models.UserContribution{}).
 		Where("status = ?", models.UserContributionStatusRejected).
 		Count(&stats.RejectedCount).Error; err != nil {
 		return nil, err
 	}
 
 	// 总发放积分
-	if err := s.db.Model(&models.UserContribution{}).
+	if err := s.db.WithContext(ctx).Model(&models.UserContribution{}).
 		Where("status = ?", models.UserContributionStatusApproved).
 		Select("COALESCE(SUM(points_awarded), 0)").
 		Scan(&stats.TotalPoints).Error; err != nil {
@@ -298,7 +299,7 @@ func (s *ContributionService) GetAdminContributionStats() (*response.AdminContri
 }
 
 // 辅助方法：转换为响应格式
-func (s *ContributionService) convertToResponse(contribution *models.UserContribution) (*response.ContributionResponse, error) {
+func (s *ContributionService) convertToResponse(ctx context.Context, contribution *models.UserContribution) (*response.ContributionResponse, error) {
 	// 解析分类
 	var categoryIDs []uint
 	if len(contribution.Categories) > 0 {
@@ -307,7 +308,7 @@ func (s *ContributionService) convertToResponse(contribution *models.UserContrib
 		}
 	}
 
-	categories, err := s.getCategoriesByIDs(categoryIDs)
+	categories, err := s.getCategoriesByIDs(ctx, categoryIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -315,7 +316,7 @@ func (s *ContributionService) convertToResponse(contribution *models.UserContrib
 	// 获取用户信息
 	var user *response.UserSimpleResponse
 	var userData models.User
-	if err := s.db.Select("id, nickname").Where("id = ?", contribution.UserID).First(&userData).Error; err == nil {
+	if err := s.db.WithContext(ctx).Select("id, nickname").Where("id = ?", contribution.UserID).First(&userData).Error; err == nil {
 		user = &response.UserSimpleResponse{
 			ID:       userData.ID,
 			Nickname: userData.Nickname,
@@ -326,7 +327,7 @@ func (s *ContributionService) convertToResponse(contribution *models.UserContrib
 	var reviewer *response.UserSimpleResponse
 	if contribution.ReviewerID != nil {
 		var reviewerData models.User
-		if err := s.db.Select("id, nickname").Where("id = ?", *contribution.ReviewerID).First(&reviewerData).Error; err == nil {
+		if err := s.db.WithContext(ctx).Select("id, nickname").Where("id = ?", *contribution.ReviewerID).First(&reviewerData).Error; err == nil {
 			reviewer = &response.UserSimpleResponse{
 				ID:       reviewerData.ID,
 				Nickname: reviewerData.Nickname,
@@ -338,7 +339,7 @@ func (s *ContributionService) convertToResponse(contribution *models.UserContrib
 	var notification *response.NotificationSimpleResponse
 	if contribution.NotificationID != nil {
 		var notificationData models.Notification
-		if err := s.db.Where("id = ?", *contribution.NotificationID).First(&notificationData).Error; err == nil {
+		if err := s.db.WithContext(ctx).Where("id = ?", *contribution.NotificationID).First(&notificationData).Error; err == nil {
 			// 解析日程数据
 			var scheduleData *models.ScheduleData
 			if notificationData.Schedule != nil {
@@ -382,7 +383,7 @@ func (s *ContributionService) convertToResponse(contribution *models.UserContrib
 }
 
 // 辅助方法：根据分类ID获取分类信息
-func (s *ContributionService) getCategoriesByIDs(categoryIDs []uint) ([]response.NotificationCategoryResponse, error) {
+func (s *ContributionService) getCategoriesByIDs(ctx context.Context, categoryIDs []uint) ([]response.NotificationCategoryResponse, error) {
 	// 如果分类ID列表为空，直接返回空结果
 	if len(categoryIDs) == 0 {
 		return []response.NotificationCategoryResponse{}, nil
@@ -395,7 +396,7 @@ func (s *ContributionService) getCategoriesByIDs(categoryIDs []uint) ([]response
 	}
 
 	var categories []models.NotificationCategory
-	if err := s.db.Where("id IN ?", interfaceIDs).Find(&categories).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("id IN ?", interfaceIDs).Find(&categories).Error; err != nil {
 		return nil, err
 	}
 

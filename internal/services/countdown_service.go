@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -22,7 +23,7 @@ func NewCountdownService(db *gorm.DB) *CountdownService {
 }
 
 // CreateCountdown 创建倒数日
-func (s *CountdownService) CreateCountdown(userID uint, req *request.CreateCountdownRequest) (*response.CountdownResponse, error) {
+func (s *CountdownService) CreateCountdown(ctx context.Context, userID uint, req *request.CreateCountdownRequest) (*response.CountdownResponse, error) {
 	// 解析目标日期
 	targetDate, err := time.Parse("2006-01-02", req.TargetDate)
 	if err != nil {
@@ -37,7 +38,7 @@ func (s *CountdownService) CreateCountdown(userID uint, req *request.CreateCount
 		TargetDate:  targetDate,
 	}
 
-	if err := s.db.Create(&countdown).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(&countdown).Error; err != nil {
 		return nil, err
 	}
 
@@ -53,11 +54,11 @@ func (s *CountdownService) CreateCountdown(userID uint, req *request.CreateCount
 }
 
 // GetCountdowns 获取用户倒数日列表
-func (s *CountdownService) GetCountdowns(userID uint, userRole models.UserRole) ([]response.CountdownResponse, error) {
+func (s *CountdownService) GetCountdowns(ctx context.Context, userID uint, userRole models.UserRole) ([]response.CountdownResponse, error) {
 	var countdowns []models.Countdown
 
 	// 构建查询
-	query := s.db.Where("user_id = ?", userID)
+	query := s.db.WithContext(ctx).Where("user_id = ?", userID)
 
 	// 查询数据
 	if err := query.Order("created_at DESC").Find(&countdowns).Error; err != nil {
@@ -82,9 +83,9 @@ func (s *CountdownService) GetCountdowns(userID uint, userRole models.UserRole) 
 }
 
 // GetCountdownByID 根据ID获取倒数日详情
-func (s *CountdownService) GetCountdownByID(countdownID uint, userID uint) (*response.CountdownResponse, error) {
+func (s *CountdownService) GetCountdownByID(ctx context.Context, countdownID uint, userID uint) (*response.CountdownResponse, error) {
 	var countdown models.Countdown
-	if err := s.db.Where("id = ? AND user_id = ?", countdownID, userID).First(&countdown).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("id = ? AND user_id = ?", countdownID, userID).First(&countdown).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, errors.New("倒数日不存在或无权限访问")
 		}
@@ -103,10 +104,10 @@ func (s *CountdownService) GetCountdownByID(countdownID uint, userID uint) (*res
 }
 
 // UpdateCountdown 更新倒数日
-func (s *CountdownService) UpdateCountdown(countdownID uint, userID uint, req *request.UpdateCountdownRequest) (*response.CountdownResponse, error) {
+func (s *CountdownService) UpdateCountdown(ctx context.Context, countdownID uint, userID uint, req *request.UpdateCountdownRequest) (*response.CountdownResponse, error) {
 	// 查找倒数日
 	var countdown models.Countdown
-	if err := s.db.Where("id = ? AND user_id = ?", countdownID, userID).First(&countdown).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("id = ? AND user_id = ?", countdownID, userID).First(&countdown).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, errors.New("倒数日不存在或无权限访问")
 		}
@@ -131,19 +132,19 @@ func (s *CountdownService) UpdateCountdown(countdownID uint, userID uint, req *r
 	}
 
 	if len(updates) > 0 {
-		if err := s.db.Model(&countdown).Updates(updates).Error; err != nil {
+		if err := s.db.WithContext(ctx).Model(&countdown).Updates(updates).Error; err != nil {
 			return nil, err
 		}
 	}
 
-	return s.GetCountdownByID(countdownID, userID)
+	return s.GetCountdownByID(ctx, countdownID, userID)
 }
 
 // DeleteCountdown 删除倒数日
-func (s *CountdownService) DeleteCountdown(countdownID uint, userID uint) error {
+func (s *CountdownService) DeleteCountdown(ctx context.Context, countdownID uint, userID uint) error {
 	// 查找倒数日
 	var countdown models.Countdown
-	if err := s.db.Where("id = ? AND user_id = ?", countdownID, userID).First(&countdown).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("id = ? AND user_id = ?", countdownID, userID).First(&countdown).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return errors.New("倒数日不存在或无权限访问")
 		}
@@ -151,5 +152,5 @@ func (s *CountdownService) DeleteCountdown(countdownID uint, userID uint) error 
 	}
 
 	// 软删除
-	return s.db.Delete(&countdown).Error
+	return s.db.WithContext(ctx).Delete(&countdown).Error
 }

@@ -32,7 +32,7 @@ func (h *CountdownHandler) CreateCountdown(c *gin.Context) {
 		return
 	}
 
-	result, err := h.countdownService.CreateCountdown(userID, &req)
+	result, err := h.countdownService.CreateCountdown(c, userID, &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -46,7 +46,7 @@ func (h *CountdownHandler) GetCountdowns(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	userRole := helper.GetUserRole(c)
 
-	result, err := h.countdownService.GetCountdowns(userID, models.UserRole(userRole))
+	result, err := h.countdownService.GetCountdowns(c, userID, models.UserRole(userRole))
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
@@ -66,7 +66,7 @@ func (h *CountdownHandler) GetCountdownByID(c *gin.Context) {
 		return
 	}
 
-	result, err := h.countdownService.GetCountdownByID(uint(id), userID)
+	result, err := h.countdownService.GetCountdownByID(c, uint(id), userID)
 	if err != nil {
 		if err.Error() == "倒数日不存在或无权限访问" {
 			helper.ErrorResponse(c, http.StatusNotFound, err.Error())
@@ -96,7 +96,7 @@ func (h *CountdownHandler) UpdateCountdown(c *gin.Context) {
 		return
 	}
 
-	result, err := h.countdownService.UpdateCountdown(uint(id), userID, &req)
+	result, err := h.countdownService.UpdateCountdown(c, uint(id), userID, &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -116,7 +116,7 @@ func (h *CountdownHandler) DeleteCountdown(c *gin.Context) {
 		return
 	}
 
-	err = h.countdownService.DeleteCountdown(uint(id), userID)
+	err = h.countdownService.DeleteCountdown(c, uint(id), userID)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return

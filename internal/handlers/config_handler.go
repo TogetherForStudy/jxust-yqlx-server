@@ -21,7 +21,7 @@ func NewConfigHandler(service *services.ConfigService) *ConfigHandler {
 // GetByKey 按key返回配置项
 func (h *ConfigHandler) GetByKey(c *gin.Context) {
 	key := c.Param("key")
-	m, err := h.service.GetByKey(key)
+	m, err := h.service.GetByKey(c, key)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -41,7 +41,7 @@ func (h *ConfigHandler) Create(c *gin.Context) {
 		helper.ValidateResponse(c, "参数验证失败")
 		return
 	}
-	m, err := h.service.Create(req.Key, req.Value, req.ValueType, req.Description)
+	m, err := h.service.Create(c, req.Key, req.Value, req.ValueType, req.Description)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -57,7 +57,7 @@ func (h *ConfigHandler) Update(c *gin.Context) {
 		helper.ValidateResponse(c, "参数验证失败")
 		return
 	}
-	if err := h.service.Update(key, req.Value, req.ValueType, req.Description); err != nil {
+	if err := h.service.Update(c, key, req.Value, req.ValueType, req.Description); err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -67,7 +67,7 @@ func (h *ConfigHandler) Update(c *gin.Context) {
 // Delete 管理员按key删除（软删除）
 func (h *ConfigHandler) Delete(c *gin.Context) {
 	key := c.Param("key")
-	if err := h.service.Delete(key); err != nil {
+	if err := h.service.Delete(c, key); err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -90,7 +90,7 @@ func (h *ConfigHandler) SearchConfigs(c *gin.Context) {
 		req.Size = 10
 	}
 
-	items, total, err := h.service.SearchConfigs(req.Query, req.Page, req.Size)
+	items, total, err := h.service.SearchConfigs(c, req.Query, req.Page, req.Size)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, "搜索失败")
 		return

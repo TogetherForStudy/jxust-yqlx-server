@@ -39,7 +39,7 @@ func (h *AuthHandler) WechatLogin(c *gin.Context) {
 		return
 	}
 
-	result, err := h.authService.WechatLogin(req.Code)
+	result, err := h.authService.WechatLogin(c, req.Code)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -65,7 +65,7 @@ func (h *AuthHandler) MockWechatLogin(c *gin.Context) {
 		return
 	}
 
-	result, err := h.authService.MockWechatLogin(req.TestUser)
+	result, err := h.authService.MockWechatLogin(c, req.TestUser)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -91,7 +91,7 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 		return
 	}
 
-	user, err := h.authService.GetUserByID(userID.(uint))
+	user, err := h.authService.GetUserByID(c, userID.(uint))
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusNotFound, "用户不存在")
 		return
@@ -151,7 +151,7 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 		ClassID:   req.ClassID,
 	}
 
-	if err := h.authService.UpdateUserProfile(userID.(uint), profile); err != nil {
+	if err := h.authService.UpdateUserProfile(c, userID.(uint), profile); err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, "更新失败")
 		return
 	}

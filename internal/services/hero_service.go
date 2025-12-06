@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -17,10 +18,10 @@ func NewHeroService(db *gorm.DB) *HeroService {
 	return &HeroService{db: db}
 }
 
-func (s *HeroService) Create(name string, sort int, isShow bool) (*models.Hero, error) {
+func (s *HeroService) Create(ctx context.Context, name string, sort int, isShow bool) (*models.Hero, error) {
 	// name 唯一
 	var cnt int64
-	if err := s.db.Model(&models.Hero{}).Where("name = ?", name).Count(&cnt).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&models.Hero{}).Where("name = ?", name).Count(&cnt).Error; err != nil {
 		return nil, err
 	}
 	if cnt > 0 {
@@ -34,22 +35,22 @@ func (s *HeroService) Create(name string, sort int, isShow bool) (*models.Hero, 
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	if err := s.db.Create(hero).Error; err != nil {
+	if err := s.db.WithContext(ctx).Create(hero).Error; err != nil {
 		return nil, err
 	}
 	return hero, nil
 }
 
-func (s *HeroService) Update(id uint, name string, sort int, isShow bool) error {
+func (s *HeroService) Update(ctx context.Context, id uint, name string, sort int, isShow bool) error {
 	// 如果修改 name，需要确保唯一（排除自身）
 	var cnt int64
-	if err := s.db.Model(&models.Hero{}).Where("name = ? AND id <> ?", name, id).Count(&cnt).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&models.Hero{}).Where("name = ? AND id <> ?", name, id).Count(&cnt).Error; err != nil {
 		return err
 	}
 	if cnt > 0 {
 		return fmt.Errorf("名称已存在")
 	}
-	return s.db.Model(&models.Hero{}).Where("id = ?", id).Updates(map[string]any{
+	return s.db.WithContext(ctx).Model(&models.Hero{}).Where("id = ?", id).Updates(map[string]any{
 		"name":       name,
 		"sort":       sort,
 		"is_show":    isShow,
@@ -57,13 +58,13 @@ func (s *HeroService) Update(id uint, name string, sort int, isShow bool) error 
 	}).Error
 }
 
-func (s *HeroService) Delete(id uint) error {
-	return s.db.Unscoped().Delete(&models.Hero{}, id).Error
+func (s *HeroService) Delete(ctx context.Context, id uint) error {
+	return s.db.WithContext(ctx).Unscoped().Delete(&models.Hero{}, id).Error
 }
 
-func (s *HeroService) Get(id uint) (*models.Hero, error) {
+func (s *HeroService) Get(ctx context.Context, id uint) (*models.Hero, error) {
 	var m models.Hero
-	if err := s.db.First(&m, id).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&m, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("未找到")
 		}
@@ -73,9 +74,9 @@ func (s *HeroService) Get(id uint) (*models.Hero, error) {
 }
 
 // ListAll 返回仅名称的字符串数组，按 sort 升序（只返回is_show=true的）
-func (s *HeroService) ListAll() ([]string, error) {
+func (s *HeroService) ListAll(ctx context.Context) ([]string, error) {
 	var list []models.Hero
-	if err := s.db.Model(&models.Hero{}).Where("is_show = ?", true).Order("sort ASC").Find(&list).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&models.Hero{}).Where("is_show = ?", true).Order("sort ASC").Find(&list).Error; err != nil {
 		return nil, err
 	}
 	names := make([]string, 0, len(list))
@@ -86,11 +87,11 @@ func (s *HeroService) ListAll() ([]string, error) {
 }
 
 // SearchHeroes 搜索英雄，支持按名称搜索和是否显示过滤，空query返回全部（分页版本）
-func (s *HeroService) SearchHeroes(query string, isShow *bool, page, size int) ([]models.Hero, int64, error) {
+func (s *HeroService) SearchHeroes(ctx context.Context, query string, isShow *bool, page, size int) ([]models.Hero, int64, error) {
 	var list []models.Hero
 	var total int64
 
-	queryBuilder := s.db.Model(&models.Hero{})
+	queryBuilder := s.db.WithContext(ctx).Model(&models.Hero{})
 
 	if query != "" {
 		// 模糊搜索名称

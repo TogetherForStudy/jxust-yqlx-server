@@ -232,7 +232,7 @@ type StudyTaskParams struct {
 // ============== Tool Handler Methods ==============
 
 func (th *mcpToolHandlers) handleListHeroes(ctx context.Context, req *mcp.CallToolRequest, params *ListHeroesParams) (*mcp.CallToolResult, any, error) {
-	heroes, err := th.heroService.ListAll()
+	heroes, err := th.heroService.ListAll(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("获取英雄榜失败: %w", err)
 	}
@@ -253,7 +253,7 @@ func (th *mcpToolHandlers) handleNotifications(ctx context.Context, req *mcp.Cal
 		if size <= 0 {
 			size = 20
 		}
-		result, err := th.notificationService.GetNotifications(&request.GetNotificationsRequest{Page: page, Size: size})
+		result, err := th.notificationService.GetNotifications(ctx, &request.GetNotificationsRequest{Page: page, Size: size})
 		if err != nil {
 			return nil, nil, fmt.Errorf("获取通知列表失败: %w", err)
 		}
@@ -263,7 +263,7 @@ func (th *mcpToolHandlers) handleNotifications(ctx context.Context, req *mcp.Cal
 		if params.ID == 0 {
 			return nil, nil, fmt.Errorf("请提供通知ID")
 		}
-		result, err := th.notificationService.GetNotificationByID(params.ID)
+		result, err := th.notificationService.GetNotificationByID(ctx, params.ID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("获取通知详情失败: %w", err)
 		}
@@ -282,7 +282,7 @@ func (th *mcpToolHandlers) handleUserProfile(ctx context.Context, req *mcp.CallT
 
 	switch params.Action {
 	case "get":
-		user, err := th.authService.GetUserByID(userID)
+		user, err := th.authService.GetUserByID(ctx, userID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("获取用户信息失败: %w", err)
 		}
@@ -291,7 +291,7 @@ func (th *mcpToolHandlers) handleUserProfile(ctx context.Context, req *mcp.CallT
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(data)}}}, nil, nil
 	case "update":
 		profile := &models.User{Nickname: params.Nickname, RealName: params.RealName, College: params.College, Major: params.Major, ClassID: params.ClassID}
-		if err := th.authService.UpdateUserProfile(userID, profile); err != nil {
+		if err := th.authService.UpdateUserProfile(ctx, userID, profile); err != nil {
 			return nil, nil, fmt.Errorf("更新用户信息失败: %w", err)
 		}
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: `{"message": "更新成功"}`}}}, nil, nil
@@ -311,7 +311,7 @@ func (th *mcpToolHandlers) handleTeacherReview(ctx context.Context, req *mcp.Cal
 		if params.TeacherName == "" || params.Campus == "" || params.CourseName == "" || params.Content == "" || params.Attitude == 0 {
 			return nil, nil, fmt.Errorf("请提供完整的评价信息")
 		}
-		err := th.reviewService.CreateReview(userID, &request.CreateReviewRequest{
+		err := th.reviewService.CreateReview(ctx, userID, &request.CreateReviewRequest{
 			TeacherName: params.TeacherName, Campus: params.Campus, CourseName: params.CourseName, Content: params.Content, Attitude: models.TeacherAttitude(params.Attitude),
 		})
 		if err != nil {
@@ -329,7 +329,7 @@ func (th *mcpToolHandlers) handleTeacherReview(ctx context.Context, req *mcp.Cal
 		if size <= 0 {
 			size = 10
 		}
-		reviews, total, err := th.reviewService.GetReviewsByTeacher(params.TeacherName, page, size)
+		reviews, total, err := th.reviewService.GetReviewsByTeacher(ctx, params.TeacherName, page, size)
 		if err != nil {
 			return nil, nil, fmt.Errorf("获取评价失败: %w", err)
 		}
@@ -345,7 +345,7 @@ func (th *mcpToolHandlers) handleGetCourseTable(ctx context.Context, req *mcp.Ca
 	if userID == 0 {
 		return nil, nil, fmt.Errorf("用户未认证")
 	}
-	result, err := th.courseTableService.GetUserCourseTable(userID, params.Semester)
+	result, err := th.courseTableService.GetUserCourseTable(ctx, userID, params.Semester)
 	if err != nil {
 		return nil, nil, fmt.Errorf("获取课程表失败: %w", err)
 	}
@@ -362,7 +362,7 @@ func (th *mcpToolHandlers) handleEditCourseCell(ctx context.Context, req *mcp.Ca
 	if err != nil {
 		return nil, nil, fmt.Errorf("无效的格子数据: %w", err)
 	}
-	if err := th.courseTableService.EditUserCourseCell(userID, params.Semester, params.Index, datatypes.JSON(valueBytes)); err != nil {
+	if err := th.courseTableService.EditUserCourseCell(ctx, userID, params.Semester, params.Index, datatypes.JSON(valueBytes)); err != nil {
 		return nil, nil, fmt.Errorf("编辑课程表失败: %w", err)
 	}
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: `{"message": "编辑成功"}`}}}, nil, nil
@@ -370,7 +370,7 @@ func (th *mcpToolHandlers) handleEditCourseCell(ctx context.Context, req *mcp.Ca
 
 func (th *mcpToolHandlers) handleQueryFailRate(ctx context.Context, req *mcp.CallToolRequest, params *QueryFailRateParams) (*mcp.CallToolResult, any, error) {
 	if params.Keyword == "" {
-		list, err := th.failRateService.Rand(10)
+		list, err := th.failRateService.Rand(ctx, 10)
 		if err != nil {
 			return nil, nil, fmt.Errorf("查询挂科率失败: %w", err)
 		}
@@ -384,7 +384,7 @@ func (th *mcpToolHandlers) handleQueryFailRate(ctx context.Context, req *mcp.Cal
 	if size <= 0 {
 		size = 10
 	}
-	list, total, err := th.failRateService.Search(params.Keyword, page, size)
+	list, total, err := th.failRateService.Search(ctx, params.Keyword, page, size)
 	if err != nil {
 		return nil, nil, fmt.Errorf("查询挂科率失败: %w", err)
 	}
@@ -403,14 +403,14 @@ func (th *mcpToolHandlers) handleCountdown(ctx context.Context, req *mcp.CallToo
 		if params.Title == "" || params.TargetDate == "" {
 			return nil, nil, fmt.Errorf("请提供标题和目标日期")
 		}
-		result, err := th.countdownService.CreateCountdown(userID, &request.CreateCountdownRequest{Title: params.Title, Description: params.Description, TargetDate: params.TargetDate})
+		result, err := th.countdownService.CreateCountdown(ctx, userID, &request.CreateCountdownRequest{Title: params.Title, Description: params.Description, TargetDate: params.TargetDate})
 		if err != nil {
 			return nil, nil, fmt.Errorf("创建倒数日失败: %w", err)
 		}
 		data, _ := sonic.Marshal(result)
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(data)}}}, nil, nil
 	case "list":
-		result, err := th.countdownService.GetCountdowns(userID, userRole)
+		result, err := th.countdownService.GetCountdowns(ctx, userID, userRole)
 		if err != nil {
 			return nil, nil, fmt.Errorf("获取倒数日列表失败: %w", err)
 		}
@@ -420,7 +420,7 @@ func (th *mcpToolHandlers) handleCountdown(ctx context.Context, req *mcp.CallToo
 		if params.ID == 0 {
 			return nil, nil, fmt.Errorf("请提供倒数日ID")
 		}
-		result, err := th.countdownService.GetCountdownByID(params.ID, userID)
+		result, err := th.countdownService.GetCountdownByID(ctx, params.ID, userID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("获取倒数日详情失败: %w", err)
 		}
@@ -430,7 +430,7 @@ func (th *mcpToolHandlers) handleCountdown(ctx context.Context, req *mcp.CallToo
 		if params.ID == 0 {
 			return nil, nil, fmt.Errorf("请提供倒数日ID")
 		}
-		result, err := th.countdownService.UpdateCountdown(params.ID, userID, &request.UpdateCountdownRequest{Title: params.Title, Description: params.Description, TargetDate: params.TargetDate})
+		result, err := th.countdownService.UpdateCountdown(ctx, params.ID, userID, &request.UpdateCountdownRequest{Title: params.Title, Description: params.Description, TargetDate: params.TargetDate})
 		if err != nil {
 			return nil, nil, fmt.Errorf("更新倒数日失败: %w", err)
 		}
@@ -440,7 +440,7 @@ func (th *mcpToolHandlers) handleCountdown(ctx context.Context, req *mcp.CallToo
 		if params.ID == 0 {
 			return nil, nil, fmt.Errorf("请提供倒数日ID")
 		}
-		if err := th.countdownService.DeleteCountdown(params.ID, userID); err != nil {
+		if err := th.countdownService.DeleteCountdown(ctx, params.ID, userID); err != nil {
 			return nil, nil, fmt.Errorf("删除倒数日失败: %w", err)
 		}
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: `{"message": "删除成功"}`}}}, nil, nil
@@ -464,7 +464,7 @@ func (th *mcpToolHandlers) handleStudyTask(ctx context.Context, req *mcp.CallToo
 		if params.Priority != nil {
 			priority = *params.Priority
 		}
-		result, err := th.studyTaskService.CreateStudyTask(userID, &request.CreateStudyTaskRequest{Title: params.Title, Description: params.Description, DueDate: params.DueDate, Priority: priority})
+		result, err := th.studyTaskService.CreateStudyTask(ctx, userID, &request.CreateStudyTaskRequest{Title: params.Title, Description: params.Description, DueDate: params.DueDate, Priority: priority})
 		if err != nil {
 			return nil, nil, fmt.Errorf("创建学习任务失败: %w", err)
 		}
@@ -478,7 +478,7 @@ func (th *mcpToolHandlers) handleStudyTask(ctx context.Context, req *mcp.CallToo
 		if size <= 0 {
 			size = 20
 		}
-		result, err := th.studyTaskService.GetStudyTasks(userID, &request.GetStudyTasksRequest{Page: page, Size: size, Status: params.Status, Priority: params.Priority})
+		result, err := th.studyTaskService.GetStudyTasks(ctx, userID, &request.GetStudyTasksRequest{Page: page, Size: size, Status: params.Status, Priority: params.Priority})
 		if err != nil {
 			return nil, nil, fmt.Errorf("获取学习任务列表失败: %w", err)
 		}
@@ -488,7 +488,7 @@ func (th *mcpToolHandlers) handleStudyTask(ctx context.Context, req *mcp.CallToo
 		if params.ID == 0 {
 			return nil, nil, fmt.Errorf("请提供任务ID")
 		}
-		result, err := th.studyTaskService.GetStudyTaskByID(params.ID, userID)
+		result, err := th.studyTaskService.GetStudyTaskByID(ctx, params.ID, userID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("获取学习任务详情失败: %w", err)
 		}
@@ -498,7 +498,7 @@ func (th *mcpToolHandlers) handleStudyTask(ctx context.Context, req *mcp.CallToo
 		if params.ID == 0 {
 			return nil, nil, fmt.Errorf("请提供任务ID")
 		}
-		result, err := th.studyTaskService.UpdateStudyTask(params.ID, userID, &request.UpdateStudyTaskRequest{Title: params.Title, Description: params.Description, DueDate: params.DueDate, Priority: params.Priority, Status: params.Status})
+		result, err := th.studyTaskService.UpdateStudyTask(ctx, params.ID, userID, &request.UpdateStudyTaskRequest{Title: params.Title, Description: params.Description, DueDate: params.DueDate, Priority: params.Priority, Status: params.Status})
 		if err != nil {
 			return nil, nil, fmt.Errorf("更新学习任务失败: %w", err)
 		}
@@ -508,12 +508,12 @@ func (th *mcpToolHandlers) handleStudyTask(ctx context.Context, req *mcp.CallToo
 		if params.ID == 0 {
 			return nil, nil, fmt.Errorf("请提供任务ID")
 		}
-		if err := th.studyTaskService.DeleteStudyTask(params.ID, userID); err != nil {
+		if err := th.studyTaskService.DeleteStudyTask(ctx, params.ID, userID); err != nil {
 			return nil, nil, fmt.Errorf("删除学习任务失败: %w", err)
 		}
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: `{"message": "删除成功"}`}}}, nil, nil
 	case "stats":
-		result, err := th.studyTaskService.GetStudyTaskStats(userID)
+		result, err := th.studyTaskService.GetStudyTaskStats(ctx, userID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("获取学习任务统计失败: %w", err)
 		}

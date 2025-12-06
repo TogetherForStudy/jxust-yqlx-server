@@ -31,7 +31,7 @@ func (h *StudyTaskHandler) CreateStudyTask(c *gin.Context) {
 		return
 	}
 
-	result, err := h.studyTaskService.CreateStudyTask(userID, &req)
+	result, err := h.studyTaskService.CreateStudyTask(c, userID, &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -65,7 +65,7 @@ func (h *StudyTaskHandler) GetStudyTasks(c *gin.Context) {
 		req.Priority = nil
 	}
 
-	result, err := h.studyTaskService.GetStudyTasks(userID, &req)
+	result, err := h.studyTaskService.GetStudyTasks(c, userID, &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
@@ -85,7 +85,7 @@ func (h *StudyTaskHandler) GetStudyTaskByID(c *gin.Context) {
 		return
 	}
 
-	result, err := h.studyTaskService.GetStudyTaskByID(uint(id), userID)
+	result, err := h.studyTaskService.GetStudyTaskByID(c, uint(id), userID)
 	if err != nil {
 		if err.Error() == "学习任务不存在或无权限访问" {
 			helper.ErrorResponse(c, http.StatusNotFound, err.Error())
@@ -115,7 +115,7 @@ func (h *StudyTaskHandler) UpdateStudyTask(c *gin.Context) {
 		return
 	}
 
-	result, err := h.studyTaskService.UpdateStudyTask(uint(id), userID, &req)
+	result, err := h.studyTaskService.UpdateStudyTask(c, uint(id), userID, &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -135,7 +135,7 @@ func (h *StudyTaskHandler) DeleteStudyTask(c *gin.Context) {
 		return
 	}
 
-	err = h.studyTaskService.DeleteStudyTask(uint(id), userID)
+	err = h.studyTaskService.DeleteStudyTask(c, uint(id), userID)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -148,7 +148,7 @@ func (h *StudyTaskHandler) DeleteStudyTask(c *gin.Context) {
 func (h *StudyTaskHandler) GetStudyTaskStats(c *gin.Context) {
 	userID := helper.GetUserID(c)
 
-	result, err := h.studyTaskService.GetStudyTaskStats(userID)
+	result, err := h.studyTaskService.GetStudyTaskStats(c, userID)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
@@ -173,7 +173,7 @@ func (h *StudyTaskHandler) GetCompletedTasks(c *gin.Context) {
 		size = 20
 	}
 
-	result, err := h.studyTaskService.GetCompletedTasks(userID, page, size)
+	result, err := h.studyTaskService.GetCompletedTasks(c, userID, page, size)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return

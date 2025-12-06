@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -28,9 +29,9 @@ func NewAuthService(db *gorm.DB, cfg *config.Config) *AuthService {
 }
 
 // WechatLogin 微信小程序登录
-func (s *AuthService) WechatLogin(code string) (*response.WechatLoginResponse, error) {
+func (s *AuthService) WechatLogin(ctx context.Context, code string) (*response.WechatLoginResponse, error) {
 	// 调用微信API获取openid
-	session, err := s.getWechatSession(code)
+	session, err := s.getWechatSession(ctx, code)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +42,7 @@ func (s *AuthService) WechatLogin(code string) (*response.WechatLoginResponse, e
 
 	// 查找或创建用户
 	var user models.User
-	err = s.db.Where("open_id = ?", session.OpenID).First(&user).Error
+	err = s.db.WithContext(ctx).Where("open_id = ?", session.OpenID).First(&user).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			// 创建新用户
@@ -53,7 +54,7 @@ func (s *AuthService) WechatLogin(code string) (*response.WechatLoginResponse, e
 				CreatedAt: time.Now(),
 				UpdatedAt: time.Now(),
 			}
-			if err := s.db.Create(&user).Error; err != nil {
+			if err := s.db.WithContext(ctx).Create(&user).Error; err != nil {
 				return nil, fmt.Errorf("创建用户失败: %w", err)
 			}
 		} else {
@@ -79,11 +80,16 @@ func (s *AuthService) WechatLogin(code string) (*response.WechatLoginResponse, e
 }
 
 // getWechatSession 获取微信session信息
-func (s *AuthService) getWechatSession(code string) (*response.WechatSession, error) {
+func (s *AuthService) getWechatSession(ctx context.Context, code string) (*response.WechatSession, error) {
 	url := fmt.Sprintf("https://api.weixin.qq.com/sns/jscode2session?appid=%s&secret=%s&js_code=%s&grant_type=authorization_code",
 		s.cfg.WechatAppID, s.cfg.WechatAppSecret, code)
 
-	resp, err := http.Get(url)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("创建请求失败: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("请求微信API失败: %w", err)
 	}
@@ -103,9 +109,9 @@ func (s *AuthService) getWechatSession(code string) (*response.WechatSession, er
 }
 
 // GetUserByID 根据ID获取用户信息
-func (s *AuthService) GetUserByID(userID uint) (*models.User, error) {
+func (s *AuthService) GetUserByID(ctx context.Context, userID uint) (*models.User, error) {
 	var user models.User
-	err := s.db.First(&user, userID).Error
+	err := s.db.WithContext(ctx).First(&user, userID).Error
 	if err != nil {
 		return nil, err
 	}
@@ -113,8 +119,8 @@ func (s *AuthService) GetUserByID(userID uint) (*models.User, error) {
 }
 
 // UpdateUserProfile 更新用户资料
-func (s *AuthService) UpdateUserProfile(userID uint, profile *models.User) error {
-	return s.db.Model(&models.User{}).Where("id = ?", userID).Updates(map[string]any{
+func (s *AuthService) UpdateUserProfile(ctx context.Context, userID uint, profile *models.User) error {
+	return s.db.WithContext(ctx).Model(&models.User{}).Where("id = ?", userID).Updates(map[string]any{
 		"nickname":   profile.Nickname,
 		"avatar":     profile.Avatar,
 		"phone":      profile.Phone,
@@ -128,7 +134,7 @@ func (s *AuthService) UpdateUserProfile(userID uint, profile *models.User) error
 }
 
 // MockWechatLogin 模拟微信小程序登录 - 仅用于测试
-func (s *AuthService) MockWechatLogin(testUser string) (*response.WechatLoginResponse, error) {
+func (s *AuthService) MockWechatLogin(ctx context.Context, testUser string) (*response.WechatLoginResponse, error) {
 	// 根据测试用户类型生成不同的模拟数据
 	var mockOpenID, mockUnionID, nickname, avatar string
 	var role models.UserRole
@@ -164,7 +170,7 @@ func (s *AuthService) MockWechatLogin(testUser string) (*response.WechatLoginRes
 
 	// 查找或创建用户
 	var user models.User
-	err := s.db.Where("open_id = ?", mockOpenID).First(&user).Error
+	err := s.db.WithContext(ctx).Where("open_id = ?", mockOpenID).First(&user).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			// 创建新用户
@@ -183,7 +189,7 @@ func (s *AuthService) MockWechatLogin(testUser string) (*response.WechatLoginRes
 				CreatedAt: time.Now(),
 				UpdatedAt: time.Now(),
 			}
-			if err := s.db.Create(&user).Error; err != nil {
+			if err := s.db.WithContext(ctx).Create(&user).Error; err != nil {
 				return nil, fmt.Errorf("创建测试用户失败: %w", err)
 			}
 		} else {

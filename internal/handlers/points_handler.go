@@ -25,7 +25,7 @@ func NewPointsHandler(pointsService *services.PointsService) *PointsHandler {
 func (h *PointsHandler) GetUserPoints(c *gin.Context) {
 	userID := helper.GetUserID(c)
 
-	result, err := h.pointsService.GetUserPoints(userID)
+	result, err := h.pointsService.GetUserPoints(c, userID)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
@@ -62,7 +62,7 @@ func (h *PointsHandler) GetPointsTransactions(c *gin.Context) {
 		req.UserID = nil
 	}
 
-	result, err := h.pointsService.GetPointsTransactions(userID, models.UserRole(userRole), &req)
+	result, err := h.pointsService.GetPointsTransactions(c, userID, models.UserRole(userRole), &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
@@ -81,7 +81,7 @@ func (h *PointsHandler) SpendPoints(c *gin.Context) {
 		return
 	}
 
-	err := h.pointsService.SpendPoints(userID, &req)
+	err := h.pointsService.SpendPoints(c, userID, &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -94,7 +94,7 @@ func (h *PointsHandler) SpendPoints(c *gin.Context) {
 func (h *PointsHandler) GetUserPointsStats(c *gin.Context) {
 	userID := helper.GetUserID(c)
 
-	result, err := h.pointsService.GetUserPointsStats(userID)
+	result, err := h.pointsService.GetUserPointsStats(c, userID)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return

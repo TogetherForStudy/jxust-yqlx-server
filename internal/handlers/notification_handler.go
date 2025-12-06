@@ -33,7 +33,7 @@ func (h *NotificationHandler) CreateNotification(c *gin.Context) {
 		return
 	}
 
-	result, err := h.notificationService.CreateNotification(userID, models.UserRole(userRole), &req)
+	result, err := h.notificationService.CreateNotification(c, userID, models.UserRole(userRole), &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -64,7 +64,7 @@ func (h *NotificationHandler) GetNotifications(c *gin.Context) {
 		req.Categories = nil
 	}
 
-	result, err := h.notificationService.GetNotifications(&req)
+	result, err := h.notificationService.GetNotifications(c, &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
@@ -82,7 +82,7 @@ func (h *NotificationHandler) GetNotificationByID(c *gin.Context) {
 		return
 	}
 
-	result, err := h.notificationService.GetNotificationByID(uint(id))
+	result, err := h.notificationService.GetNotificationByID(c, uint(id))
 	if err != nil {
 		if err.Error() == "通知不存在" {
 			helper.ErrorResponse(c, http.StatusNotFound, err.Error())
@@ -104,7 +104,7 @@ func (h *NotificationHandler) GetNotificationAdminByID(c *gin.Context) {
 		return
 	}
 
-	result, err := h.notificationService.GetNotificationAdminByID(uint(id))
+	result, err := h.notificationService.GetNotificationAdminByID(c, uint(id))
 	if err != nil {
 		if err.Error() == "通知不存在" {
 			helper.ErrorResponse(c, http.StatusNotFound, err.Error())
@@ -135,7 +135,7 @@ func (h *NotificationHandler) UpdateNotification(c *gin.Context) {
 		return
 	}
 
-	result, err := h.notificationService.UpdateNotification(uint(id), userID, models.UserRole(userRole), &req)
+	result, err := h.notificationService.UpdateNotification(c, uint(id), userID, models.UserRole(userRole), &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -156,7 +156,7 @@ func (h *NotificationHandler) PublishNotification(c *gin.Context) {
 		return
 	}
 
-	err = h.notificationService.PublishNotification(uint(id), userID, models.UserRole(userRole))
+	err = h.notificationService.PublishNotification(c, uint(id), userID, models.UserRole(userRole))
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -177,7 +177,7 @@ func (h *NotificationHandler) PublishNotificationAdmin(c *gin.Context) {
 		return
 	}
 
-	err = h.notificationService.PublishNotificationAdmin(uint(id), userID, models.UserRole(userRole))
+	err = h.notificationService.PublishNotificationAdmin(c, uint(id), userID, models.UserRole(userRole))
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -202,7 +202,7 @@ func (h *NotificationHandler) ConvertToSchedule(c *gin.Context) {
 		return
 	}
 
-	err = h.notificationService.ConvertToSchedule(uint(id), &req)
+	err = h.notificationService.ConvertToSchedule(c, uint(id), &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -223,7 +223,7 @@ func (h *NotificationHandler) DeleteNotification(c *gin.Context) {
 		return
 	}
 
-	err = h.notificationService.DeleteNotification(uint(id), userID, models.UserRole(userRole))
+	err = h.notificationService.DeleteNotification(c, uint(id), userID, models.UserRole(userRole))
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -240,7 +240,7 @@ func (h *NotificationHandler) CreateCategory(c *gin.Context) {
 		return
 	}
 
-	result, err := h.notificationService.CreateCategory(&req)
+	result, err := h.notificationService.CreateCategory(c, &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -251,7 +251,7 @@ func (h *NotificationHandler) CreateCategory(c *gin.Context) {
 
 // GetCategories 获取所有分类
 func (h *NotificationHandler) GetCategories(c *gin.Context) {
-	result, err := h.notificationService.GetCategories()
+	result, err := h.notificationService.GetCategories(c)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
@@ -275,7 +275,7 @@ func (h *NotificationHandler) UpdateCategory(c *gin.Context) {
 		return
 	}
 
-	result, err := h.notificationService.UpdateCategory(uint8(id), &req)
+	result, err := h.notificationService.UpdateCategory(c, uint8(id), &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -302,7 +302,7 @@ func (h *NotificationHandler) ApproveNotification(c *gin.Context) {
 		return
 	}
 
-	err = h.notificationService.ApproveNotification(uint(id), userID, models.UserRole(userRole), &req)
+	err = h.notificationService.ApproveNotification(c, uint(id), userID, models.UserRole(userRole), &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -313,7 +313,7 @@ func (h *NotificationHandler) ApproveNotification(c *gin.Context) {
 
 // GetNotificationStats 获取通知统计信息
 func (h *NotificationHandler) GetNotificationStats(c *gin.Context) {
-	result, err := h.notificationService.GetNotificationStats()
+	result, err := h.notificationService.GetNotificationStats(c)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
@@ -346,7 +346,7 @@ func (h *NotificationHandler) GetAdminNotifications(c *gin.Context) {
 		req.Categories = nil
 	}
 
-	result, err := h.notificationService.GetAdminNotifications(models.UserRole(userRole), &req)
+	result, err := h.notificationService.GetAdminNotifications(c, models.UserRole(userRole), &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
@@ -366,7 +366,7 @@ func (h *NotificationHandler) PinNotification(c *gin.Context) {
 		return
 	}
 
-	err = h.notificationService.PinNotification(uint(id), models.UserRole(userRole))
+	err = h.notificationService.PinNotification(c, uint(id), models.UserRole(userRole))
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -386,7 +386,7 @@ func (h *NotificationHandler) UnpinNotification(c *gin.Context) {
 		return
 	}
 
-	err = h.notificationService.UnpinNotification(uint(id), models.UserRole(userRole))
+	err = h.notificationService.UnpinNotification(c, uint(id), models.UserRole(userRole))
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return

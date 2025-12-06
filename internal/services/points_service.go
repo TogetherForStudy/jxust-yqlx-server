@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
@@ -21,9 +22,9 @@ func NewPointsService(db *gorm.DB) *PointsService {
 }
 
 // GetUserPoints 获取用户积分信息
-func (s *PointsService) GetUserPoints(userID uint) (*response.UserPointsResponse, error) {
+func (s *PointsService) GetUserPoints(ctx context.Context, userID uint) (*response.UserPointsResponse, error) {
 	var user models.User
-	err := s.db.Select("id, nickname, points").First(&user, userID).Error
+	err := s.db.WithContext(ctx).Select("id, nickname, points").First(&user, userID).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, errors.New("用户不存在")
@@ -42,12 +43,12 @@ func (s *PointsService) GetUserPoints(userID uint) (*response.UserPointsResponse
 }
 
 // GetPointsTransactions 获取积分交易记录
-func (s *PointsService) GetPointsTransactions(userID uint, userRole models.UserRole, req *request.GetPointsTransactionsRequest) (*response.PageResponse, error) {
+func (s *PointsService) GetPointsTransactions(ctx context.Context, userID uint, userRole models.UserRole, req *request.GetPointsTransactionsRequest) (*response.PageResponse, error) {
 	var transactions []models.PointsTransaction
 	var total int64
 
 	// 构建查询
-	query := s.db.Model(&models.PointsTransaction{})
+	query := s.db.WithContext(ctx).Model(&models.PointsTransaction{})
 
 	// 普通用户只能看自己的记录
 	if userRole != models.UserRoleAdmin {
@@ -118,10 +119,10 @@ func (s *PointsService) GetPointsTransactions(userID uint, userRole models.UserR
 }
 
 // SpendPoints 消费积分（原RedeemPoints）
-func (s *PointsService) SpendPoints(userID uint, req *request.SpendPointsRequest) error {
+func (s *PointsService) SpendPoints(ctx context.Context, userID uint, req *request.SpendPointsRequest) error {
 	// 获取用户信息
 	var user models.User
-	if err := s.db.First(&user, userID).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&user, userID).Error; err != nil {
 		return errors.New("用户不存在")
 	}
 
@@ -131,7 +132,7 @@ func (s *PointsService) SpendPoints(userID uint, req *request.SpendPointsRequest
 	}
 
 	// 开启事务
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// 扣除积分
 		if err := tx.Model(&user).Update("points", gorm.Expr("points - ?", req.Points)).Error; err != nil {
 			return err
@@ -151,15 +152,15 @@ func (s *PointsService) SpendPoints(userID uint, req *request.SpendPointsRequest
 }
 
 // AddPoints 增加积分（内部方法，用于其他服务调用）
-func (s *PointsService) AddPoints(tx *gorm.DB, userID uint, points int, source models.PointsTransactionSource, description string, relatedID *uint) error {
+func (s *PointsService) AddPoints(ctx context.Context, tx *gorm.DB, userID uint, points int, source models.PointsTransactionSource, description string, relatedID *uint) error {
 	// 获取用户信息
 	var user models.User
-	if err := tx.First(&user, userID).Error; err != nil {
+	if err := tx.WithContext(ctx).First(&user, userID).Error; err != nil {
 		return err
 	}
 
 	// 更新积分
-	if err := tx.Model(&user).Update("points", gorm.Expr("points + ?", points)).Error; err != nil {
+	if err := tx.WithContext(ctx).Model(&user).Update("points", gorm.Expr("points + ?", points)).Error; err != nil {
 		return err
 	}
 
@@ -177,11 +178,11 @@ func (s *PointsService) AddPoints(tx *gorm.DB, userID uint, points int, source m
 }
 
 // GetUserPointsStats 获取用户积分统计
-func (s *PointsService) GetUserPointsStats(userID uint) (map[string]interface{}, error) {
+func (s *PointsService) GetUserPointsStats(ctx context.Context, userID uint) (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
 
 	// 获取用户积分
-	userPoints, err := s.GetUserPoints(userID)
+	userPoints, err := s.GetUserPoints(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +191,7 @@ func (s *PointsService) GetUserPointsStats(userID uint) (map[string]interface{},
 
 	// 获取排名
 	var rank int64
-	if err := s.db.Model(&models.User{}).
+	if err := s.db.WithContext(ctx).Model(&models.User{}).
 		Where("points > (SELECT points FROM users WHERE id = ?)", userID).
 		Count(&rank).Error; err != nil {
 		return nil, err
@@ -199,7 +200,7 @@ func (s *PointsService) GetUserPointsStats(userID uint) (map[string]interface{},
 
 	// 投稿获得积分总数
 	var contributionPoints int64
-	if err := s.db.Model(&models.PointsTransaction{}).
+	if err := s.db.WithContext(ctx).Model(&models.PointsTransaction{}).
 		Where("user_id = ? AND type = ? AND source = ?",
 			userID, models.PointsTransactionTypeEarn, models.PointsTransactionSourceContribution).
 		Select("COALESCE(SUM(points), 0)").
@@ -210,7 +211,7 @@ func (s *PointsService) GetUserPointsStats(userID uint) (map[string]interface{},
 
 	// 兑换使用积分总数
 	var redeemPoints int64
-	if err := s.db.Model(&models.PointsTransaction{}).
+	if err := s.db.WithContext(ctx).Model(&models.PointsTransaction{}).
 		Where("user_id = ? AND type = ? AND source = ?",
 			userID, models.PointsTransactionTypeSpend, models.PointsTransactionSourceRedeem).
 		Select("COALESCE(SUM(ABS(points)), 0)").

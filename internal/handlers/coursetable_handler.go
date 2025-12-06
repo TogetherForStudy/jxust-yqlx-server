@@ -47,7 +47,7 @@ func (h *CourseTableHandler) GetCourseTable(c *gin.Context) {
 		return
 	}
 
-	result, err := h.courseTableService.GetUserCourseTable(userID.(uint), req.Semester)
+	result, err := h.courseTableService.GetUserCourseTable(c, userID.(uint), req.Semester)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -83,7 +83,7 @@ func (h *CourseTableHandler) SearchClasses(c *gin.Context) {
 		req.Size = 10
 	}
 
-	result, err := h.courseTableService.SearchClasses(req.Keyword, req.Page, req.Size)
+	result, err := h.courseTableService.SearchClasses(c, req.Keyword, req.Page, req.Size)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -117,7 +117,7 @@ func (h *CourseTableHandler) UpdateUserClass(c *gin.Context) {
 		return
 	}
 
-	err := h.courseTableService.UpdateUserClass(userID.(uint), req.ClassID)
+	err := h.courseTableService.UpdateUserClass(c, userID.(uint), req.ClassID)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -165,7 +165,7 @@ func (h *CourseTableHandler) EditCourseCell(c *gin.Context) {
 		return
 	}
 
-	if err := h.courseTableService.EditUserCourseCell(userID.(uint), req.Semester, req.Index, bytesValue); err != nil {
+	if err := h.courseTableService.EditUserCourseCell(c, userID.(uint), req.Semester, req.Index, bytesValue); err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -191,7 +191,7 @@ func (h *CourseTableHandler) ResetUserBindCountToOne(c *gin.Context) {
 		return
 	}
 
-	if err := h.courseTableService.ResetUserBindCountToOne(uint(uid)); err != nil {
+	if err := h.courseTableService.ResetUserBindCountToOne(c, uint(uid)); err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, "重置失败")
 		return
 	}

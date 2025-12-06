@@ -46,7 +46,7 @@ func (h *ReviewHandler) CreateReview(c *gin.Context) {
 		return
 	}
 
-	if err := h.reviewService.CreateReview(userID.(uint), &req); err != nil {
+	if err := h.reviewService.CreateReview(c.Request.Context(), userID.(uint), &req); err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -76,7 +76,7 @@ func (h *ReviewHandler) GetReviewsByTeacher(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	size, _ := strconv.Atoi(c.DefaultQuery("size", "10"))
 
-	reviews, total, err := h.reviewService.GetReviewsByTeacher(teacherName, page, size)
+	reviews, total, err := h.reviewService.GetReviewsByTeacher(c, teacherName, page, size)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, "获取评价失败")
 		return
@@ -107,7 +107,7 @@ func (h *ReviewHandler) GetUserReviews(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	size, _ := strconv.Atoi(c.DefaultQuery("size", "10"))
 
-	reviews, total, err := h.reviewService.GetUserReviews(userID.(uint), page, size)
+	reviews, total, err := h.reviewService.GetUserReviews(c.Request.Context(), userID.(uint), page, size)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, "获取评价记录失败")
 		return
@@ -136,7 +136,7 @@ func (h *ReviewHandler) GetReviews(c *gin.Context) {
 	teacherName := c.Query("teacher_name")
 	status, _ := strconv.Atoi(c.Query("status"))
 
-	reviews, total, err := h.reviewService.GetReviews(page, size, teacherName, models.TeacherReviewStatus(status))
+	reviews, total, err := h.reviewService.GetReviews(c, page, size, teacherName, models.TeacherReviewStatus(status))
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, "获取评价列表失败")
 		return
@@ -175,7 +175,7 @@ func (h *ReviewHandler) ApproveReview(c *gin.Context) {
 		return
 	}
 
-	if err := h.reviewService.ApproveReview(uint(reviewID), req.AdminNote); err != nil {
+	if err := h.reviewService.ApproveReview(c, uint(reviewID), req.AdminNote); err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, "审核失败")
 		return
 	}
@@ -213,7 +213,7 @@ func (h *ReviewHandler) RejectReview(c *gin.Context) {
 		return
 	}
 
-	if err := h.reviewService.RejectReview(uint(reviewID), req.AdminNote); err != nil {
+	if err := h.reviewService.RejectReview(c, uint(reviewID), req.AdminNote); err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, "审核失败")
 		return
 	}
@@ -239,7 +239,7 @@ func (h *ReviewHandler) DeleteReview(c *gin.Context) {
 		return
 	}
 
-	if err := h.reviewService.DeleteReview(uint(reviewID)); err != nil {
+	if err := h.reviewService.DeleteReview(c, uint(reviewID)); err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, "删除失败")
 		return
 	}

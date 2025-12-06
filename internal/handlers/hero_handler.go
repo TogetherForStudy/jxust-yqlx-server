@@ -26,7 +26,7 @@ func (h *HeroHandler) Create(c *gin.Context) {
 		return
 	}
 
-	m, err := h.service.Create(req.Name, req.Sort, req.IsShow)
+	m, err := h.service.Create(c, req.Name, req.Sort, req.IsShow)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -47,7 +47,7 @@ func (h *HeroHandler) Update(c *gin.Context) {
 		helper.ValidateResponse(c, "参数验证失败")
 		return
 	}
-	if err := h.service.Update(uint(id64), req.Name, req.Sort, req.IsShow); err != nil {
+	if err := h.service.Update(c, uint(id64), req.Name, req.Sort, req.IsShow); err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -62,7 +62,7 @@ func (h *HeroHandler) Delete(c *gin.Context) {
 		helper.ValidateResponse(c, "无效的ID")
 		return
 	}
-	if err := h.service.Delete(uint(id64)); err != nil {
+	if err := h.service.Delete(c, uint(id64)); err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -77,7 +77,7 @@ func (h *HeroHandler) Get(c *gin.Context) {
 		helper.ValidateResponse(c, "无效的ID")
 		return
 	}
-	m, err := h.service.Get(uint(id64))
+	m, err := h.service.Get(c, uint(id64))
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -87,7 +87,7 @@ func (h *HeroHandler) Get(c *gin.Context) {
 
 // ListAll 获取全部（按 sort 升序）
 func (h *HeroHandler) ListAll(c *gin.Context) {
-	items, err := h.service.ListAll()
+	items, err := h.service.ListAll(c)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, "查询失败")
 		return
@@ -111,7 +111,7 @@ func (h *HeroHandler) SearchHeroes(c *gin.Context) {
 		req.Size = 10
 	}
 
-	items, total, err := h.service.SearchHeroes(req.Query, req.IsShow, req.Page, req.Size)
+	items, total, err := h.service.SearchHeroes(c, req.Query, req.IsShow, req.Page, req.Size)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, "搜索失败")
 		return

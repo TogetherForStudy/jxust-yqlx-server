@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -22,10 +23,10 @@ func NewCourseTableService(db *gorm.DB) *CourseTableService {
 }
 
 // GetUserCourseTable 获取用户课程表
-func (s *CourseTableService) GetUserCourseTable(userID uint, semester string) (*response.CourseTableResponse, error) {
+func (s *CourseTableService) GetUserCourseTable(ctx context.Context, userID uint, semester string) (*response.CourseTableResponse, error) {
 	// 先获取用户信息，获取其班级ID
 	var user models.User
-	if err := s.db.Where("id = ?", userID).First(&user).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("id = ?", userID).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("用户不存在")
 		}
@@ -39,7 +40,7 @@ func (s *CourseTableService) GetUserCourseTable(userID uint, semester string) (*
 
 	// 优先返回个人课表
 	var userSchedule models.ScheduleUser
-	if err := s.db.Where("user_id = ? AND class_id = ? AND semester = ?", userID, user.ClassID, semester).First(&userSchedule).Error; err == nil {
+	if err := s.db.WithContext(ctx).Where("user_id = ? AND class_id = ? AND semester = ?", userID, user.ClassID, semester).First(&userSchedule).Error; err == nil {
 		return &response.CourseTableResponse{
 			ClassID:    user.ClassID,
 			Semester:   userSchedule.Semester,
@@ -51,7 +52,7 @@ func (s *CourseTableService) GetUserCourseTable(userID uint, semester string) (*
 
 	// 根据班级ID和学期查询默认课程表
 	var courseTable models.CourseTable
-	if err := s.db.Where("class_id = ? AND semester = ?", user.ClassID, semester).First(&courseTable).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("class_id = ? AND semester = ?", user.ClassID, semester).First(&courseTable).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, fmt.Errorf("未找到该班级在指定学期的课程表")
 		}
@@ -66,10 +67,10 @@ func (s *CourseTableService) GetUserCourseTable(userID uint, semester string) (*
 }
 
 // EditUserCourseCell 编辑用户课程表的单个格子（1-35）
-func (s *CourseTableService) EditUserCourseCell(userID uint, semester string, index string, value datatypes.JSON) error {
+func (s *CourseTableService) EditUserCourseCell(ctx context.Context, userID uint, semester string, index string, value datatypes.JSON) error {
 	// 获取用户信息
 	var user models.User
-	if err := s.db.Where("id = ?", userID).First(&user).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("id = ?", userID).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return fmt.Errorf("用户不存在")
 		}
@@ -81,11 +82,11 @@ func (s *CourseTableService) EditUserCourseCell(userID uint, semester string, in
 
 	// 查询或初始化个人课表
 	var userSchedule models.ScheduleUser
-	if err := s.db.Where("user_id = ? AND class_id = ? AND semester = ?", userID, user.ClassID, semester).First(&userSchedule).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("user_id = ? AND class_id = ? AND semester = ?", userID, user.ClassID, semester).First(&userSchedule).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			// 首次编辑：以默认班级课表为基底
 			var courseTable models.CourseTable
-			if e := s.db.Where("class_id = ? AND semester = ?", user.ClassID, semester).First(&courseTable).Error; e != nil {
+			if e := s.db.WithContext(ctx).Where("class_id = ? AND semester = ?", user.ClassID, semester).First(&courseTable).Error; e != nil {
 				if e == gorm.ErrRecordNotFound {
 					return fmt.Errorf("未找到该班级在指定学期的课程表")
 				}
@@ -112,7 +113,7 @@ func (s *CourseTableService) EditUserCourseCell(userID uint, semester string, in
 				Semester: semester,
 				Schedule: datatypes.JSON(bytesData),
 			}
-			if e := s.db.Create(&newSchedule).Error; e != nil {
+			if e := s.db.WithContext(ctx).Create(&newSchedule).Error; e != nil {
 				return fmt.Errorf("创建用户个性课表失败: %v", e)
 			}
 			return nil
@@ -135,7 +136,7 @@ func (s *CourseTableService) EditUserCourseCell(userID uint, semester string, in
 	if e != nil {
 		return fmt.Errorf("序列化课程表失败: %v", e)
 	}
-	if e := s.db.Model(&models.ScheduleUser{}).
+	if e := s.db.WithContext(ctx).Model(&models.ScheduleUser{}).
 		Where("user_id = ? AND class_id = ? AND semester = ?", userID, user.ClassID, semester).
 		Updates(map[string]any{"schedule": datatypes.JSON(bytesData), "class_id": user.ClassID}).Error; e != nil {
 		return fmt.Errorf("更新用户个性课表失败: %v", e)
@@ -144,7 +145,7 @@ func (s *CourseTableService) EditUserCourseCell(userID uint, semester string, in
 }
 
 // SearchClasses 模糊搜索班级
-func (s *CourseTableService) SearchClasses(keyword string, page, size int) (*response.SearchClassResponse, error) {
+func (s *CourseTableService) SearchClasses(ctx context.Context, keyword string, page, size int) (*response.SearchClassResponse, error) {
 	if page <= 0 {
 		page = 1
 	}
@@ -156,7 +157,7 @@ func (s *CourseTableService) SearchClasses(keyword string, page, size int) (*res
 
 	// 查询总数
 	var total int64
-	if err := s.db.Model(&models.CourseTable{}).
+	if err := s.db.WithContext(ctx).Model(&models.CourseTable{}).
 		Where("class_id LIKE ?", "%"+keyword+"%").
 		Distinct("class_id").
 		Count(&total).Error; err != nil {
@@ -165,7 +166,7 @@ func (s *CourseTableService) SearchClasses(keyword string, page, size int) (*res
 
 	// 查询班级列表（去重）
 	var courseTables []models.CourseTable
-	if err := s.db.Select("DISTINCT class_id").
+	if err := s.db.WithContext(ctx).Select("DISTINCT class_id").
 		Where("class_id LIKE ?", "%"+keyword+"%").
 		Order("class_id ASC").
 		Offset(offset).
@@ -192,8 +193,8 @@ func (s *CourseTableService) SearchClasses(keyword string, page, size int) (*res
 }
 
 // UpdateUserClass 更新用户班级（普通用户2次绑定限制）
-func (s *CourseTableService) UpdateUserClass(userID uint, classID string) (err error) {
-	return s.db.Transaction(func(tx *gorm.DB) error {
+func (s *CourseTableService) UpdateUserClass(ctx context.Context, userID uint, classID string) (err error) {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// 获取用户信息
 		var user models.User
 		if e := tx.Where("id = ?", userID).First(&user).Error; e != nil {
@@ -270,8 +271,8 @@ func (s *CourseTableService) UpdateUserClass(userID uint, classID string) (err e
 }
 
 // ResetUserBindCountToOne 将指定用户的绑定次数置为1（管理员操作）
-func (s *CourseTableService) ResetUserBindCountToOne(targetUserID uint) error {
-	return s.db.Transaction(func(tx *gorm.DB) error {
+func (s *CourseTableService) ResetUserBindCountToOne(ctx context.Context, targetUserID uint) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var br models.BindRecord
 		if err := tx.Where("user_id = ?", targetUserID).First(&br).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
