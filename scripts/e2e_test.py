@@ -12,6 +12,7 @@ GoJxust API E2E 测试脚本
 import httpx
 import argparse
 import sys
+import uuid
 from typing import Optional
 from dataclasses import dataclass
 
@@ -634,6 +635,99 @@ class E2ETestClient:
             self._record("管理员搜索配置", False, str(e))
             return False
 
+    # ==================== 幂等性测试 ====================
+
+    def test_idempotency_create_review(self) -> bool:
+        """测试幂等性：创建评价（带幂等性Key）"""
+        try:
+            idempotency_key = str(uuid.uuid4())
+            headers = self._headers()
+            headers["X-Idempotency-Key"] = idempotency_key
+            
+            resp = self.client.post(
+                self._url("/reviews/"),
+                headers=headers,
+                json={
+                    "teacher_name": "幂等性测试老师",
+                    "campus": "红旗校区",
+                    "course_name": "幂等性测试课程",
+                    "content": "这是幂等性测试",
+                    "attitude": 1
+                }
+            )
+            passed = resp.status_code == 200
+            self._record("幂等性-创建评价", passed, f"status={resp.status_code}, key={idempotency_key[:8]}...")
+            return passed
+        except Exception as e:
+            self._record("幂等性-创建评价", False, str(e))
+            return False
+
+    def test_idempotency_duplicate_request(self) -> bool:
+        """测试幂等性：重复请求返回缓存结果"""
+        try:
+            idempotency_key = str(uuid.uuid4())
+            headers = self._headers()
+            headers["X-Idempotency-Key"] = idempotency_key
+            
+            request_data = {
+                "teacher_name": "重复请求测试老师",
+                "campus": "红旗校区",
+                "course_name": "重复请求测试课程",
+                "content": "测试重复请求",
+                "attitude": 1
+            }
+            
+            # 第一次请求
+            resp1 = self.client.post(
+                self._url("/reviews/"),
+                headers=headers,
+                json=request_data
+            )
+            
+            # 第二次请求（使用相同的幂等性Key）
+            resp2 = self.client.post(
+                self._url("/reviews/"),
+                headers=headers,
+                json=request_data
+            )
+            
+            # 两次请求都应该成功，且第二次应该有幂等性重放标记
+            passed = (
+                resp1.status_code == 200 and
+                resp2.status_code == 200 and
+                resp2.headers.get("X-Idempotency-Replayed") == "true"
+            )
+            
+            message = f"first={resp1.status_code}, second={resp2.status_code}, replayed={resp2.headers.get('X-Idempotency-Replayed')}"
+            self._record("幂等性-重复请求", passed, message)
+            return passed
+        except Exception as e:
+            self._record("幂等性-重复请求", False, str(e))
+            return False
+
+    def test_idempotency_without_key(self) -> bool:
+        """测试幂等性：没有幂等性Key的请求（宽松模式应继续处理）"""
+        try:
+            # 不添加 X-Idempotency-Key 头部
+            resp = self.client.post(
+                self._url("/reviews/"),
+                headers=self._headers(),
+                json={
+                    "teacher_name": "无Key测试老师",
+                    "campus": "红旗校区",
+                    "course_name": "无Key测试课程",
+                    "content": "测试无幂等性Key",
+                    "attitude": 1
+                }
+            )
+            # 宽松模式下应该仍然处理请求
+            passed = resp.status_code == 200
+            self._record("幂等性-无Key请求", passed, f"status={resp.status_code}")
+            return passed
+        except Exception as e:
+            self._record("幂等性-无Key请求", False, str(e))
+            return False
+
     def run_all_tests(self):
         """运行所有测试"""
         print("=" * 60)
@@ -722,6 +816,13 @@ class E2ETestClient:
             if task_id:
                 self.test_update_study_task(task_id)
                 self.test_delete_study_task(task_id)
+
+            # 幂等性接口测试
+            print("\n🔁 幂等性接口测试")
+            print("-" * 40)
+            self.test_idempotency_create_review()
+            self.test_idempotency_duplicate_request()
+            self.test_idempotency_without_key()
 
         if self.admin_token:
             # 管理员接口

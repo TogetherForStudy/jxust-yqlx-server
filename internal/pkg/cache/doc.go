@@ -16,6 +16,14 @@ type Cache interface {
 	Incr(ctx context.Context, key string) (int64, error)
 	Decr(ctx context.Context, key string) (int64, error)
 
+	// 分布式锁
+	// Lock 尝试获取分布式锁，返回是否成功获取
+	Lock(ctx context.Context, key string, expiration time.Duration) (bool, error)
+	// Unlock 释放分布式锁
+	Unlock(ctx context.Context, key string) error
+	// SetNX 仅当key不存在时设置值
+	SetNX(ctx context.Context, key string, value string, expiration time.Duration) (bool, error)
+
 	Close() error
 }
 
