@@ -206,8 +206,8 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				adminConfig.Use(middleware.RequireRole(2))
 				{
 					adminConfig.POST("/", middleware.IdempotencyRecommended(), configHandler.Create)
-					adminConfig.PUT("/:key", configHandler.Update)
-					adminConfig.DELETE("/:key", configHandler.Delete)
+					adminConfig.PUT("/:key", middleware.IdempotencyRecommended(), configHandler.Update)
+					adminConfig.DELETE("/:key", middleware.IdempotencyRecommended(), configHandler.Delete)
 					adminConfig.GET("/search", configHandler.SearchConfigs)
 				}
 			}
@@ -257,23 +257,23 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			// 倒数日相关路由（需认证）
 			countdowns := authorized.Group("/countdowns")
 			{
-				countdowns.POST("/", middleware.IdempotencyRecommended(), countdownHandler.CreateCountdown) // 创建倒数日（幂等性保护）
-				countdowns.GET("/", countdownHandler.GetCountdowns)                                         // 获取倒数日列表
-				countdowns.GET("/:id", countdownHandler.GetCountdownByID)                                   // 获取倒数日详情
-				countdowns.PUT("/:id", countdownHandler.UpdateCountdown)                                    // 更新倒数日
-				countdowns.DELETE("/:id", countdownHandler.DeleteCountdown)                                 // 删除倒数日
+				countdowns.POST("/", middleware.IdempotencyRecommended(), countdownHandler.CreateCountdown)   // 创建倒数日（幂等性保护）
+				countdowns.GET("/", countdownHandler.GetCountdowns)                                           // 获取倒数日列表
+				countdowns.GET("/:id", countdownHandler.GetCountdownByID)                                     // 获取倒数日详情
+				countdowns.PUT("/:id", middleware.IdempotencyRecommended(), countdownHandler.UpdateCountdown) // 更新倒数日
+				countdowns.DELETE("/:id", countdownHandler.DeleteCountdown)                                   // 删除倒数日
 			}
 
 			// 学习清单相关路由（需认证）
 			studyTasks := authorized.Group("/study-tasks")
 			{
-				studyTasks.POST("/", middleware.IdempotencyRecommended(), studyTaskHandler.CreateStudyTask) // 创建学习任务（幂等性保护）
-				studyTasks.GET("/", studyTaskHandler.GetStudyTasks)                                         // 获取任务列表
-				studyTasks.GET("/:id", studyTaskHandler.GetStudyTaskByID)                                   // 获取任务详情
-				studyTasks.PUT("/:id", studyTaskHandler.UpdateStudyTask)                                    // 更新任务
-				studyTasks.DELETE("/:id", studyTaskHandler.DeleteStudyTask)                                 // 删除任务
-				studyTasks.GET("/stats", studyTaskHandler.GetStudyTaskStats)                                // 获取统计
-				studyTasks.GET("/completed", studyTaskHandler.GetCompletedTasks)                            // 已完成的任务
+				studyTasks.POST("/", middleware.IdempotencyRecommended(), studyTaskHandler.CreateStudyTask)   // 创建学习任务（幂等性保护）
+				studyTasks.GET("/", studyTaskHandler.GetStudyTasks)                                           // 获取任务列表
+				studyTasks.GET("/:id", studyTaskHandler.GetStudyTaskByID)                                     // 获取任务详情
+				studyTasks.PUT("/:id", middleware.IdempotencyRecommended(), studyTaskHandler.UpdateStudyTask) // 更新任务
+				studyTasks.DELETE("/:id", studyTaskHandler.DeleteStudyTask)                                   // 删除任务
+				studyTasks.GET("/stats", studyTaskHandler.GetStudyTaskStats)                                  // 获取统计
+				studyTasks.GET("/completed", studyTaskHandler.GetCompletedTasks)                              // 已完成的任务
 			}
 
 			// 通知管理路由（需要运营权限）

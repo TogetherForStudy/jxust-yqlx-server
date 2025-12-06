@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
@@ -62,7 +63,7 @@ func idempotencyMiddleware(c *gin.Context, ca cache.Cache, strict bool) {
 	if idempotencyKey == "" {
 		if strict {
 			c.JSON(http.StatusBadRequest, dto.Response{
-				RequestId:     getRequestID(c),
+				RequestId:     helper.GetRequestID(c),
 				StatusCode:    http.StatusBadRequest,
 				StatusMessage: "缺少幂等性Key，请在Header中添加 X-Idempotency-Key",
 			})
@@ -70,8 +71,8 @@ func idempotencyMiddleware(c *gin.Context, ca cache.Cache, strict bool) {
 			return
 		}
 		// 宽松模式：仅打印警告日志，不阻止请求
-		logger.Warnf("[Idempotency] 请求缺少幂等性Key, path=%s, method=%s, ip=%s",
-			c.Request.URL.Path, c.Request.Method, c.ClientIP())
+		logger.Warnf("[Idempotency] 请求缺少幂等性Key, path=%s, method=%s, ip=%s, user_id=%d",
+			c.Request.URL.Path, c.Request.Method, c.ClientIP(), helper.GetUserID(c))
 		c.Next()
 		return
 	}
@@ -107,7 +108,7 @@ func idempotencyMiddleware(c *gin.Context, ca cache.Cache, strict bool) {
 	if !locked {
 		// 无法获取锁，说明有相同请求正在处理中
 		c.JSON(http.StatusConflict, dto.Response{
-			RequestId:     getRequestID(c),
+			RequestId:     helper.GetRequestID(c),
 			StatusCode:    http.StatusConflict,
 			StatusMessage: "请求正在处理中，请稍后重试",
 		})
@@ -195,14 +196,6 @@ func idempotencyMiddleware(c *gin.Context, ca cache.Cache, strict bool) {
 	}
 }
 
-// getRequestID 从上下文获取请求ID
-func getRequestID(c *gin.Context) string {
-	if requestID, exists := c.Get(constant.RequestID); exists {
-		return requestID.(string)
-	}
-	return ""
-}
-
 // CreateIdempotencyMiddleware 创建幂等性中间件的工厂函数
 // strict: true表示严格模式，false表示宽松模式
 func CreateIdempotencyMiddleware(ca cache.Cache, strict bool) gin.HandlerFunc {
@@ -244,15 +237,15 @@ func idempotencyMiddlewareWithTTL(c *gin.Context, ca cache.Cache, strict bool, t
 	if idempotencyKey == "" {
 		if strict {
 			c.JSON(http.StatusBadRequest, dto.Response{
-				RequestId:     getRequestID(c),
+				RequestId:     helper.GetRequestID(c),
 				StatusCode:    http.StatusBadRequest,
 				StatusMessage: "缺少幂等性Key，请在Header中添加 X-Idempotency-Key",
 			})
 			c.Abort()
 			return
 		}
-		logger.Warnf("[Idempotency] 请求缺少幂等性Key, path=%s, method=%s, ip=%s",
-			c.Request.URL.Path, c.Request.Method, c.ClientIP())
+		logger.Warnf("[Idempotency] 请求缺少幂等性Key, path=%s, method=%s, ip=%s user_id=%d",
+			c.Request.URL.Path, c.Request.Method, c.ClientIP(), helper.GetUserID(c))
 		c.Next()
 		return
 	}
@@ -283,7 +276,7 @@ func idempotencyMiddlewareWithTTL(c *gin.Context, ca cache.Cache, strict bool, t
 
 	if !locked {
 		c.JSON(http.StatusConflict, dto.Response{
-			RequestId:     getRequestID(c),
+			RequestId:     helper.GetRequestID(c),
 			StatusCode:    http.StatusConflict,
 			StatusMessage: "请求正在处理中，请稍后重试",
 		})
