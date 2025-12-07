@@ -638,6 +638,153 @@ class E2ETestClient:
             self._record("管理员搜索配置", False, str(e))
             return False
 
+    # ==================== 功能白名单相关（需认证）====================
+
+    def test_get_user_features(self) -> bool:
+        """测试获取用户功能列表"""
+        try:
+            resp = self.client.get(
+                self._url("/user/features"),
+                headers=self._headers()
+            )
+            passed = resp.status_code == 200
+            if passed:
+                result = resp.json().get("Result", {})
+                features = result.get("features", [])
+                self._record("获取用户功能列表", True, f"features={features}")
+            else:
+                self._record("获取用户功能列表", False, f"status={resp.status_code}")
+            return passed
+        except Exception as e:
+            self._record("获取用户功能列表", False, str(e))
+            return False
+
+    def test_admin_create_feature(self) -> Optional[str]:
+        """测试管理员创建功能"""
+        try:
+            feature_key = f"beta_e2e_test_{uuid.uuid4().hex[:8]}"
+            resp = self.client.post(
+                self._url("/admin/features"),
+                headers=self._headers(use_admin=True),
+                json={
+                    "feature_key": feature_key,
+                    "feature_name": "E2E测试功能",
+                    "description": "这是E2E测试创建的功能",
+                    "is_enabled": True
+                }
+            )
+            passed = resp.status_code == 200
+            self._record("管理员创建功能", passed, f"status={resp.status_code}, key={feature_key}")
+            return feature_key if passed else None
+        except Exception as e:
+            self._record("管理员创建功能", False, str(e))
+            return None
+
+    def test_admin_list_features(self) -> bool:
+        """测试管理员获取功能列表"""
+        try:
+            resp = self.client.get(
+                self._url("/admin/features"),
+                headers=self._headers(use_admin=True)
+            )
+            passed = resp.status_code == 200
+            self._record("管理员获取功能列表", passed, f"status={resp.status_code}")
+            return passed
+        except Exception as e:
+            self._record("管理员获取功能列表", False, str(e))
+            return False
+
+    def test_admin_update_feature(self, feature_key: str) -> bool:
+        """测试管理员更新功能"""
+        try:
+            resp = self.client.put(
+                self._url(f"/admin/features/{feature_key}"),
+                headers=self._headers(use_admin=True),
+                json={
+                    "feature_name": "E2E测试功能-已更新",
+                    "description": "更新后的描述"
+                }
+            )
+            passed = resp.status_code == 200
+            self._record("管理员更新功能", passed, f"status={resp.status_code}")
+            return passed
+        except Exception as e:
+            self._record("管理员更新功能", False, str(e))
+            return False
+
+    def test_admin_grant_feature(self, feature_key: str, user_id: int = 1) -> bool:
+        """测试管理员授予功能权限"""
+        try:
+            resp = self.client.post(
+                self._url(f"/admin/features/{feature_key}/whitelist"),
+                headers=self._headers(use_admin=True),
+                json={"user_id": user_id}
+            )
+            passed = resp.status_code == 200
+            self._record("管理员授予功能权限", passed, f"status={resp.status_code}")
+            return passed
+        except Exception as e:
+            self._record("管理员授予功能权限", False, str(e))
+            return False
+
+    def test_admin_list_whitelist(self, feature_key: str) -> bool:
+        """测试管理员获取功能白名单"""
+        try:
+            resp = self.client.get(
+                self._url(f"/admin/features/{feature_key}/whitelist"),
+                headers=self._headers(use_admin=True),
+                params={"page": 1, "page_size": 20}
+            )
+            passed = resp.status_code == 200
+            self._record("管理员获取功能白名单", passed, f"status={resp.status_code}")
+            return passed
+        except Exception as e:
+            self._record("管理员获取功能白名单", False, str(e))
+            return False
+
+    def test_admin_revoke_feature(self, feature_key: str, user_id: int = 1) -> bool:
+        """测试管理员撤销功能权限"""
+        try:
+            resp = self.client.delete(
+                self._url(f"/admin/features/{feature_key}/whitelist/{user_id}"),
+                headers=self._headers(use_admin=True)
+            )
+            passed = resp.status_code == 200
+            self._record("管理员撤销功能权限", passed, f"status={resp.status_code}")
+            return passed
+        except Exception as e:
+            self._record("管理员撤销功能权限", False, str(e))
+            return False
+
+    def test_admin_get_user_features(self, user_id: int = 1) -> bool:
+        """测试管理员查看用户功能权限"""
+        try:
+            resp = self.client.get(
+                self._url(f"/admin/users/{user_id}/features"),
+                headers=self._headers(use_admin=True)
+            )
+            passed = resp.status_code == 200
+            self._record("管理员查看用户功能权限", passed, f"status={resp.status_code}")
+            return passed
+        except Exception as e:
+            self._record("管理员查看用户功能权限", False, str(e))
+            return False
+
+    def test_admin_delete_feature(self, feature_key: str) -> bool:
+        """测试管理员删除功能"""
+        try:
+            resp = self.client.delete(
+                self._url(f"/admin/features/{feature_key}"),
+                headers=self._headers(use_admin=True)
+            )
+            passed = resp.status_code == 200
+            self._record("管理员删除功能", passed, f"status={resp.status_code}")
+            return passed
+        except Exception as e:
+            self._record("管理员删除功能", False, str(e))
+            return False
+
+
     # ==================== 幂等性测试 ====================
 
     def test_idempotency_create_review(self) -> bool:
@@ -836,6 +983,25 @@ class E2ETestClient:
             self.test_admin_get_notification_stats()
             self.test_admin_search_heroes()
             self.test_admin_search_configs()
+
+            # 功能白名单接口
+            print("\n🎯 功能白名单接口测试")
+            print("-" * 40)
+            feature_key = self.test_admin_create_feature()
+            self.test_admin_list_features()
+            if feature_key:
+                self.test_admin_update_feature(feature_key)
+                self.test_admin_grant_feature(feature_key, user_id=1)
+                self.test_admin_list_whitelist(feature_key)
+                self.test_admin_get_user_features(user_id=1)
+                self.test_admin_revoke_feature(feature_key, user_id=1)
+                self.test_admin_delete_feature(feature_key)
+            
+            # 用户查看自己的功能列表
+            if self.token:
+                print("\n👤 用户功能列表测试")
+                print("-" * 40)
+                self.test_get_user_features()
 
         # 打印总结
         print("\n" + "=" * 60)
