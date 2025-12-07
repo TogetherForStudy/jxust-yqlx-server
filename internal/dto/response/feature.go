@@ -1,6 +1,10 @@
 package response
 
-import "time"
+import (
+	"time"
+
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+)
 
 // UserFeaturesResponse 用户功能列表响应
 type UserFeaturesResponse struct {
@@ -8,15 +12,7 @@ type UserFeaturesResponse struct {
 }
 
 // FeatureResponse 功能详情响应
-type FeatureResponse struct {
-	ID          uint      `json:"id"`
-	FeatureKey  string    `json:"feature_key"`
-	FeatureName string    `json:"feature_name"`
-	Description string    `json:"description"`
-	IsEnabled   bool      `json:"is_enabled"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-}
+type FeatureResponse = models.Feature
 
 // WhitelistUserInfo 白名单用户信息响应
 type WhitelistUserInfo struct {

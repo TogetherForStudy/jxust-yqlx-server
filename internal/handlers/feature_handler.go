@@ -31,7 +31,7 @@ func NewFeatureHandler(featureService *services.FeatureService) *FeatureHandler 
 // @Success 200 {object} dto.Response{Result=response.UserFeaturesResponse}
 // @Router /api/v0/user/features [get]
 func (h *FeatureHandler) GetUserFeatures(c *gin.Context) {
-	userID := c.GetUint("user_id")
+	userID := helper.GetUserID(c)
 
 	features, err := h.featureService.GetUserFeatures(c.Request.Context(), userID)
 	if err != nil {
@@ -91,21 +91,13 @@ func (h *FeatureHandler) ListFeatures(c *gin.Context) {
 func (h *FeatureHandler) GetFeature(c *gin.Context) {
 	featureKey := c.Param("key")
 
-	feature, err := h.featureService.GetFeature(c.Request.Context(), featureKey)
+	feature, err := h.featureService.GetFeature(c, featureKey)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusNotFound, "功能不存在")
 		return
 	}
 
-	helper.SuccessResponse(c, response.FeatureResponse{
-		ID:          feature.ID,
-		FeatureKey:  feature.FeatureKey,
-		FeatureName: feature.FeatureName,
-		Description: feature.Description,
-		IsEnabled:   feature.IsEnabled,
-		CreatedAt:   feature.CreatedAt,
-		UpdatedAt:   feature.UpdatedAt,
-	})
+	helper.SuccessResponse(c, feature)
 }
 
 // CreateFeature 创建功能（管理员）
@@ -142,15 +134,7 @@ func (h *FeatureHandler) CreateFeature(c *gin.Context) {
 		return
 	}
 
-	helper.SuccessResponse(c, response.FeatureResponse{
-		ID:          feature.ID,
-		FeatureKey:  feature.FeatureKey,
-		FeatureName: feature.FeatureName,
-		Description: feature.Description,
-		IsEnabled:   feature.IsEnabled,
-		CreatedAt:   feature.CreatedAt,
-		UpdatedAt:   feature.UpdatedAt,
-	})
+	helper.SuccessResponse(c, feature)
 }
 
 // UpdateFeature 更新功能（管理员）
@@ -294,7 +278,7 @@ func (h *FeatureHandler) ListWhitelist(c *gin.Context) {
 // @Router /api/v0/admin/features/:key/whitelist [post]
 func (h *FeatureHandler) GrantFeature(c *gin.Context) {
 	featureKey := c.Param("key")
-	adminID := c.GetUint("user_id")
+	adminID := helper.GetUserID(c)
 
 	var req request.GrantFeatureRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -329,7 +313,7 @@ func (h *FeatureHandler) GrantFeature(c *gin.Context) {
 // @Router /api/v0/admin/features/:key/whitelist/batch [post]
 func (h *FeatureHandler) BatchGrantFeature(c *gin.Context) {
 	featureKey := c.Param("key")
-	adminID := c.GetUint("user_id")
+	adminID := helper.GetUserID(c)
 
 	var req request.BatchGrantFeatureRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
