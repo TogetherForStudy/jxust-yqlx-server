@@ -318,9 +318,9 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			featureAdmin := authorized.Group("/admin/features")
 			featureAdmin.Use(middleware.RequireRole(2))
 			{
-				featureAdmin.GET("/", featureHandler.ListFeatures)                                                                  // 获取所有功能列表
+				featureAdmin.GET("", featureHandler.ListFeatures)                                                                   // 获取所有功能列表
 				featureAdmin.GET("/:key", featureHandler.GetFeature)                                                                // 获取功能详情
-				featureAdmin.POST("/", middleware.IdempotencyRecommended(ca), featureHandler.CreateFeature)                         // 创建功能（幂等性保护）
+				featureAdmin.POST("", middleware.IdempotencyRecommended(ca), featureHandler.CreateFeature)                          // 创建功能（幂等性保护）
 				featureAdmin.PUT("/:key", featureHandler.UpdateFeature)                                                             // 更新功能
 				featureAdmin.DELETE("/:key", featureHandler.DeleteFeature)                                                          // 删除功能
 				featureAdmin.GET("/:key/whitelist", featureHandler.ListWhitelist)                                                   // 获取白名单列表
