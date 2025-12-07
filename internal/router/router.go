@@ -36,7 +36,6 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	configService := services.NewConfigService(db)
 	ossService := services.NewOSSService(cfg)
 	s3Service := services.NewS3Service(db, cfg)
-
 	notificationService := services.NewNotificationService(db)
 	contributionService := services.NewContributionService(db)
 	pointsService := services.NewPointsService(db)
@@ -53,8 +52,6 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	configHandler := handlers.NewConfigHandler(configService)
 	ossHandler := handlers.NewOSSHandler(ossService)
 	storeHandler := handlers.NewStoreHandler(s3Service)
-
-	// 新增处理器
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
 	contributionHandler := handlers.NewContributionHandler(contributionService)
 	pointsHandler := handlers.NewPointsHandler(pointsService)
