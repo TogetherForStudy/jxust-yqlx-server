@@ -259,7 +259,7 @@ func TestIdempotencyMiddleware_NilCache_SkipCheck(t *testing.T) {
 	// 设置全局缓存为nil
 	cache.GlobalCache = nil
 
-	r.POST("/test", IdempotencyRecommended(), func(c *gin.Context) {
+	r.POST("/test", IdempotencyRecommended(nil), func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "success"})
 	})
 

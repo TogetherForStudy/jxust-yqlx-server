@@ -52,6 +52,48 @@ func IdempotencyMiddlewareStrict(ca cache.Cache) gin.HandlerFunc {
 }
 
 func idempotencyMiddleware(c *gin.Context, ca cache.Cache, strict bool) {
+	idempotencyMiddlewareWithTTL(c, ca, strict, constant.IdempotencyExpiration)
+}
+
+// CreateIdempotencyMiddleware 创建幂等性中间件的工厂函数
+// strict: true表示严格模式，false表示宽松模式
+func CreateIdempotencyMiddleware(ca cache.Cache, strict bool) gin.HandlerFunc {
+	if ca == nil {
+		ca = cache.GlobalCache
+	}
+	return func(c *gin.Context) {
+		idempotencyMiddleware(c, ca, strict)
+	}
+}
+
+// IdempotencyRequired 返回严格模式的幂等性中间件（必须携带X-Idempotency-Key）
+func IdempotencyRequired(ca cache.Cache) gin.HandlerFunc {
+	if ca == nil {
+		ca = cache.GlobalCache
+	}
+	return func(c *gin.Context) {
+		idempotencyMiddleware(c, ca, true)
+	}
+}
+
+// IdempotencyRecommended 返回宽松模式的幂等性中间件（推荐携带，但不强制）
+func IdempotencyRecommended(ca cache.Cache) gin.HandlerFunc {
+	if ca == nil {
+		ca = cache.GlobalCache
+	}
+	return func(c *gin.Context) {
+		idempotencyMiddleware(c, ca, false)
+	}
+}
+
+// IdempotencyWithTTL 返回自定义过期时间的幂等性中间件
+func IdempotencyWithTTL(ttl time.Duration) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		idempotencyMiddlewareWithTTL(c, cache.GlobalCache, false, ttl)
+	}
+}
+
+func idempotencyMiddlewareWithTTL(c *gin.Context, ca cache.Cache, strict bool, ttl time.Duration) {
 	// 仅对写操作启用幂等性检查
 	if c.Request.Method == http.MethodGet || c.Request.Method == http.MethodHead || c.Request.Method == http.MethodOptions {
 		c.Next()
@@ -85,12 +127,11 @@ func idempotencyMiddleware(c *gin.Context, ca cache.Cache, strict bool) {
 	}
 
 	// 获取用户ID（如果已认证）
-	userID, exists := c.Get("user_id")
+	userID := helper.GetUserID(c)
 	var cacheKey string
-	if exists {
-		cacheKey = fmt.Sprintf("%s%d:%s", constant.IdempotencyCachePrefix, userID.(uint), idempotencyKey)
+	if userID != 0 {
+		cacheKey = fmt.Sprintf("%s%d:%s", constant.IdempotencyCachePrefix, userID, idempotencyKey)
 	} else {
-		// 未认证用户使用IP+Key
 		cacheKey = fmt.Sprintf("%s%s:%s", constant.IdempotencyCachePrefix, c.ClientIP(), idempotencyKey)
 	}
 
@@ -150,7 +191,7 @@ func idempotencyMiddleware(c *gin.Context, ca cache.Cache, strict bool) {
 	}
 
 	// 标记请求正在处理
-	if _, err := ca.SetNX(ctx, cacheKey, constant.IdempotencyStatusPending, constant.IdempotencyExpiration); err != nil {
+	if _, err := ca.SetNX(ctx, cacheKey, constant.IdempotencyStatusPending, ttl); err != nil {
 		logger.Errorf("[Idempotency] 设置处理状态失败: %v, key=%s", err, cacheKey)
 	}
 
@@ -182,170 +223,13 @@ func idempotencyMiddleware(c *gin.Context, ca cache.Cache, strict bool) {
 			return
 		}
 
-		expiration := constant.IdempotencyExpiration
-		if err := ca.Set(ctx, cacheKey, string(respJSON), &expiration); err != nil {
-			logger.Errorf("[Idempotency] 缓存响应失败: %v, key=%s", err, cacheKey)
-		} else {
-			logger.Infof("[Idempotency] 响应已缓存, key=%s, expiration=%v", idempotencyKey, expiration)
-		}
-	} else {
-		// 请求失败，删除pending状态，允许重试
-		if err := ca.Delete(ctx, cacheKey); err != nil {
-			logger.Errorf("[Idempotency] 删除失败状态失败: %v, key=%s", err, cacheKey)
-		}
-	}
-}
-
-// CreateIdempotencyMiddleware 创建幂等性中间件的工厂函数
-// strict: true表示严格模式，false表示宽松模式
-func CreateIdempotencyMiddleware(ca cache.Cache, strict bool) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		idempotencyMiddleware(c, ca, strict)
-	}
-}
-
-// IdempotencyRequired 返回严格模式的幂等性中间件（必须携带X-Idempotency-Key）
-func IdempotencyRequired() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		idempotencyMiddleware(c, cache.GlobalCache, true)
-	}
-}
-
-// IdempotencyRecommended 返回宽松模式的幂等性中间件（推荐携带，但不强制）
-func IdempotencyRecommended() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		idempotencyMiddleware(c, cache.GlobalCache, false)
-	}
-}
-
-// IdempotencyWithTTL 返回自定义过期时间的幂等性中间件
-func IdempotencyWithTTL(ttl time.Duration) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		idempotencyMiddlewareWithTTL(c, cache.GlobalCache, false, ttl)
-	}
-}
-
-func idempotencyMiddlewareWithTTL(c *gin.Context, ca cache.Cache, strict bool, ttl time.Duration) {
-	// 仅对写操作启用幂等性检查
-	if c.Request.Method == http.MethodGet || c.Request.Method == http.MethodHead || c.Request.Method == http.MethodOptions {
-		c.Next()
-		return
-	}
-
-	// 获取幂等性Key
-	idempotencyKey := c.GetHeader(constant.IdempotencyKey)
-	if idempotencyKey == "" {
-		if strict {
-			c.JSON(http.StatusBadRequest, dto.Response{
-				RequestId:     helper.GetRequestID(c),
-				StatusCode:    http.StatusBadRequest,
-				StatusMessage: "缺少幂等性Key，请在Header中添加 X-Idempotency-Key",
-			})
-			c.Abort()
-			return
-		}
-		logger.Warnf("[Idempotency] 请求缺少幂等性Key, path=%s, method=%s, ip=%s user_id=%d",
-			c.Request.URL.Path, c.Request.Method, c.ClientIP(), helper.GetUserID(c))
-		c.Next()
-		return
-	}
-
-	if ca == nil {
-		logger.Warnf("[Idempotency] 缓存服务不可用，跳过幂等性检查, key=%s", idempotencyKey)
-		c.Next()
-		return
-	}
-
-	userID, exists := c.Get("user_id")
-	var cacheKey string
-	if exists {
-		cacheKey = fmt.Sprintf("%s%d:%s", constant.IdempotencyCachePrefix, userID.(uint), idempotencyKey)
-	} else {
-		cacheKey = fmt.Sprintf("%s%s:%s", constant.IdempotencyCachePrefix, c.ClientIP(), idempotencyKey)
-	}
-
-	ctx := c.Request.Context()
-
-	lockKey := cacheKey + ":lock"
-	locked, err := ca.Lock(ctx, lockKey, constant.IdempotencyLockTimeout)
-	if err != nil {
-		logger.Errorf("[Idempotency] 获取分布式锁失败: %v, key=%s", err, cacheKey)
-		c.Next()
-		return
-	}
-
-	if !locked {
-		c.JSON(http.StatusConflict, dto.Response{
-			RequestId:     helper.GetRequestID(c),
-			StatusCode:    http.StatusConflict,
-			StatusMessage: "请求正在处理中，请稍后重试",
-		})
-		c.Abort()
-		return
-	}
-
-	defer func() {
-		if err := ca.Unlock(ctx, lockKey); err != nil {
-			logger.Errorf("[Idempotency] 释放分布式锁失败: %v, key=%s", err, cacheKey)
-		}
-	}()
-
-	cachedResponse, err := ca.Get(ctx, cacheKey)
-	if err == nil && cachedResponse != "" {
-		var resp IdempotencyResponse
-		if err := json.Unmarshal([]byte(cachedResponse), &resp); err != nil {
-			logger.Errorf("[Idempotency] 解析缓存响应失败: %v, key=%s", err, cacheKey)
-			c.Next()
-			return
-		}
-
-		logger.Infof("[Idempotency] 命中缓存，返回已缓存的响应, key=%s", idempotencyKey)
-
-		for key, values := range resp.Headers {
-			for _, value := range values {
-				c.Header(key, value)
-			}
-		}
-		c.Header("X-Idempotency-Replayed", "true")
-
-		c.Data(resp.StatusCode, "application/json; charset=utf-8", []byte(resp.Body))
-		c.Abort()
-		return
-	}
-
-	if _, err := ca.SetNX(ctx, cacheKey, constant.IdempotencyStatusPending, ttl); err != nil {
-		logger.Errorf("[Idempotency] 设置处理状态失败: %v, key=%s", err, cacheKey)
-	}
-
-	c.Set(constant.IdempotencyKeyCtx, idempotencyKey)
-
-	writer := &responseWriter{
-		ResponseWriter: c.Writer,
-		body:           bytes.NewBuffer(nil),
-	}
-	c.Writer = writer
-
-	c.Next()
-
-	if c.Writer.Status() < 400 {
-		resp := IdempotencyResponse{
-			StatusCode: c.Writer.Status(),
-			Body:       writer.body.String(),
-			Headers:    c.Writer.Header().Clone(),
-		}
-
-		respJSON, err := json.Marshal(resp)
-		if err != nil {
-			logger.Errorf("[Idempotency] 序列化响应失败: %v, key=%s", err, cacheKey)
-			return
-		}
-
 		if err := ca.Set(ctx, cacheKey, string(respJSON), &ttl); err != nil {
 			logger.Errorf("[Idempotency] 缓存响应失败: %v, key=%s", err, cacheKey)
 		} else {
 			logger.Infof("[Idempotency] 响应已缓存, key=%s, expiration=%v", idempotencyKey, ttl)
 		}
 	} else {
+		// 请求失败，删除pending状态，允许重试
 		if err := ca.Delete(ctx, cacheKey); err != nil {
 			logger.Errorf("[Idempotency] 删除失败状态失败: %v, key=%s", err, cacheKey)
 		}
