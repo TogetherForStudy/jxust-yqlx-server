@@ -118,7 +118,10 @@ func TestIdempotencyMiddleware_WithKey_FirstRequest(t *testing.T) {
 	}
 
 	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	if err != nil {
+		return
+	}
 	if resp["message"] != "success" {
 		t.Errorf("Expected message 'success', got %v", resp["message"])
 	}

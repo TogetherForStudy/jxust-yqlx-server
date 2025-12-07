@@ -37,17 +37,23 @@ func (w *responseWriter) Write(b []byte) (int, error) {
 // IdempotencyMiddleware 幂等性中间件
 // 通过Redis存储请求的幂等性Key，防止重复提交
 // 如果请求没有携带X-Idempotency-Key，在宽松模式下仅打印警告日志
-func IdempotencyMiddleware(c cache.Cache) gin.HandlerFunc {
+func IdempotencyMiddleware(ca cache.Cache) gin.HandlerFunc {
+	if ca == nil {
+		ca = cache.GlobalCache
+	}
 	return func(c *gin.Context) {
-		idempotencyMiddleware(c, cache.GlobalCache, false)
+		idempotencyMiddleware(c, ca, false)
 	}
 }
 
 // IdempotencyMiddlewareStrict 严格模式的幂等性中间件
 // 如果请求没有携带X-Idempotency-Key，将拒绝请求
 func IdempotencyMiddlewareStrict(ca cache.Cache) gin.HandlerFunc {
+	if ca == nil {
+		ca = cache.GlobalCache
+	}
 	return func(c *gin.Context) {
-		idempotencyMiddleware(c, cache.GlobalCache, true)
+		idempotencyMiddleware(c, ca, true)
 	}
 }
 
