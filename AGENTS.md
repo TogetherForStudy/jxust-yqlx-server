@@ -10,6 +10,7 @@ This project is the back-end service for a WeChat mini-program called "GoJxust",
 *   **Web Framework:** Gin
 *   **Database:** MySQL
 *   **ORM:** GORM
+*   **Cache:** Redis
 *   **Authentication:** JWT
 *   **Configuration:** Environment variables
 *   **Object Storage:** MinIO

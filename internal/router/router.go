@@ -36,12 +36,12 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	configService := services.NewConfigService(db)
 	ossService := services.NewOSSService(cfg)
 	s3Service := services.NewS3Service(db, cfg)
-
 	notificationService := services.NewNotificationService(db)
 	contributionService := services.NewContributionService(db)
 	pointsService := services.NewPointsService(db)
 	countdownService := services.NewCountdownService(db)
 	studyTaskService := services.NewStudyTaskService(db)
+	featureService := services.NewFeatureService(db)
 
 	// 初始化处理器
 	authHandler := handlers.NewAuthHandler(authService)
@@ -52,13 +52,12 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	configHandler := handlers.NewConfigHandler(configService)
 	ossHandler := handlers.NewOSSHandler(ossService)
 	storeHandler := handlers.NewStoreHandler(s3Service)
-
-	// 新增处理器
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
 	contributionHandler := handlers.NewContributionHandler(contributionService)
 	pointsHandler := handlers.NewPointsHandler(pointsService)
 	countdownHandler := handlers.NewCountdownHandler(countdownService)
 	studyTaskHandler := handlers.NewStudyTaskHandler(studyTaskService)
+	featureHandler := handlers.NewFeatureHandler(featureService)
 
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
@@ -140,6 +139,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			{
 				user.GET("/profile", authHandler.GetProfile)
 				user.PUT("/profile", authHandler.UpdateProfile)
+				user.GET("/features", featureHandler.GetUserFeatures) // 获取用户功能列表
 			}
 			// OSS/CDN Token （需认证）
 			oss := authorized.Group("/oss")
@@ -309,6 +309,28 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			{
 				categoryAdmin.POST("/", middleware.IdempotencyRecommended(ca), notificationHandler.CreateCategory) // 创建分类（幂等性保护）
 				categoryAdmin.PUT("/:id", notificationHandler.UpdateCategory)                                      // 更新分类
+			}
+
+			// 功能管理路由（需要管理员权限）
+			featureAdmin := authorized.Group("/admin/features")
+			featureAdmin.Use(middleware.RequireRole(2))
+			{
+				featureAdmin.GET("", featureHandler.ListFeatures)                                                                   // 获取所有功能列表
+				featureAdmin.GET("/:key", featureHandler.GetFeature)                                                                // 获取功能详情
+				featureAdmin.POST("", middleware.IdempotencyRecommended(ca), featureHandler.CreateFeature)                          // 创建功能（幂等性保护）
+				featureAdmin.PUT("/:key", featureHandler.UpdateFeature)                                                             // 更新功能
+				featureAdmin.DELETE("/:key", featureHandler.DeleteFeature)                                                          // 删除功能
+				featureAdmin.GET("/:key/whitelist", featureHandler.ListWhitelist)                                                   // 获取白名单列表
+				featureAdmin.POST("/:key/whitelist", middleware.IdempotencyRecommended(ca), featureHandler.GrantFeature)            // 授予权限（幂等性保护）
+				featureAdmin.POST("/:key/whitelist/batch", middleware.IdempotencyRecommended(ca), featureHandler.BatchGrantFeature) // 批量授予权限（幂等性保护）
+				featureAdmin.DELETE("/:key/whitelist/:uid", featureHandler.RevokeFeature)                                           // 撤销权限
+			}
+
+			// 用户功能管理路由（需要管理员权限）
+			userFeatureAdmin := authorized.Group("/admin/users")
+			userFeatureAdmin.Use(middleware.RequireRole(2))
+			{
+				userFeatureAdmin.GET("/:id/features", featureHandler.GetUserFeatureDetails) // 查看用户功能权限详情
 			}
 
 		}

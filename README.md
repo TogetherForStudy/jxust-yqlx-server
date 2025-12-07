@@ -13,6 +13,7 @@
 - 倒数日：增删改查
 - 学习清单：简易TODO
 - 通知公告：运营账号发布；用户投稿；审核机制
+- 功能白名单：基于用户的功能级权限控制；支持临时权限；灰度测试支持
 
 ## 未来计划
 
@@ -22,10 +23,12 @@
 
 - ✅ 微信小程序登录认证
 - ✅ 用户管理（注册、资料更新）
-- ✅ 用户权限控制
+- ✅ 用户权限控制（基于角色+功能白名单）
+- ✅ 功能白名单系统（灰度测试、VIP功能）
 - ✅ RESTful API设计
 - ✅ JWT Token认证
 - ✅ 数据库设计与迁移
+- ✅ Redis缓存支持
 
 ## 技术栈
 
@@ -121,7 +124,11 @@ BUCKET_NAME=yqlx
 HOST=localhost:8085
 SCHEME=http
 
-# Redis 配置：Redis暂未启用，可以先不配置
+# Redis 配置
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+REDIS_DB=0
 ```
 
 ### 3. 安装依赖
