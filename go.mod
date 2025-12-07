@@ -5,6 +5,7 @@ go 1.24.1
 require (
 	github.com/bytedance/sonic v1.14.2
 	github.com/caarlos0/env/v11 v11.3.1
+	github.com/cloudwego/eino v0.7.7
 	github.com/gin-gonic/gin v1.11.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
