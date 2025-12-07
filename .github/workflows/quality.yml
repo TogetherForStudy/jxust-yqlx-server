@@ -120,6 +120,9 @@ jobs:
             sleep 2
           done
 
+      - name: Install Redis CLI
+        run: sudo apt-get update && sudo apt-get install -y redis-tools
+
       - name: Wait for Redis
         run: |
           until redis-cli -h 127.0.0.1 ping > /dev/null 2>&1; do
