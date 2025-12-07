@@ -88,6 +88,15 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=3
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
     steps:
       - uses: actions/checkout@v6
 
@@ -111,6 +120,16 @@ jobs:
             sleep 2
           done
 
+      - name: Install Redis CLI
+        run: sudo apt-get update && sudo apt-get install -y redis-tools
+
+      - name: Wait for Redis
+        run: |
+          until redis-cli -h 127.0.0.1 ping > /dev/null 2>&1; do
+            echo "Waiting for Redis..."
+            sleep 2
+          done
+
       - name: Start API Server and Run E2E Tests
         env:
           JWT_SECRET: 123456
@@ -124,6 +143,10 @@ jobs:
           DB_USERNAME: root
           DB_PASSWORD: 123456
           DB_NAME: yqlx
+          REDIS_HOST: 127.0.0.1
+          REDIS_PORT: 6379
+          REDIS_PASSWORD: ""
+          REDIS_DB: 0
           UPYUN_TOKEN_SECRET: jxustyqlxweapp
           CDN_BASE_URL: https://cdn.ntrun.com
           MINIO_ENDPOINT: localhost:9000

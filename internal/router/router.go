@@ -10,6 +10,7 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/middleware"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 
@@ -19,6 +20,7 @@ import (
 
 func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	r := gin.Default()
+	ca := cache.GlobalCache
 
 	// 添加中间件
 	r.Use(middleware.CORS())
@@ -147,7 +149,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			// 评价相关路由（需认证）
 			authReviews := authorized.Group("/reviews")
 			{
-				authReviews.POST("/", reviewHandler.CreateReview)
+				authReviews.POST("/", middleware.IdempotencyRecommended(ca), reviewHandler.CreateReview)
 				authReviews.GET("/user", reviewHandler.GetUserReviews)
 
 				// 管理员相关路由
@@ -155,8 +157,8 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				adminReviews.Use(middleware.RequireRole(2))
 				{
 					adminReviews.GET("/", reviewHandler.GetReviews)
-					adminReviews.POST("/:id/approve", reviewHandler.ApproveReview)
-					adminReviews.POST("/:id/reject", reviewHandler.RejectReview)
+					adminReviews.POST("/:id/approve", middleware.IdempotencyRecommended(ca), reviewHandler.ApproveReview)
+					adminReviews.POST("/:id/reject", middleware.IdempotencyRecommended(ca), reviewHandler.RejectReview)
 					adminReviews.DELETE("/:id", reviewHandler.DeleteReview)
 				}
 			}
@@ -191,7 +193,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				adminHeroes := heroes.Group("")
 				adminHeroes.Use(middleware.RequireRole(2))
 				{
-					adminHeroes.POST("/", heroHandler.Create)
+					adminHeroes.POST("/", middleware.IdempotencyRecommended(ca), heroHandler.Create)
 					adminHeroes.PUT("/:id", heroHandler.Update)
 					adminHeroes.DELETE("/:id", heroHandler.Delete)
 					adminHeroes.GET("/search", heroHandler.SearchHeroes)
@@ -205,9 +207,9 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				adminConfig := configWrite.Group("")
 				adminConfig.Use(middleware.RequireRole(2))
 				{
-					adminConfig.POST("/", configHandler.Create)
-					adminConfig.PUT("/:key", configHandler.Update)
-					adminConfig.DELETE("/:key", configHandler.Delete)
+					adminConfig.POST("/", middleware.IdempotencyRecommended(ca), configHandler.Create)
+					adminConfig.PUT("/:key", middleware.IdempotencyRecommended(ca), configHandler.Update)
+					adminConfig.DELETE("/:key", middleware.IdempotencyRecommended(ca), configHandler.Delete)
 					adminConfig.GET("/search", configHandler.SearchConfigs)
 				}
 			}
@@ -231,63 +233,63 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			// 积分相关路由（需认证）
 			points := authorized.Group("/points")
 			{
-				points.GET("/", pointsHandler.GetUserPoints)                     // 获取用户积分
-				points.GET("/transactions", pointsHandler.GetPointsTransactions) // 获取积分交易记录
-				points.POST("/spend", pointsHandler.SpendPoints)                 // 消费积分
-				points.GET("/stats", pointsHandler.GetUserPointsStats)           // 获取积分统计
+				points.GET("/", pointsHandler.GetUserPoints)                                            // 获取用户积分
+				points.GET("/transactions", pointsHandler.GetPointsTransactions)                        // 获取积分交易记录
+				points.POST("/spend", middleware.IdempotencyRecommended(ca), pointsHandler.SpendPoints) // 消费积分（幂等性保护）
+				points.GET("/stats", pointsHandler.GetUserPointsStats)                                  // 获取积分统计
 			}
 
 			// 投稿相关路由（需认证）
 			contributions := authorized.Group("/contributions")
 			{
-				contributions.POST("/", contributionHandler.CreateContribution)           // 创建投稿
-				contributions.GET("/", contributionHandler.GetContributions)              // 获取投稿列表
-				contributions.GET("/:id", contributionHandler.GetContributionByID)        // 获取投稿详情
-				contributions.GET("/stats", contributionHandler.GetUserContributionStats) // 投稿统计
+				contributions.POST("/", middleware.IdempotencyRecommended(ca), contributionHandler.CreateContribution) // 创建投稿（幂等性保护）
+				contributions.GET("/", contributionHandler.GetContributions)                                           // 获取投稿列表
+				contributions.GET("/:id", contributionHandler.GetContributionByID)                                     // 获取投稿详情
+				contributions.GET("/stats", contributionHandler.GetUserContributionStats)                              // 投稿统计
 
 				// 管理员/运营专用路由
 				adminContributions := contributions.Group("")
 				adminContributions.Use(middleware.RequireRole(2, 3))
 				{
-					adminContributions.POST("/:id/review", contributionHandler.ReviewContribution)        // 审核投稿
-					adminContributions.GET("/stats-admin", contributionHandler.GetAdminContributionStats) // 管理员投稿统计
+					adminContributions.POST("/:id/review", middleware.IdempotencyRecommended(ca), contributionHandler.ReviewContribution) // 审核投稿（幂等性保护）
+					adminContributions.GET("/stats-admin", contributionHandler.GetAdminContributionStats)                                 // 管理员投稿统计
 				}
 			}
 
 			// 倒数日相关路由（需认证）
 			countdowns := authorized.Group("/countdowns")
 			{
-				countdowns.POST("/", countdownHandler.CreateCountdown)      // 创建倒数日
-				countdowns.GET("/", countdownHandler.GetCountdowns)         // 获取倒数日列表
-				countdowns.GET("/:id", countdownHandler.GetCountdownByID)   // 获取倒数日详情
-				countdowns.PUT("/:id", countdownHandler.UpdateCountdown)    // 更新倒数日
-				countdowns.DELETE("/:id", countdownHandler.DeleteCountdown) // 删除倒数日
+				countdowns.POST("/", middleware.IdempotencyRecommended(ca), countdownHandler.CreateCountdown)   // 创建倒数日（幂等性保护）
+				countdowns.GET("/", countdownHandler.GetCountdowns)                                             // 获取倒数日列表
+				countdowns.GET("/:id", countdownHandler.GetCountdownByID)                                       // 获取倒数日详情
+				countdowns.PUT("/:id", middleware.IdempotencyRecommended(ca), countdownHandler.UpdateCountdown) // 更新倒数日
+				countdowns.DELETE("/:id", countdownHandler.DeleteCountdown)                                     // 删除倒数日
 			}
 
 			// 学习清单相关路由（需认证）
 			studyTasks := authorized.Group("/study-tasks")
 			{
-				studyTasks.POST("/", studyTaskHandler.CreateStudyTask)           // 创建学习任务
-				studyTasks.GET("/", studyTaskHandler.GetStudyTasks)              // 获取任务列表
-				studyTasks.GET("/:id", studyTaskHandler.GetStudyTaskByID)        // 获取任务详情
-				studyTasks.PUT("/:id", studyTaskHandler.UpdateStudyTask)         // 更新任务
-				studyTasks.DELETE("/:id", studyTaskHandler.DeleteStudyTask)      // 删除任务
-				studyTasks.GET("/stats", studyTaskHandler.GetStudyTaskStats)     // 获取统计
-				studyTasks.GET("/completed", studyTaskHandler.GetCompletedTasks) // 已完成的任务
+				studyTasks.POST("/", middleware.IdempotencyRecommended(ca), studyTaskHandler.CreateStudyTask)   // 创建学习任务（幂等性保护）
+				studyTasks.GET("/", studyTaskHandler.GetStudyTasks)                                             // 获取任务列表
+				studyTasks.GET("/:id", studyTaskHandler.GetStudyTaskByID)                                       // 获取任务详情
+				studyTasks.PUT("/:id", middleware.IdempotencyRecommended(ca), studyTaskHandler.UpdateStudyTask) // 更新任务
+				studyTasks.DELETE("/:id", studyTaskHandler.DeleteStudyTask)                                     // 删除任务
+				studyTasks.GET("/stats", studyTaskHandler.GetStudyTaskStats)                                    // 获取统计
+				studyTasks.GET("/completed", studyTaskHandler.GetCompletedTasks)                                // 已完成的任务
 			}
 
 			// 通知管理路由（需要运营权限）
 			notificationAdmin := authorized.Group("/admin/notifications")
 			notificationAdmin.Use(middleware.RequireRole(2, 3))
 			{
-				notificationAdmin.GET("/", notificationHandler.GetAdminNotifications)           // 获取管理员通知列表
-				notificationAdmin.GET("/stats", notificationHandler.GetNotificationStats)       // 获取通知统计信息
-				notificationAdmin.GET("/:id", notificationHandler.GetNotificationAdminByID)     // 获取通知详情
-				notificationAdmin.POST("/", notificationHandler.CreateNotification)             // 创建通知
-				notificationAdmin.POST("/:id/publish", notificationHandler.PublishNotification) // 发布通知
-				notificationAdmin.PUT("/:id", notificationHandler.UpdateNotification)           // 更新通知
-				notificationAdmin.POST("/:id/approve", notificationHandler.ApproveNotification) // 审核通知
-				notificationAdmin.POST("/:id/schedule", notificationHandler.ConvertToSchedule)  // 转换为日程
+				notificationAdmin.GET("/", notificationHandler.GetAdminNotifications)                                                  // 获取管理员通知列表
+				notificationAdmin.GET("/stats", notificationHandler.GetNotificationStats)                                              // 获取通知统计信息
+				notificationAdmin.GET("/:id", notificationHandler.GetNotificationAdminByID)                                            // 获取通知详情
+				notificationAdmin.POST("/", middleware.IdempotencyRecommended(ca), notificationHandler.CreateNotification)             // 创建通知（幂等性保护）
+				notificationAdmin.POST("/:id/publish", middleware.IdempotencyRecommended(ca), notificationHandler.PublishNotification) // 发布通知（幂等性保护）
+				notificationAdmin.PUT("/:id", notificationHandler.UpdateNotification)                                                  // 更新通知
+				notificationAdmin.POST("/:id/approve", middleware.IdempotencyRecommended(ca), notificationHandler.ApproveNotification) // 审核通知（幂等性保护）
+				notificationAdmin.POST("/:id/schedule", middleware.IdempotencyRecommended(ca), notificationHandler.ConvertToSchedule)  // 转换为日程（幂等性保护）
 
 			}
 			// 通知管理路由（需要管理员权限）
@@ -295,18 +297,18 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			notificationUpdate.Use(middleware.RequireRole(2))
 			{
 
-				notificationUpdate.DELETE("/:id", notificationHandler.DeleteNotification)                   // 删除通知
-				notificationUpdate.POST("/:id/publish-admin", notificationHandler.PublishNotificationAdmin) // 管理员直接发布通知（跳过审核）
-				notificationUpdate.POST("/:id/pin", notificationHandler.PinNotification)                    // 置顶通知
-				notificationUpdate.POST("/:id/unpin", notificationHandler.UnpinNotification)                // 取消置顶通知
+				notificationUpdate.DELETE("/:id", notificationHandler.DeleteNotification)                                                          // 删除通知
+				notificationUpdate.POST("/:id/publish-admin", middleware.IdempotencyRecommended(ca), notificationHandler.PublishNotificationAdmin) // 管理员直接发布通知（跳过审核，幂等性保护）
+				notificationUpdate.POST("/:id/pin", middleware.IdempotencyRecommended(ca), notificationHandler.PinNotification)                    // 置顶通知（幂等性保护）
+				notificationUpdate.POST("/:id/unpin", middleware.IdempotencyRecommended(ca), notificationHandler.UnpinNotification)                // 取消置顶通知（幂等性保护）
 			}
 
 			// 分类管理路由（需要管理员权限）
 			categoryAdmin := authorized.Group("/admin/categories")
 			categoryAdmin.Use(middleware.RequireRole(2))
 			{
-				categoryAdmin.POST("/", notificationHandler.CreateCategory)   // 创建分类
-				categoryAdmin.PUT("/:id", notificationHandler.UpdateCategory) // 更新分类
+				categoryAdmin.POST("/", middleware.IdempotencyRecommended(ca), notificationHandler.CreateCategory) // 创建分类（幂等性保护）
+				categoryAdmin.PUT("/:id", notificationHandler.UpdateCategory)                                      // 更新分类
 			}
 
 		}

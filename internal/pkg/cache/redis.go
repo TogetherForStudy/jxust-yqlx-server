@@ -13,6 +13,13 @@ type redisCache struct {
 	cli redis.RedisClient
 }
 
+// NewRedisCache 创建Redis缓存实例并设置为全局缓存
+func NewRedisCache(cli redis.RedisClient) Cache {
+	cache := &redisCache{cli: cli}
+	GlobalCache = cache
+	return cache
+}
+
 func (r *redisCache) Get(ctx context.Context, key string) (string, error) {
 	return r.cli.GetRedisCli().Get(ctx, key).Result()
 }
@@ -43,6 +50,21 @@ func (r *redisCache) Incr(ctx context.Context, key string) (int64, error) {
 func (r *redisCache) Decr(ctx context.Context, key string) (int64, error) {
 	return r.cli.GetRedisCli().Decr(ctx, key).Result()
 }
+
+func (r *redisCache) Lock(ctx context.Context, key string, expiration time.Duration) (bool, error) {
+	lockKey := "lock:" + key
+	return r.cli.GetRedisCli().SetNX(ctx, lockKey, "1", expiration).Result()
+}
+
+func (r *redisCache) Unlock(ctx context.Context, key string) error {
+	lockKey := "lock:" + key
+	return r.cli.GetRedisCli().Del(ctx, lockKey).Err()
+}
+
+func (r *redisCache) SetNX(ctx context.Context, key string, value string, expiration time.Duration) (bool, error) {
+	return r.cli.GetRedisCli().SetNX(ctx, key, value, expiration).Result()
+}
+
 func (r *redisCache) Close() error {
 	return r.cli.GetRedisCli().Close()
 }
