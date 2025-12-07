@@ -4,7 +4,7 @@ GoJxust API E2E 测试脚本
 
 使用方法:
     pip install httpx
-    python scripts/e2e_test.py [--base-url http://localhost:8080]
+    python scripts/e2e_test.py [--base-url <http://localhost:8080>] [--insecure 允许不安全的 HTTPS 连接（忽略证书错误）]
 
 该脚本测试 GoJxust API 的主要端点，使用模拟微信登录获取授权。
 """
@@ -31,9 +31,12 @@ class TestResult:
 class E2ETestClient:
     """E2E 测试客户端"""
 
-    def __init__(self, base_url: str):
+    def __init__(self, base_url: str, insecure: bool = False):
         self.base_url = base_url.rstrip("/")
-        self.client = httpx.Client(timeout=30.0)
+        verify = not insecure
+        if insecure and base_url.startswith("https"):
+            print("⚠️  警告: 正在使用不安全的 HTTPS 连接，证书错误将被忽略。")
+        self.client = httpx.Client(timeout=30.0, verify=verify)
         self.token: Optional[str] = None
         self.admin_token: Optional[str] = None
         self.results: list[TestResult] = []
@@ -763,9 +766,14 @@ def main():
         default=DEFAULT_BASE_URL,
         help=f"API 基础 URL (默认: {DEFAULT_BASE_URL})"
     )
+    parser.add_argument(
+        "--insecure",
+        action="store_true",
+        help="允许不安全的 HTTPS 连接（忽略证书错误）"
+    )
     args = parser.parse_args()
 
-    client = E2ETestClient(args.base_url)
+    client = E2ETestClient(args.base_url, insecure=args.insecure)
     try:
         success = client.run_all_tests()
         sys.exit(0 if success else 1)
