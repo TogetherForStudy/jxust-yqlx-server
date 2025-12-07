@@ -26,8 +26,8 @@ func (Feature) TableName() string {
 // UserFeatureWhitelist 用户功能白名单模型
 type UserFeatureWhitelist struct {
 	ID         uint       `json:"id" gorm:"type:int unsigned;primaryKey;comment:白名单ID"`
-UserID     uint       `json:"user_id" gorm:"type:int unsigned;not null;index:idx_user_id;uniqueIndex:uk_user_feature;comment:用户ID"`
-FeatureKey string     `json:"feature_key" gorm:"type:varchar(50);not null;index:idx_feature_key;uniqueIndex:uk_user_feature;comment:功能标识"`
+	UserID     uint       `json:"user_id" gorm:"type:int unsigned;not null;index:idx_user_id;uniqueIndex:uk_user_feature;comment:用户ID"`
+	FeatureKey string     `json:"feature_key" gorm:"type:varchar(50);not null;index:idx_feature_key;uniqueIndex:uk_user_feature;comment:功能标识"`
 	GrantedBy  uint       `json:"granted_by" gorm:"type:int unsigned;comment:授权人ID（管理员）"`
 	GrantedAt  time.Time  `json:"granted_at" gorm:"type:datetime;comment:授权时间"`
 	ExpiresAt  *time.Time `json:"expires_at" gorm:"type:datetime;index:idx_expires_at;comment:过期时间，NULL表示永久有效"`

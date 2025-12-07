@@ -79,40 +79,19 @@ func (s *FeatureService) GetUserFeatures(ctx context.Context, userID uint) ([]st
 		}
 	}
 
-	// 2. 从数据库查询
-	var whitelists []models.UserFeatureWhitelist
+	// 2. 从数据库查询用户的启用功能（通过JOIN优化）
+	var features []string
 	now := time.Now()
 
-	// 查询用户的白名单记录（未过期或永久有效）
 	err := s.db.WithContext(ctx).
-		Where("user_id = ? AND (expires_at IS NULL OR expires_at > ?)", userID, now).
-		Find(&whitelists).Error
+		Table("user_feature_whitelists").
+		Select("DISTINCT user_feature_whitelists.feature_key").
+		Joins("INNER JOIN features ON user_feature_whitelists.feature_key = features.feature_key").
+		Where("user_feature_whitelists.user_id = ? AND (user_feature_whitelists.expires_at IS NULL OR user_feature_whitelists.expires_at > ?) AND features.is_enabled = ?", userID, now, true).
+		Pluck("feature_key", &features).Error
+
 	if err != nil {
 		return nil, err
-	}
-
-	// 3. 获取所有启用的功能
-	var enabledFeatures []models.Feature
-	err = s.db.WithContext(ctx).
-		Where("is_enabled = ?", true).
-		Find(&enabledFeatures).Error
-	if err != nil {
-		return nil, err
-	}
-
-	// 构建启用功能的map
-	enabledMap := make(map[string]bool)
-	for _, f := range enabledFeatures {
-		enabledMap[f.FeatureKey] = true
-	}
-
-	// 4. 过滤出有效的功能列表
-	var features []string
-	for _, w := range whitelists {
-		// 只返回全局启用且未过期的功能
-		if enabledMap[w.FeatureKey] && !w.IsExpired() {
-			features = append(features, w.FeatureKey)
-		}
 	}
 
 	// 5. 缓存结果
@@ -212,6 +191,10 @@ func (s *FeatureService) GrantFeatureToUser(ctx context.Context, userID, granted
 
 // BatchGrantFeatureToUsers 批量授予用户功能权限
 func (s *FeatureService) BatchGrantFeatureToUsers(ctx context.Context, userIDs []uint, grantedBy uint, featureKey string, expiresAt *time.Time) error {
+	if len(userIDs) == 0 {
+		return nil
+	}
+
 	// 1. 检查功能是否存在
 	var feature models.Feature
 	err := s.db.WithContext(ctx).Where("feature_key = ?", featureKey).First(&feature).Error
