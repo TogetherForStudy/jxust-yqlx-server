@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 
+	json "github.com/bytedance/sonic"
 	"github.com/gin-gonic/gin"
 )
 

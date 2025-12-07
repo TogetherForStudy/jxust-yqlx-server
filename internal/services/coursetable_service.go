@@ -2,12 +2,12 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 
+	json "github.com/bytedance/sonic"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
