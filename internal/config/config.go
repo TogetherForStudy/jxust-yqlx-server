@@ -11,6 +11,7 @@ type Config struct {
 	Database `yaml:"database"`
 	Redis    `yaml:"redis"`
 	MinIO    `yaml:"minio"`
+	LLM      `yaml:"llm"`
 
 	JWTSecret       string `yaml:"jwt_secret" env:"JWT_SECRET"`
 	ServerPort      string `yaml:"server_port" env:"SERVER_PORT" envDefault:"8085"`
@@ -56,6 +57,14 @@ type MinIO struct {
 	MinIOSecretKey string `yaml:"minio_secret_key" env:"MINIO_SECRET_KEY" envDefault:"minioadmin"`
 	MinIOUseSSL    bool   `yaml:"minio_use_ssl" env:"MINIO_USE_SSL" envDefault:"false"`
 	BucketName     string `yaml:"bucket_name" env:"BUCKET_NAME" envDefault:"yqlx"`
+}
+
+type LLM struct {
+	RAGFlowMCPURL string `yaml:"ragflow_mcp_url" env:"RAGFLOW_MCP_URL" envDefault:""`
+	RAGFlowAPIKey string `yaml:"ragflow_api_key" env:"RAGFLOW_API_KEY" envDefault:""`
+	Model         string `yaml:"llm_model" env:"LLM_MODEL" envDefault:"gpt-4"`
+	APIKey        string `yaml:"llm_api_key" env:"LLM_API_KEY" envDefault:""`
+	BaseURL       string `yaml:"llm_base_url" env:"LLM_BASE_URL" envDefault:""`
 }
 
 var _once sync.Once

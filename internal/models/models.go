@@ -502,3 +502,27 @@ type Dictionary struct {
 func (Dictionary) TableName() string {
 	return "dictionary"
 }
+
+// ==================== 聊天对话系统模型 ====================
+
+// Conversation 对话会话模型
+type Conversation struct {
+	ID            uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:会话ID"`
+	UserID        uint           `json:"user_id" gorm:"not null;index:idx_user_updated;comment:用户ID"`
+	Title         string         `json:"title" gorm:"type:varchar(200);not null;comment:会话标题"`
+	CreatedAt     time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
+	UpdatedAt     time.Time      `json:"updated_at" gorm:"type:datetime;index:idx_user_updated;comment:更新时间"`
+	LastMessageAt *time.Time     `json:"last_message_at" gorm:"type:datetime;comment:最后消息时间"`
+	DeletedAt     gorm.DeletedAt `json:"-" gorm:"comment:软删除时间"`
+}
+
+// Message 对话消息模型
+type Message struct {
+	ID             uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:消息ID"`
+	ConversationID uint           `json:"conversation_id" gorm:"not null;index:idx_conversation_created;comment:会话ID"`
+	Role           string         `json:"role" gorm:"type:varchar(20);not null;comment:角色: user/assistant/tool"`
+	Content        string         `json:"content" gorm:"type:text;not null;comment:消息内容"`
+	ToolCalls      datatypes.JSON `json:"tool_calls" gorm:"type:json;comment:工具调用记录"`
+	TokenCount     int            `json:"token_count" gorm:"type:int;default:0;comment:Token数量"`
+	CreatedAt      time.Time      `json:"created_at" gorm:"type:datetime;index:idx_conversation_created;comment:创建时间"`
+}

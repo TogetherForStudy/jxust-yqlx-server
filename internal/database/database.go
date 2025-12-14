@@ -80,5 +80,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.UserProjectUsage{},
 		&models.UserQuestionUsage{},
 		&models.UserActivity{},
+		&models.Conversation{},
+		&models.Message{},
 	)
 }
