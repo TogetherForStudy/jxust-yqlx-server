@@ -42,6 +42,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	countdownService := services.NewCountdownService(db)
 	studyTaskService := services.NewStudyTaskService(db)
 	featureService := services.NewFeatureService(db)
+	chatService := services.NewChatService(db, cfg)
 
 	// 初始化处理器
 	authHandler := handlers.NewAuthHandler(authService)
@@ -58,6 +59,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	countdownHandler := handlers.NewCountdownHandler(countdownService)
 	studyTaskHandler := handlers.NewStudyTaskHandler(studyTaskService)
 	featureHandler := handlers.NewFeatureHandler(featureService)
+	chatHandler := handlers.NewChatHandler(chatService)
 
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
@@ -276,6 +278,18 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				studyTasks.DELETE("/:id", studyTaskHandler.DeleteStudyTask)                                     // 删除任务
 				studyTasks.GET("/stats", studyTaskHandler.GetStudyTaskStats)                                    // 获取统计
 				studyTasks.GET("/completed", studyTaskHandler.GetCompletedTasks)                                // 已完成的任务
+			}
+
+			// 聊天对话相关路由（需认证）
+			chat := authorized.Group("/chat")
+			{
+				chat.POST("/conversations", middleware.IdempotencyRecommended(ca), chatHandler.CreateConversation) // 创建对话
+				chat.GET("/conversations", chatHandler.ListConversations)                                          // 列出对话
+				chat.GET("/conversations/:id", chatHandler.ChooseConversation)                                     // 选择对话（返回历史消息）
+				chat.PUT("/conversations/:id", chatHandler.UpdateConversation)                                     // 更新对话
+				chat.DELETE("/conversations/:id", chatHandler.DeleteConversation)                                  // 删除对话
+				chat.GET("/conversations/:id/export", chatHandler.ExportConversation)                              // 导出对话
+				chat.POST("/conversation", chatHandler.StreamConversation)                                         // 流式对话
 			}
 
 			// 通知管理路由（需要运营权限）
