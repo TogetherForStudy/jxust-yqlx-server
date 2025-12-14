@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
 	"github.com/gin-gonic/gin"
 )
@@ -24,18 +25,18 @@ func NewChatHandler(service *services.ChatService) *ChatHandler {
 func (h *ChatHandler) CreateConversation(c *gin.Context) {
 	var req dto.CreateConversationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		helper.ValidateResponse(c, err.Error())
 		return
 	}
 
-	userID := c.GetUint("user_id")
+	userID := helper.GetUserID(c)
 	conv, err := h.service.CreateConversation(c.Request.Context(), userID, req.Title)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create conversation"})
+		helper.ErrorResponse(c, http.StatusInternalServerError, "Failed to create conversation")
 		return
 	}
 
-	c.JSON(http.StatusOK, dto.ConversationResponse{
+	helper.SuccessResponse(c, dto.ConversationResponse{
 		ID:            conv.ID,
 		Title:         conv.Title,
 		CreatedAt:     conv.CreatedAt,
@@ -48,7 +49,7 @@ func (h *ChatHandler) CreateConversation(c *gin.Context) {
 func (h *ChatHandler) ListConversations(c *gin.Context) {
 	var req dto.ListConversationsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		helper.ValidateResponse(c, err.Error())
 		return
 	}
 
@@ -59,10 +60,10 @@ func (h *ChatHandler) ListConversations(c *gin.Context) {
 		req.PageSize = 20
 	}
 
-	userID := c.GetUint("user_id")
+	userID := helper.GetUserID(c)
 	conversations, total, err := h.service.ListConversations(c.Request.Context(), userID, req.Page, req.PageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list conversations"})
+		helper.ErrorResponse(c, http.StatusInternalServerError, "Failed to list conversations")
 		return
 	}
 
@@ -77,7 +78,7 @@ func (h *ChatHandler) ListConversations(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, dto.ConversationListResponse{
+	helper.SuccessResponse(c, dto.ConversationListResponse{
 		Total:         total,
 		Page:          req.Page,
 		PageSize:      req.PageSize,
@@ -89,54 +90,54 @@ func (h *ChatHandler) ListConversations(c *gin.Context) {
 func (h *ChatHandler) DeleteConversation(c *gin.Context) {
 	conversationID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid conversation ID"})
+		helper.ValidateResponse(c, "Invalid conversation ID")
 		return
 	}
 
-	userID := c.GetUint("user_id")
+	userID := helper.GetUserID(c)
 	if err := h.service.DeleteConversation(c.Request.Context(), userID, uint(conversationID)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		helper.ErrorResponse(c, http.StatusInternalServerError, "Failed to delete conversation")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Conversation deleted successfully"})
+	helper.SuccessResponse(c, "ok")
 }
 
 // UpdateConversation 更新对话
 func (h *ChatHandler) UpdateConversation(c *gin.Context) {
 	conversationID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid conversation ID"})
+		helper.ValidateResponse(c, "Invalid conversation ID")
 		return
 	}
 
 	var req dto.UpdateConversationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		helper.ValidateResponse(c, err.Error())
 		return
 	}
 
-	userID := c.GetUint("user_id")
+	userID := helper.GetUserID(c)
 	if err := h.service.UpdateConversation(c.Request.Context(), userID, uint(conversationID), req.Title); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		helper.ErrorResponse(c, http.StatusInternalServerError, "Failed to update conversation")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Conversation updated successfully"})
+	helper.SuccessResponse(c, "ok")
 }
 
 // ChooseConversation 选择对话并返回历史消息
 func (h *ChatHandler) ChooseConversation(c *gin.Context) {
 	conversationID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid conversation ID"})
+		helper.ValidateResponse(c, "Invalid conversation ID")
 		return
 	}
 
-	userID := c.GetUint("user_id")
+	userID := helper.GetUserID(c)
 	messages, err := h.service.GetMessages(c.Request.Context(), userID, uint(conversationID))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		helper.ErrorResponse(c, http.StatusInternalServerError, "Failed to get conversation messages")
 		return
 	}
 
@@ -158,21 +159,21 @@ func (h *ChatHandler) ChooseConversation(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"messages": messageResponses})
+	helper.SuccessResponse(c, messageResponses)
 }
 
 // ExportConversation 导出对话
 func (h *ChatHandler) ExportConversation(c *gin.Context) {
 	conversationID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid conversation ID"})
+		helper.ValidateResponse(c, "Invalid conversation ID")
 		return
 	}
 
-	userID := c.GetUint("user_id")
+	userID := helper.GetUserID(c)
 	conv, messages, err := h.service.ExportConversation(c.Request.Context(), userID, uint(conversationID))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		helper.ErrorResponse(c, http.StatusInternalServerError, "Failed to export conversation")
 		return
 	}
 
@@ -194,7 +195,7 @@ func (h *ChatHandler) ExportConversation(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, dto.ExportConversationResponse{
+	helper.SuccessResponse(c, dto.ExportConversationResponse{
 		Conversation: dto.ConversationResponse{
 			ID:            conv.ID,
 			Title:         conv.Title,
@@ -210,15 +211,15 @@ func (h *ChatHandler) ExportConversation(c *gin.Context) {
 func (h *ChatHandler) StreamConversation(c *gin.Context) {
 	var req dto.ChatRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		helper.ValidateResponse(c, err.Error())
 		return
 	}
 
-	userID := c.GetUint("user_id")
+	userID := helper.GetUserID(c)
 
 	outputChan, errChan, err := h.service.StreamChat(c.Request.Context(), userID, req.ConversationID, req.Messages)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		helper.ErrorResponse(c, http.StatusInternalServerError, "Failed to stream conversation")
 		return
 	}
 
