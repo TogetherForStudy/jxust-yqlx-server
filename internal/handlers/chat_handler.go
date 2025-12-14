@@ -217,7 +217,7 @@ func (h *ChatHandler) StreamConversation(c *gin.Context) {
 
 	userID := helper.GetUserID(c)
 
-	outputChan, errChan, err := h.service.StreamChat(c.Request.Context(), userID, req.ConversationID, req.Messages)
+	outputChan, errChan, err := h.service.StreamChat(c.Request.Context(), userID, req.ConversationID, req.Messages, helper.GetAuthorizationToken(c))
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, "Failed to stream conversation")
 		return

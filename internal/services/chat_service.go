@@ -5,54 +5,79 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"sync"
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
+
+	einomcp "github.com/cloudwego/eino-ext/components/tool/mcp"
 	einomodel "github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
+	"github.com/mark3labs/mcp-go/client"
+	"github.com/mark3labs/mcp-go/client/transport"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
+type mcpClient map[string]*client.Client //MCP 客户端集合 key: mcp name, value: client
 type ChatService struct {
+	httpClient *http.Client // 复用的 HTTP 客户端,用于 MCP 等外部请求,减少GC压力和连接创建开销
 	db         *gorm.DB
 	cfg        *config.Config
 	llm        einomodel.ChatModel
 	tools      []einotool.BaseTool
-	mcpClients []interface{}
+
+	//mcpClients    mcpClient          // global
+	userClients   map[uint]mcpClient // per-user MCP 客户端集合 key: userID, value: mcpClient
+	userClientsMu sync.RWMutex
 }
 
 func NewChatService(db *gorm.DB, cfg *config.Config) *ChatService {
-	return &ChatService{
-		db:  db,
-		cfg: cfg,
+	services := &ChatService{
+		db:         db,
+		cfg:        cfg,
+		httpClient: &http.Client{Timeout: 30 * time.Second},
+		//mcpClients:  make(mcpClient),
+		userClients: make(map[uint]mcpClient),
 	}
+	if err := services.InitializeLLM(); err != nil {
+		logger.Fatalf("Failed to initialize LLM: %v", err)
+	}
+	return services
 }
 
 // InitializeLLM 初始化 LLM 和工具
-func (s *ChatService) InitializeLLM(ctx context.Context) error {
+func (s *ChatService) InitializeLLM() error {
 	// TODO: 初始化 LLM 模型
 	// 这里需要根据配置初始化具体的 LLM 提供商 (OpenAI, etc)
 	// s.llm = ...
-
-	// 初始化 RAGFlow MCP 工具
-	if s.cfg.LLM.RAGFlowMCPURL != "" {
-		if err := s.initRAGFlowMCP(ctx); err != nil {
-			return fmt.Errorf("failed to init ragflow mcp: %w", err)
-		}
-	}
 
 	return nil
 }
 
 // initRAGFlowMCP 初始化 RAGFlow MCP 客户端
-func (s *ChatService) initRAGFlowMCP(ctx context.Context) error {
+func (s *ChatService) initRAGFlowMCP(ctx context.Context, sessionId string) (*client.Client, error) {
 	// TODO: 根据 eino 的 MCP 集成文档实现
 	// 参考: https://www.cloudwego.io/docs/eino/ecosystem_integration/tool/tool_mcp/
-	return nil
+	// todo: ragflow sse endpoint 还需要 session_id 参数
+	mcpClient, err := client.NewSSEMCPClient(fmt.Sprintf("%s/messages/?session_id=%s", s.cfg.LLM.RAGFlowMCPURL, sessionId),
+		transport.WithHeaders(
+			map[string]string{
+				"api_key": s.cfg.LLM.RAGFlowAPIKey, // global api key
+			}),
+		// transport.WithHTTPTimeout(30*time.Second),
+		transport.WithSSELogger(logger.L()),
+		transport.WithHTTPClient(s.httpClient),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ragflow mcp client: %w", err)
+	}
+	return mcpClient, mcpClient.Start(ctx)
 }
 
 // CreateConversation 创建新对话
@@ -202,14 +227,78 @@ func (s *ChatService) SaveMessage(ctx context.Context, conversationID uint, role
 
 	return msg, nil
 }
+func (s *ChatService) prepareUserMcpClient(ctx context.Context, userID uint, userToken string) (mcpClient, error) {
+	yqlxMcpClient, err := client.NewStreamableHttpClient(fmt.Sprintf("http://127.0.0.1:%s/api/mcp", s.cfg.ServerPort), // yqlx自身的 MCP 转发接口
+		transport.WithHTTPHeaders(
+			map[string]string{
+				"Authorization": fmt.Sprintf("Bearer %s", userToken),
+			}),
+		transport.WithHTTPTimeout(30*time.Second),
+		transport.WithHTTPLogger(logger.L()),
+		transport.WithHTTPBasicClient(s.httpClient))
+	if err != nil {
+		msg := fmt.Sprintf("failed to create user mcp client: %v", err)
+		logger.Errorf("%s userID:%d", msg, userID)
+		return nil, errors.New(msg)
+	}
+	if err := yqlxMcpClient.Start(ctx); err != nil {
+		logger.Errorf("failed to start yqlx mcp client: %v userID:%d", err, userID)
+		return nil, err
+	}
+	// 初始化 RAGFlow MCP 工具
+	// todo: sessionId 应该是每个用户唯一的，可以用 userID 或者其他方式生成
+	ragMcpClient, err := s.initRAGFlowMCP(ctx, "todoSessionId")
+	if err != nil {
+		return nil, fmt.Errorf("failed to init ragflow mcp: %w", err)
+	}
+	m := map[string]*client.Client{
+		"yqlx":    yqlxMcpClient,
+		"ragflow": ragMcpClient,
+	}
+
+	if err := yqlxMcpClient.Start(ctx); err != nil {
+		logger.Errorf("failed to start yqlx mcp client: %v userID:%d", err, userID)
+		return nil, err
+	}
+	s.userClientsMu.Lock()
+	s.userClients[userID] = m
+	s.userClientsMu.Unlock()
+	return m, nil
+}
 
 // StreamChat 流式聊天 (返回一个通道用于 SSE)
-func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uint, messages []dto.EinoMessage) (<-chan string, <-chan error, error) {
+func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uint, messages []dto.EinoMessage, userToken string) (<-chan string, <-chan error, error) {
 	// 验证对话属于用户
 	conv, err := s.GetConversation(ctx, userID, conversationID)
 	if err != nil {
 		return nil, nil, err
 	}
+	var (
+		mcpClients mcpClient
+		// ok         bool
+		einoTools []einotool.BaseTool
+	)
+
+	mcpClients, err = s.prepareUserMcpClient(ctx, userID, userToken)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, client := range mcpClients {
+		tools, err := einomcp.GetTools(ctx, &einomcp.Config{Cli: client})
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get tools from mcp client: %w", err)
+		}
+		einoTools = append(einoTools, tools...)
+	}
+	// todo: 缓存 MCP 客户端. 怎么处理 ctx? 用 context.Background ? LRU->need a struct to record it?
+	//s.userClientsMu.RLock()
+	//if mcpClients, ok = s.userClients[userID]; !ok {
+	//	s.userClientsMu.RUnlock()
+	//	mcpClients, err = s.prepareUserMcpClient(ctx, userID, userToken)
+	//	if err != nil {
+	//		return nil, nil, err
+	//	}
+	//}
 
 	// 转换消息格式为 eino 格式
 	einoMessages := make([]*schema.Message, 0, len(messages))
@@ -279,7 +368,9 @@ func (s *ChatService) ExportConversation(ctx context.Context, userID, conversati
 
 // Cleanup 清理资源
 func (s *ChatService) Cleanup() {
-	for _, client := range s.mcpClients {
+	s.userClientsMu.Lock()
+	defer s.userClientsMu.Unlock()
+	for _, client := range s.userClients {
 		if client != nil {
 			// TODO: close client when needed
 		}

@@ -1,6 +1,8 @@
 package helper
 
 import (
+	"strings"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -26,4 +28,20 @@ func GetUserID(c *gin.Context) uint {
 		return id
 	}
 	return 0
+}
+
+// GetAuthorizationToken 从请求头中提取Bearer Token
+func GetAuthorizationToken(c *gin.Context) string {
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		return ""
+	}
+
+	// 检查Bearer前缀
+	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+	if tokenString == authHeader {
+		return ""
+	}
+
+	return tokenString
 }

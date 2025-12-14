@@ -60,7 +60,7 @@ type MinIO struct {
 }
 
 type LLM struct {
-	RAGFlowMCPURL string `yaml:"ragflow_mcp_url" env:"RAGFLOW_MCP_URL" envDefault:""`
+	RAGFlowMCPURL string `yaml:"ragflow_mcp_url" env:"RAGFLOW_MCP_URL" envDefault:""` // e.g., "http://localhost:8080/mcp/sse"
 	RAGFlowAPIKey string `yaml:"ragflow_api_key" env:"RAGFLOW_API_KEY" envDefault:""`
 	Model         string `yaml:"llm_model" env:"LLM_MODEL" envDefault:"gpt-4"`
 	APIKey        string `yaml:"llm_api_key" env:"LLM_API_KEY" envDefault:""`
