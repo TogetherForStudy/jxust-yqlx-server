@@ -356,7 +356,7 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 
 		var fullContent string
 		var fullToolCalls []schema.ToolCall
-		var usage *schema.Usage
+		var usage *schema.TokenUsage
 		messageCount := 0
 
 		// 发送开始事件
