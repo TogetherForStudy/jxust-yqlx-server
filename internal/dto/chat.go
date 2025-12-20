@@ -1,6 +1,10 @@
 package dto
 
-import "time"
+import (
+	"time"
+
+	"github.com/cloudwego/eino/schema"
+)
 
 // CreateConversationRequest 创建对话请求
 type CreateConversationRequest struct {
@@ -37,30 +41,20 @@ type ConversationListResponse struct {
 
 // EinoMessage eino消息格式
 type EinoMessage struct {
-	Role      string                   `json:"role"`
-	Content   string                   `json:"content"`
-	ToolCalls []map[string]interface{} `json:"tool_calls,omitempty"`
+	Role       schema.RoleType   `json:"role"`
+	Content    string            `json:"content"`
+	ToolCalls  []schema.ToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string            `json:"tool_call_id,omitempty"`
 }
 
 // ChatRequest 聊天请求
 type ChatRequest struct {
-	ConversationID uint          `json:"conversation_id" binding:"required"`
-	Messages       []EinoMessage `json:"messages" binding:"required,min=1"`
-}
-
-// MessageResponse 消息响应
-type MessageResponse struct {
-	ID             uint                     `json:"id"`
-	ConversationID uint                     `json:"conversation_id"`
-	Role           string                   `json:"role"`
-	Content        string                   `json:"content"`
-	ToolCalls      []map[string]interface{} `json:"tool_calls,omitempty"`
-	TokenCount     int                      `json:"token_count"`
-	CreatedAt      time.Time                `json:"created_at"`
+	ConversationID uint           `json:"conversation_id" binding:"required"`
+	Message        schema.Message `json:"message" binding:"required"`
 }
 
 // ExportConversationResponse 导出对话响应
 type ExportConversationResponse struct {
 	Conversation ConversationResponse `json:"conversation"`
-	Messages     []MessageResponse    `json:"messages"`
+	Messages     []*schema.Message    `json:"messages"`
 }

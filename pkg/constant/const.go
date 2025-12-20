@@ -15,4 +15,6 @@ const (
 	IdempotencyExpiration    = 24 * time.Hour
 	IdempotencyLockTimeout   = 30 * time.Second
 	IdempotencyStatusPending = "pending"
+
+	LLMModel = "gpt-3.5-turbo"
 )
