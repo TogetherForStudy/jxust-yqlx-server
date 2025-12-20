@@ -4,7 +4,9 @@ import (
 	"os"
 	"sync"
 
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 	"github.com/caarlos0/env/v11"
+	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
@@ -75,6 +77,18 @@ var _once sync.Once
 func NewConfig() *Config {
 	_once.Do(func() {
 		var cfg Config
+		_, err := os.Stat("yqlx-config.yaml")
+		if err == nil {
+			// Load from yaml file if exists
+			file, err := os.Open("yqlx-config.yaml")
+			if err != nil {
+				logger.Fatalln("Failed to open config file: ", err)
+			}
+			err = yaml.NewDecoder(file).Decode(&cfg)
+			if err != nil {
+				logger.Fatalln("Failed to parse config file: ", err)
+			}
+		}
 		if err := env.Parse(&cfg); err != nil {
 			println("Failed to parse environment variables: ", err)
 			os.Exit(1)

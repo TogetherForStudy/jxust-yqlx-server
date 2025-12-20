@@ -38,3 +38,5 @@ go.work
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+cmd/apiserver/yqlx-config.yaml
