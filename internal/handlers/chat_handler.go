@@ -8,6 +8,7 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/cloudwego/eino/schema"
 	"github.com/gin-gonic/gin"
 )
 
@@ -126,7 +127,7 @@ func (h *ChatHandler) UpdateConversation(c *gin.Context) {
 	helper.SuccessResponse(c, "ok")
 }
 
-// ChooseConversation 选择对话并返回历史消息
+// ChooseConversation 选择对话并返回历史消息（只返回User和Assistant角色的消息）
 func (h *ChatHandler) ChooseConversation(c *gin.Context) {
 	conversationID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -141,25 +142,15 @@ func (h *ChatHandler) ChooseConversation(c *gin.Context) {
 		return
 	}
 
-	messageResponses := make([]dto.MessageResponse, len(messages))
-	for i, msg := range messages {
-		var toolCalls []map[string]interface{}
-		if len(msg.ToolCalls) > 0 {
-			json.Unmarshal(msg.ToolCalls, &toolCalls)
-		}
-
-		messageResponses[i] = dto.MessageResponse{
-			ID:             msg.ID,
-			ConversationID: msg.ConversationID,
-			Role:           msg.Role,
-			Content:        msg.Content,
-			ToolCalls:      toolCalls,
-			TokenCount:     msg.TokenCount,
-			CreatedAt:      msg.CreatedAt,
+	// 过滤消息，只返回 User 和 Assistant 角色
+	filteredMessages := make([]*schema.Message, 0, len(messages))
+	for _, msg := range messages {
+		if msg.Role == schema.User || msg.Role == schema.Assistant {
+			filteredMessages = append(filteredMessages, msg)
 		}
 	}
 
-	helper.SuccessResponse(c, messageResponses)
+	helper.SuccessResponse(c, filteredMessages)
 }
 
 // ExportConversation 导出对话
@@ -177,24 +168,6 @@ func (h *ChatHandler) ExportConversation(c *gin.Context) {
 		return
 	}
 
-	messageResponses := make([]dto.MessageResponse, len(messages))
-	for i, msg := range messages {
-		var toolCalls []map[string]interface{}
-		if len(msg.ToolCalls) > 0 {
-			json.Unmarshal(msg.ToolCalls, &toolCalls)
-		}
-
-		messageResponses[i] = dto.MessageResponse{
-			ID:             msg.ID,
-			ConversationID: msg.ConversationID,
-			Role:           msg.Role,
-			Content:        msg.Content,
-			ToolCalls:      toolCalls,
-			TokenCount:     msg.TokenCount,
-			CreatedAt:      msg.CreatedAt,
-		}
-	}
-
 	helper.SuccessResponse(c, dto.ExportConversationResponse{
 		Conversation: dto.ConversationResponse{
 			ID:            conv.ID,
@@ -203,7 +176,7 @@ func (h *ChatHandler) ExportConversation(c *gin.Context) {
 			UpdatedAt:     conv.UpdatedAt,
 			LastMessageAt: conv.LastMessageAt,
 		},
-		Messages: messageResponses,
+		Messages: messages,
 	})
 }
 
@@ -217,7 +190,7 @@ func (h *ChatHandler) StreamConversation(c *gin.Context) {
 
 	userID := helper.GetUserID(c)
 
-	outputChan, errChan, err := h.service.StreamChat(c.Request.Context(), userID, req.ConversationID, req.Messages, helper.GetAuthorizationToken(c))
+	outputChan, errChan, err := h.service.StreamChat(c.Request.Context(), userID, req.ConversationID, &req.Message, helper.GetAuthorizationToken(c))
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, "Failed to stream conversation")
 		return
@@ -242,8 +215,14 @@ func (h *ChatHandler) StreamConversation(c *gin.Context) {
 			c.Writer.Flush()
 		case err := <-errChan:
 			if err != nil {
-				c.Writer.Write([]byte("data: {\"type\":\"error\",\"error\":\"" + err.Error() + "\"}\n\n"))
-				c.Writer.Flush()
+				errorEvent := map[string]interface{}{
+					"type":  "error",
+					"error": err.Error(),
+				}
+				if data, jsonErr := json.Marshal(errorEvent); jsonErr == nil {
+					c.Writer.Write([]byte("data: " + string(data) + "\n\n"))
+					c.Writer.Flush()
+				}
 			}
 			return
 		case <-c.Request.Context().Done():

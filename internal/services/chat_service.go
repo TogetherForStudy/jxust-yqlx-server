@@ -5,26 +5,29 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
-	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 
+	einoopenai "github.com/cloudwego/eino-ext/components/model/openai"
 	einomcp "github.com/cloudwego/eino-ext/components/tool/mcp"
 	einomodel "github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/client/transport"
-	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
-type mcpClient map[string]*client.Client //MCP 客户端集合 key: mcp name, value: client
+type mcpClient map[string]*client.Client
+
 type ChatService struct {
 	httpClient *http.Client // 复用的 HTTP 客户端,用于 MCP 等外部请求,减少GC压力和连接创建开销
 	db         *gorm.DB
@@ -172,8 +175,8 @@ func (s *ChatService) UpdateConversation(ctx context.Context, userID, conversati
 	return nil
 }
 
-// GetMessages 获取对话的所有消息
-func (s *ChatService) GetMessages(ctx context.Context, userID, conversationID uint) ([]models.Message, error) {
+// GetMessages 获取对话的所有消息（使用缓存，不存在则从数据库构建缓存）
+func (s *ChatService) GetMessages(ctx context.Context, userID, conversationID uint) ([]*schema.Message, error) {
 	// 验证对话属于用户
 	var conv models.Conversation
 	if err := s.db.WithContext(ctx).
@@ -182,51 +185,65 @@ func (s *ChatService) GetMessages(ctx context.Context, userID, conversationID ui
 		return nil, err
 	}
 
-	var messages []models.Message
-	if err := s.db.WithContext(ctx).
-		Where("conversation_id = ?", conversationID).
-		Order("created_at ASC").
-		Find(&messages).Error; err != nil {
-		return nil, err
+	// 尝试从缓存获取
+	cacheKey := fmt.Sprintf(constant.CacheKeyConversationMessages, userID, conversationID)
+	if cachedData, err := cache.GlobalCache.Get(ctx, cacheKey); err == nil && cachedData != "" {
+		var messages []*schema.Message
+		if err := json.Unmarshal([]byte(cachedData), &messages); err == nil {
+			return messages, nil
+		}
+		logger.Warnf("Failed to unmarshal cached messages for conversation %d: %v", conversationID, err)
+	}
+
+	// 从数据库加载
+	var messages []*schema.Message
+	if len(conv.Messages) > 0 {
+		if err := json.Unmarshal(conv.Messages, &messages); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal messages: %w", err)
+		}
+	}
+
+	if messages == nil {
+		messages = []*schema.Message{}
+	}
+
+	// 更新缓存
+	if data, err := json.Marshal(messages); err == nil {
+		expiration := 30 * time.Minute
+		cache.GlobalCache.Set(ctx, cacheKey, string(data), &expiration)
 	}
 
 	return messages, nil
 }
 
-// SaveMessage 保存消息
-func (s *ChatService) SaveMessage(ctx context.Context, conversationID uint, role, content string, toolCalls interface{}, tokenCount int) (*models.Message, error) {
-	var toolCallsJSON datatypes.JSON
-	if toolCalls != nil {
-		data, err := json.Marshal(toolCalls)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal tool calls: %w", err)
-		}
-		toolCallsJSON = data
+// SaveMessages 保存完整的消息列表到数据库和缓存
+func (s *ChatService) SaveMessages(ctx context.Context, userID, conversationID uint, messages []*schema.Message) error {
+	messagesJSON, err := json.Marshal(messages)
+	if err != nil {
+		return fmt.Errorf("failed to marshal messages: %w", err)
 	}
 
-	msg := &models.Message{
-		ConversationID: conversationID,
-		Role:           role,
-		Content:        content,
-		ToolCalls:      toolCallsJSON,
-		TokenCount:     tokenCount,
-	}
-
-	if err := s.db.WithContext(ctx).Create(msg).Error; err != nil {
-		return nil, err
-	}
-
-	// 更新对话的最后消息时间
+	// 更新数据库
 	now := time.Now()
-	s.db.WithContext(ctx).Model(&models.Conversation{}).
+	if err := s.db.WithContext(ctx).Model(&models.Conversation{}).
 		Where("id = ?", conversationID).
 		Updates(map[string]interface{}{
+			"messages":        messagesJSON,
 			"last_message_at": now,
 			"updated_at":      now,
-		})
+		}).Error; err != nil {
+		return err
+	}
 
-	return msg, nil
+	// 更新缓存
+	cacheKey := fmt.Sprintf(constant.CacheKeyConversationMessages, userID, conversationID)
+	expiration := 30 * time.Minute
+	cache.GlobalCache.Set(ctx, cacheKey, string(messagesJSON), &expiration)
+
+	return nil
 }
+
+// todo: mcp server 除了系统内置的 mcp client 之外，还可以支持用户自定义的 mcp client
 func (s *ChatService) prepareUserMcpClient(ctx context.Context, userID uint, userToken string) (mcpClient, error) {
 	yqlxMcpClient, err := client.NewStreamableHttpClient(fmt.Sprintf("http://127.0.0.1:%s/api/mcp", s.cfg.ServerPort), // yqlx自身的 MCP 转发接口
 		transport.WithHTTPHeaders(
@@ -267,16 +284,25 @@ func (s *ChatService) prepareUserMcpClient(ctx context.Context, userID uint, use
 }
 
 // StreamChat 流式聊天 (返回一个通道用于 SSE)
-func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uint, messages []dto.EinoMessage, userToken string) (<-chan string, <-chan error, error) {
+func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uint, newMessage *schema.Message, userToken string) (<-chan string, <-chan error, error) {
 	// 验证对话属于用户
 	conv, err := s.GetConversation(ctx, userID, conversationID)
 	if err != nil {
 		return nil, nil, err
 	}
+
+	// 获取完整的会话消息（使用缓存，不存在则从数据库构建）
+	messages, err := s.GetMessages(ctx, userID, conversationID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// 合并新消息到会话中
+	messages = append(messages, newMessage)
+
 	var (
 		mcpClients mcpClient
-		// ok         bool
-		einoTools []einotool.BaseTool
+		einoTools  []einotool.BaseTool
 	)
 
 	mcpClients, err = s.prepareUserMcpClient(ctx, userID, userToken)
@@ -290,52 +316,153 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 		}
 		einoTools = append(einoTools, tools...)
 	}
-	// todo: 缓存 MCP 客户端. 怎么处理 ctx? 用 context.Background ? LRU->need a struct to record it?
-	//s.userClientsMu.RLock()
-	//if mcpClients, ok = s.userClients[userID]; !ok {
-	//	s.userClientsMu.RUnlock()
-	//	mcpClients, err = s.prepareUserMcpClient(ctx, userID, userToken)
-	//	if err != nil {
-	//		return nil, nil, err
-	//	}
-	//}
 
-	// 转换消息格式为 eino 格式
-	einoMessages := make([]*schema.Message, 0, len(messages))
-	for _, msg := range messages {
-		einoMsg := &schema.Message{
-			Role:    schema.RoleType(msg.Role),
-			Content: msg.Content,
+	// 添加系统提示词
+	prompts := append([]*schema.Message{schema.SystemMessage(constant.ChatSystemPrompt)}, messages...)
+
+	// 使用配置的 LLM 或创建新实例
+	var chatModel einomodel.ChatModel
+	if s.llm != nil {
+		chatModel = s.llm
+	} else {
+		// 如果没有全局 LLM，为这个请求创建临时实例
+		model, err := einoopenai.NewChatModel(ctx, &einoopenai.ChatModelConfig{
+			HTTPClient: s.httpClient,
+			Model:      s.cfg.LLM.Model,
+			APIKey:     s.cfg.LLM.APIKey,
+			BaseURL:    s.cfg.LLM.BaseURL,
+		})
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create chat model: %w", err)
 		}
-		// TODO: 处理 tool calls
-		einoMessages = append(einoMessages, einoMsg)
+		chatModel = model
+	}
+
+	// 创建流式请求
+	sr, err := chatModel.Stream(ctx, prompts)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create chat stream: %w", err)
 	}
 
 	// 创建输出通道
-	outputChan := make(chan string, 10)
+	outputChan := make(chan string, 50)
 	errChan := make(chan error, 1)
 
-	// 启动流式处理
+	// 启动流式处理 goroutine
 	go func() {
 		defer close(outputChan)
 		defer close(errChan)
+		defer sr.Close()
 
-		// TODO: 实现真实的 LLM 流式调用
-		// 这里是临时的模拟实现
-		outputChan <- "data: " + `{"type":"start"}` + "\n\n"
-		outputChan <- "data: " + `{"type":"content","content":"这是一个模拟的 LLM 响应。"}` + "\n\n"
-		outputChan <- "data: " + `{"type":"content","content":"请配置正确的 LLM 模型。"}` + "\n\n"
-		outputChan <- "data: " + `{"type":"end"}` + "\n\n"
+		var fullContent string
+		var fullToolCalls []schema.ToolCall
+		var usage *schema.Usage
+		messageCount := 0
 
-		// 保存用户消息
-		for _, msg := range messages {
-			if msg.Role == "user" {
-				s.SaveMessage(ctx, conv.ID, msg.Role, msg.Content, msg.ToolCalls, 0)
+		// 发送开始事件
+		startEvent := map[string]interface{}{
+			"type": "start",
+		}
+		if data, err := json.Marshal(startEvent); err == nil {
+			outputChan <- "data: " + string(data) + "\n\n"
+		}
+
+		// 读取流式消息
+		for {
+			message, err := sr.Recv()
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				logger.Errorf("stream recv error: %v", err)
+				errChan <- err
+				return
+			}
+
+			messageCount++
+
+			// 累积内容
+			if message.Content != "" {
+				fullContent += message.Content
+
+				// 发送内容增量
+				contentEvent := map[string]interface{}{
+					"type":    "content",
+					"content": message.Content,
+				}
+				if data, err := json.Marshal(contentEvent); err == nil {
+					outputChan <- "data: " + string(data) + "\n\n"
+				}
+			}
+
+			// 处理 reasoning content (如果有)
+			if message.ReasoningContent != "" {
+				reasoningEvent := map[string]interface{}{
+					"type":    "reasoning",
+					"content": message.ReasoningContent,
+				}
+				if data, err := json.Marshal(reasoningEvent); err == nil {
+					outputChan <- "data: " + string(data) + "\n\n"
+				}
+			}
+
+			// 累积工具调用
+			if len(message.ToolCalls) > 0 {
+				fullToolCalls = append(fullToolCalls, message.ToolCalls...)
+				// 发送工具调用事件
+				for _, tc := range message.ToolCalls {
+					toolCallEvent := map[string]interface{}{
+						"type":      "tool_call",
+						"tool_call": tc,
+						"function":  tc.Function.Name,
+						"arguments": tc.Function.Arguments,
+					}
+					if data, err := json.Marshal(toolCallEvent); err == nil {
+						outputChan <- "data: " + string(data) + "\n\n"
+					}
+				}
+			}
+
+			// 保存 usage 信息
+			if message.ResponseMeta != nil && message.ResponseMeta.Usage != nil {
+				usage = message.ResponseMeta.Usage
 			}
 		}
 
-		// 保存助手响应
-		s.SaveMessage(ctx, conv.ID, "assistant", "这是一个模拟的 LLM 响应。请配置正确的 LLM 模型。", nil, 0)
+		logger.Infof("Stream finished with %d messages for conversation %d", messageCount, conversationID)
+
+		// 构建助手响应消息
+		assistantMsg := &schema.Message{
+			Role:    schema.Assistant,
+			Content: fullContent,
+		}
+		if len(fullToolCalls) > 0 {
+			assistantMsg.ToolCalls = fullToolCalls
+		}
+
+		// 添加助手响应到消息列表
+		messages = append(messages, assistantMsg)
+
+		// 保存更新后的消息列表到数据库和缓存
+		if err := s.SaveMessages(ctx, userID, conv.ID, messages); err != nil {
+			logger.Errorf("Failed to save messages: %v", err)
+		}
+
+		// 发送结束事件
+		endEvent := map[string]interface{}{
+			"type":          "end",
+			"message_count": messageCount,
+		}
+		if usage != nil {
+			endEvent["usage"] = map[string]interface{}{
+				"prompt_tokens":     usage.PromptTokens,
+				"completion_tokens": usage.CompletionTokens,
+				"total_tokens":      usage.TotalTokens,
+			}
+		}
+		if data, err := json.Marshal(endEvent); err == nil {
+			outputChan <- "data: " + string(data) + "\n\n"
+		}
 	}()
 
 	return outputChan, errChan, nil
@@ -352,7 +479,7 @@ func (s *ChatService) GenerateTitleFromFirstMessage(ctx context.Context, content
 }
 
 // ExportConversation 导出对话
-func (s *ChatService) ExportConversation(ctx context.Context, userID, conversationID uint) (*models.Conversation, []models.Message, error) {
+func (s *ChatService) ExportConversation(ctx context.Context, userID, conversationID uint) (*models.Conversation, []*schema.Message, error) {
 	conv, err := s.GetConversation(ctx, userID, conversationID)
 	if err != nil {
 		return nil, nil, err

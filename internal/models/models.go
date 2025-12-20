@@ -510,6 +510,7 @@ type Conversation struct {
 	ID            uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:会话ID"`
 	UserID        uint           `json:"user_id" gorm:"not null;index:idx_user_updated;comment:用户ID"`
 	Title         string         `json:"title" gorm:"type:varchar(200);not null;comment:会话标题"`
+	Messages      datatypes.JSON `json:"messages" gorm:"type:json;comment:完整会话消息[]*schema.Message"`
 	CreatedAt     time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
 	UpdatedAt     time.Time      `json:"updated_at" gorm:"type:datetime;index:idx_user_updated;comment:更新时间"`
 	LastMessageAt *time.Time     `json:"last_message_at" gorm:"type:datetime;comment:最后消息时间"`
