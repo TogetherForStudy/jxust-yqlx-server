@@ -64,11 +64,11 @@ func (s *ChatService) InitializeLLM() error {
 }
 
 // initRAGFlowMCP 初始化 RAGFlow MCP 客户端
-func (s *ChatService) initRAGFlowMCP(ctx context.Context, sessionId string) (*client.Client, error) {
+func (s *ChatService) initRAGFlowMCP(ctx context.Context) (*client.Client, error) {
 	// TODO: 根据 eino 的 MCP 集成文档实现
 	// 参考: https://www.cloudwego.io/docs/eino/ecosystem_integration/tool/tool_mcp/
 	// todo: ragflow sse endpoint 还需要 session_id 参数
-	mcpClient, err := client.NewSSEMCPClient(fmt.Sprintf("%s/messages/?session_id=%s", s.cfg.LLM.RAGFlowMCPURL, sessionId),
+	mcpClient, err := client.NewSSEMCPClient(s.cfg.LLM.RAGFlowMCPURL, //fmt.Sprintf("%s/messages/?session_id=%s", s.cfg.LLM.RAGFlowMCPURL, sessionId),
 		transport.WithHeaders(
 			map[string]string{
 				"api_key": s.cfg.LLM.RAGFlowAPIKey, // global api key
@@ -264,7 +264,7 @@ func (s *ChatService) prepareUserMcpClient(ctx context.Context, userID uint, use
 	}
 	// 初始化 RAGFlow MCP 工具
 	// todo: sessionId 应该是每个用户唯一的，可以用 userID 或者其他方式生成
-	ragMcpClient, err := s.initRAGFlowMCP(ctx, "todoSessionId")
+	ragMcpClient, err := s.initRAGFlowMCP(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to init ragflow mcp: %w", err)
 	}
