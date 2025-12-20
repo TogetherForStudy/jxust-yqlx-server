@@ -49,7 +49,7 @@ type EinoMessage struct {
 
 // ChatRequest 聊天请求
 type ChatRequest struct {
-	ConversationID uint           `json:"conversation_id" binding:"required"`
+	ConversationID uint           `json:"conversation_id" binding:"required,gt=0"`
 	Message        schema.Message `json:"message" binding:"required"`
 }
 
