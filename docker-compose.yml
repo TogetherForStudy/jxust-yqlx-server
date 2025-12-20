@@ -19,7 +19,9 @@ services:
 
   # Go应用
   app:
-    build: cmd/apiserver
+    build:
+      context: .
+      dockerfile: cmd/apiserver/Dockerfile
     container_name: gojxust-app
     environment:
       DB_HOST: mysql
