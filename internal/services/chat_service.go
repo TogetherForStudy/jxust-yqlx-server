@@ -196,15 +196,11 @@ func (s *ChatService) GetMessages(ctx context.Context, userID, conversationID ui
 	}
 
 	// 从数据库加载
-	var messages []*schema.Message
+	messages := []*schema.Message{}
 	if len(conv.Messages) > 0 {
 		if err := json.Unmarshal(conv.Messages, &messages); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal messages: %w", err)
 		}
-	}
-
-	if messages == nil {
-		messages = []*schema.Message{}
 	}
 
 	// 更新缓存
@@ -288,13 +284,13 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 	// 验证对话属于用户
 	conv, err := s.GetConversation(ctx, userID, conversationID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to get conversation: %w", err)
 	}
 
 	// 获取完整的会话消息（使用缓存，不存在则从数据库构建）
 	messages, err := s.GetMessages(ctx, userID, conversationID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to get messages: %w", err)
 	}
 
 	// 合并新消息到会话中
@@ -317,8 +313,15 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 		einoTools = append(einoTools, tools...)
 	}
 
-	// 添加系统提示词
-	prompts := append([]*schema.Message{schema.SystemMessage(constant.ChatSystemPrompt)}, messages...)
+	// 添加系统提示词（仅在首次聊天时）
+	var prompts []*schema.Message
+	if len(messages) > 0 && messages[0].Role == schema.System {
+		// 已有系统提示词，直接使用
+		prompts = messages
+	} else {
+		// 首次聊天，添加系统提示词
+		prompts = append([]*schema.Message{schema.SystemMessage(constant.ChatSystemPrompt)}, messages...)
+	}
 
 	// 使用配置的 LLM 或创建新实例
 	var chatModel einomodel.ChatModel
