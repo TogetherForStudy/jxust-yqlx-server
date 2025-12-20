@@ -39,4 +39,4 @@ go.work
 ehthumbs.db
 Thumbs.db
 
-cmd/apiserver/yqlx-config.yaml
+yqlx-config.yaml

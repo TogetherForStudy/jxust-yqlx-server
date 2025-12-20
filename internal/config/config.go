@@ -88,11 +88,15 @@ func NewConfig() *Config {
 			if err != nil {
 				logger.Fatalln("Failed to parse config file: ", err)
 			}
+			logger.Info("Loading configuration from yqlx-config.yaml")
+			GlobalConfig = &cfg
+			return
 		}
 		if err := env.Parse(&cfg); err != nil {
 			println("Failed to parse environment variables: ", err)
 			os.Exit(1)
 		}
+		logger.Info("Loading configuration from environment variables")
 		GlobalConfig = &cfg
 	})
 
