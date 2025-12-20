@@ -11,9 +11,20 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+func mustNewConfig() *config.Config {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Fprintf(os.Stderr, "Error initializing config: %v\n", r)
+			os.Exit(1)
+		}
+	}()
+
+	return config.NewConfig()
+}
+
 func main() {
 	// Initialize configuration
-	cfg := config.NewConfig()
+	cfg := mustNewConfig()
 
 	// Marshal configuration to YAML
 	data, err := yaml.Marshal(cfg)
