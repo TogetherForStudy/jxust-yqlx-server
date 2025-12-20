@@ -31,12 +31,12 @@ export BASE_URL="http://localhost:8085"
 # Windows PowerShell
 curl -X POST "$BASE_URL/api/v0/auth/mock-wechat-login" `
   -H "Content-Type: application/json" `
-  -d '{\"user_id\": \"test-user-123\", \"nickname\": \"测试用户\"}'
+  -d '{"test_user": "normal"}'
 
 # Linux/Mac
 curl -X POST "$BASE_URL/api/v0/auth/mock-wechat-login" \
   -H "Content-Type: application/json" \
-  -d '{"user_id": "test-user-123", "nickname": "测试用户"}'
+  -d '{"test_user": "normal"}' # normal, admin, new_user
 ```
 
 ### 响应示例
@@ -48,11 +48,11 @@ curl -X POST "$BASE_URL/api/v0/auth/mock-wechat-login" \
   "RequestId": "req-123456",
   "Result": {
     "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "user": {
+    "user_info": {
       "id": 1,
       "nickname": "测试用户",
-      "avatar": "",
       "role": 1
+      // ...
     }
   }
 }
@@ -183,11 +183,13 @@ curl -X GET "$BASE_URL/api/v0/chat/conversations/$CONV_ID" \
   "Result": [
     {
       "role": "user",
-      "content": "什么是 Go 语言的 goroutine？"
+      "content": "什么是 Go 语言的 goroutine？",
+      // ...
     },
     {
       "role": "assistant",
-      "content": "Goroutine 是 Go 语言中的轻量级线程，可以在程序中并发执行..."
+      "content": "Goroutine 是 Go 语言中的轻量级线程，可以在程序中并发执行...",
+      // ...
     }
   ]
 }
@@ -543,12 +545,12 @@ curl -v -X GET "$BASE_URL/api/v0/chat/conversations" \
 # 用户 A
 curl -X POST "$BASE_URL/api/v0/auth/mock-wechat-login" \
   -H "Content-Type: application/json" \
-  -d '{"user_id": "user-a", "nickname": "用户A"}'
+  -d '{"test_user": "normal"}'
 
 # 用户 B
 curl -X POST "$BASE_URL/api/v0/auth/mock-wechat-login" \
   -H "Content-Type: application/json" \
-  -d '{"user_id": "user-b", "nickname": "用户B"}'
+  -d '{"test_user": "normal"}'
 ```
 
 ## API 端点速查表
