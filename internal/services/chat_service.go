@@ -15,11 +15,13 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
 	einoopenai "github.com/cloudwego/eino-ext/components/model/openai"
 	einomcp "github.com/cloudwego/eino-ext/components/tool/mcp"
 	einomodel "github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
+
 	"github.com/cloudwego/eino/schema"
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/client/transport"
@@ -78,6 +80,7 @@ func (s *ChatService) initRAGFlowMCP(ctx context.Context) (*client.Client, error
 		transport.WithHTTPClient(s.httpClient),
 	)
 	if err != nil {
+		logger.Errorf("RequestID[%s]:Failed to initialize RAG flow MCP client: %v ", utils.GetRequestID(ctx), err)
 		return nil, fmt.Errorf("failed to create ragflow mcp client: %w", err)
 	}
 	return mcpClient, mcpClient.Start(ctx)
@@ -91,6 +94,7 @@ func (s *ChatService) CreateConversation(ctx context.Context, userID uint, title
 	}
 
 	if err := s.db.WithContext(ctx).Create(conv).Error; err != nil {
+		logger.Errorf("RequestID[%s]:Failed to create conversation: %v", utils.GetRequestID(ctx), err)
 		return nil, err
 	}
 
@@ -114,6 +118,7 @@ func (s *ChatService) ListConversations(ctx context.Context, userID uint, page, 
 	if err := s.db.WithContext(ctx).Model(&models.Conversation{}).
 		Where("user_id = ?", userID).
 		Count(&total).Error; err != nil {
+		logger.Errorf("RequestID[%s]:Failed to list conversations: %v", utils.GetRequestID(ctx), err)
 		return nil, 0, err
 	}
 
@@ -123,6 +128,7 @@ func (s *ChatService) ListConversations(ctx context.Context, userID uint, page, 
 		Limit(pageSize).
 		Offset(offset).
 		Find(&conversations).Error; err != nil {
+		logger.Errorf("RequestID[%s]: Failed to list conversations: %v", utils.GetRequestID(ctx), err)
 		return nil, 0, err
 	}
 
@@ -135,6 +141,7 @@ func (s *ChatService) GetConversation(ctx context.Context, userID, conversationI
 	if err := s.db.WithContext(ctx).
 		Where("id = ? AND user_id = ?", conversationID, userID).
 		First(&conv).Error; err != nil {
+		logger.Errorf("RequestID[%s]: Failed to get conversation: %v", utils.GetRequestID(ctx), err)
 		return nil, err
 	}
 	return &conv, nil
@@ -147,10 +154,12 @@ func (s *ChatService) DeleteConversation(ctx context.Context, userID, conversati
 		Delete(&models.Conversation{})
 
 	if result.Error != nil {
+		logger.Errorf("RequestID[%s]: Failed to delete conversation: %v", utils.GetRequestID(ctx), result.Error)
 		return result.Error
 	}
 
 	if result.RowsAffected == 0 {
+		logger.Warnf("RequestID[%s]: Conversation not found for deletion: conversationID=%d, userID=%d", utils.GetRequestID(ctx), conversationID, userID)
 		return errors.New("conversation not found")
 	}
 
@@ -165,10 +174,12 @@ func (s *ChatService) UpdateConversation(ctx context.Context, userID, conversati
 		Update("title", title)
 
 	if result.Error != nil {
+		logger.Errorf("RequestID[%s]: Failed to update conversation: %v", utils.GetRequestID(ctx), result.Error)
 		return result.Error
 	}
 
 	if result.RowsAffected == 0 {
+		logger.Warnf("RequestID[%s]: Conversation not found for update: conversationID=%d, userID=%d", utils.GetRequestID(ctx), conversationID, userID)
 		return errors.New("conversation not found")
 	}
 
@@ -182,6 +193,7 @@ func (s *ChatService) GetMessages(ctx context.Context, userID, conversationID ui
 	if err := s.db.WithContext(ctx).
 		Where("id = ? AND user_id = ?", conversationID, userID).
 		First(&conv).Error; err != nil {
+		logger.Errorf("RequestID[%s]: Failed to get conversation from database: %v", utils.GetRequestID(ctx), err)
 		return nil, err
 	}
 
@@ -190,15 +202,16 @@ func (s *ChatService) GetMessages(ctx context.Context, userID, conversationID ui
 	if cachedData, err := cache.GlobalCache.Get(ctx, cacheKey); err == nil && cachedData != "" {
 		var messages []*schema.Message
 		if err := json.Unmarshal([]byte(cachedData), &messages); err == nil {
+			logger.Errorf("RequestID[%s]: Failed to Unmarshal cached data: %v", utils.GetRequestID(ctx), err)
 			return messages, nil
 		}
-		logger.Warnf("Failed to unmarshal cached messages for conversation %d: %v", conversationID, err)
 	}
 
 	// 从数据库加载
 	messages := []*schema.Message{}
 	if len(conv.Messages) > 0 {
 		if err := json.Unmarshal(conv.Messages, &messages); err != nil {
+			logger.Errorf("RequestID[%s]: Failed to unmarshal messages: %v", utils.GetRequestID(ctx), err)
 			return nil, fmt.Errorf("failed to unmarshal messages: %w", err)
 		}
 	}
@@ -206,7 +219,11 @@ func (s *ChatService) GetMessages(ctx context.Context, userID, conversationID ui
 	// 更新缓存
 	if data, err := json.Marshal(messages); err == nil {
 		expiration := 30 * time.Minute
-		cache.GlobalCache.Set(ctx, cacheKey, string(data), &expiration)
+		err := cache.GlobalCache.Set(ctx, cacheKey, string(data), &expiration)
+		if err != nil {
+			logger.Errorf("RequestID[%s]: Failed to set messages cache: %v", utils.GetRequestID(ctx), err)
+			return nil, err
+		}
 	}
 
 	return messages, nil
@@ -216,6 +233,7 @@ func (s *ChatService) GetMessages(ctx context.Context, userID, conversationID ui
 func (s *ChatService) SaveMessages(ctx context.Context, userID, conversationID uint, messages []*schema.Message) error {
 	messagesJSON, err := json.Marshal(messages)
 	if err != nil {
+		logger.Errorf("RequestID[%s]: Failed to marshal messages: %v", utils.GetRequestID(ctx), err)
 		return fmt.Errorf("failed to marshal messages: %w", err)
 	}
 
@@ -228,13 +246,18 @@ func (s *ChatService) SaveMessages(ctx context.Context, userID, conversationID u
 			"last_message_at": now,
 			"updated_at":      now,
 		}).Error; err != nil {
+		logger.Errorf("RequestID[%s]: Failed to update messages in database: %v", utils.GetRequestID(ctx), err)
 		return err
 	}
 
 	// 更新缓存
 	cacheKey := fmt.Sprintf(constant.CacheKeyConversationMessages, userID, conversationID)
 	expiration := 30 * time.Minute
-	cache.GlobalCache.Set(ctx, cacheKey, string(messagesJSON), &expiration)
+	err = cache.GlobalCache.Set(ctx, cacheKey, string(messagesJSON), &expiration)
+	if err != nil {
+		logger.Errorf("RequestID[%s]: Failed to set messages cache: %v", utils.GetRequestID(ctx), err)
+		return err
+	}
 
 	return nil
 }
@@ -251,17 +274,18 @@ func (s *ChatService) prepareUserMcpClient(ctx context.Context, userID uint, use
 		transport.WithHTTPBasicClient(s.httpClient))
 	if err != nil {
 		msg := fmt.Sprintf("failed to create user mcp client: %v", err)
-		logger.Errorf("%s userID:%d", msg, userID)
+		logger.Errorf("RequestID[%s]: %s userID:%d", utils.GetRequestID(ctx), msg, userID)
 		return nil, errors.New(msg)
 	}
 	if err := yqlxMcpClient.Start(ctx); err != nil {
-		logger.Errorf("failed to start yqlx mcp client: %v userID:%d", err, userID)
+		logger.Errorf("RequestID[%s]: failed to start yqlx mcp client: %v userID:%d", utils.GetRequestID(ctx), err, userID)
 		return nil, err
 	}
 	// 初始化 RAGFlow MCP 工具
 	// todo: sessionId 应该是每个用户唯一的，可以用 userID 或者其他方式生成
 	ragMcpClient, err := s.initRAGFlowMCP(ctx)
 	if err != nil {
+		logger.Errorf("RequestID[%s]: failed to init ragflow mcp client: %v userID:%d", utils.GetRequestID(ctx), err, userID)
 		return nil, fmt.Errorf("failed to init ragflow mcp: %w", err)
 	}
 	m := map[string]*client.Client{
@@ -269,10 +293,6 @@ func (s *ChatService) prepareUserMcpClient(ctx context.Context, userID uint, use
 		"ragflow": ragMcpClient,
 	}
 
-	if err := yqlxMcpClient.Start(ctx); err != nil {
-		logger.Errorf("failed to start yqlx mcp client: %v userID:%d", err, userID)
-		return nil, err
-	}
 	s.userClientsMu.Lock()
 	s.userClients[userID] = m
 	s.userClientsMu.Unlock()
@@ -284,12 +304,14 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 	// 验证对话属于用户
 	conv, err := s.GetConversation(ctx, userID, conversationID)
 	if err != nil {
+		logger.Errorf("RequestID[%s]: Failed to get conversation: %v", utils.GetRequestID(ctx), err)
 		return nil, nil, fmt.Errorf("failed to get conversation: %w", err)
 	}
 
 	// 获取完整的会话消息（使用缓存，不存在则从数据库构建）
 	messages, err := s.GetMessages(ctx, userID, conversationID)
 	if err != nil {
+		logger.Errorf("RequestID[%s]: Failed to get messages: %v", utils.GetRequestID(ctx), err)
 		return nil, nil, fmt.Errorf("failed to get messages: %w", err)
 	}
 
@@ -308,6 +330,7 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 	for _, client := range mcpClients {
 		tools, err := einomcp.GetTools(ctx, &einomcp.Config{Cli: client})
 		if err != nil {
+			logger.Errorf("RequestID[%s]: Failed to get tools from mcp client: %v", utils.GetRequestID(ctx), err)
 			return nil, nil, fmt.Errorf("failed to get tools from mcp client: %w", err)
 		}
 		einoTools = append(einoTools, tools...)
@@ -336,6 +359,7 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 			BaseURL:    s.cfg.LLM.BaseURL,
 		})
 		if err != nil {
+			logger.Errorf("RequestID[%s]: Failed to create chat model: %v", utils.GetRequestID(ctx), err)
 			return nil, nil, fmt.Errorf("failed to create chat model: %w", err)
 		}
 		chatModel = model
@@ -344,6 +368,7 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 	// 创建流式请求
 	sr, err := chatModel.Stream(ctx, prompts)
 	if err != nil {
+		logger.Errorf("RequestID[%s]: Failed to create chat stream: %v", utils.GetRequestID(ctx), err)
 		return nil, nil, fmt.Errorf("failed to create chat stream: %w", err)
 	}
 
@@ -377,7 +402,7 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 				if err == io.EOF {
 					break
 				}
-				logger.Errorf("stream recv error: %v", err)
+				logger.Errorf("RequestID[%s]: Error receiving chat stream message: %v", utils.GetRequestID(ctx), err)
 				errChan <- err
 				return
 			}
@@ -448,7 +473,7 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 
 		// 保存更新后的消息列表到数据库和缓存
 		if err := s.SaveMessages(ctx, userID, conv.ID, messages); err != nil {
-			logger.Errorf("Failed to save messages: %v", err)
+			logger.Errorf("RequestID[%s]: Failed to save messages: %v", utils.GetRequestID(ctx), err)
 		}
 
 		// 发送结束事件

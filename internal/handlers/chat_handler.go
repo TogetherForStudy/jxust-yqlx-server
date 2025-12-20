@@ -8,6 +8,8 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 	"github.com/cloudwego/eino/schema"
 	"github.com/gin-gonic/gin"
 )
@@ -33,6 +35,7 @@ func (h *ChatHandler) CreateConversation(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	conv, err := h.service.CreateConversation(c.Request.Context(), userID, req.Title)
 	if err != nil {
+		logger.Errorf("RequestID[%s]: Failed to create conversation: %v", utils.GetRequestID(c), err)
 		helper.ErrorResponse(c, http.StatusInternalServerError, "Failed to create conversation")
 		return
 	}
@@ -64,6 +67,7 @@ func (h *ChatHandler) ListConversations(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	conversations, total, err := h.service.ListConversations(c.Request.Context(), userID, req.Page, req.PageSize)
 	if err != nil {
+		logger.Errorf("RequestID[%s]: Failed to list conversations: %v", utils.GetRequestID(c), err)
 		helper.ErrorResponse(c, http.StatusInternalServerError, "Failed to list conversations")
 		return
 	}
@@ -97,6 +101,7 @@ func (h *ChatHandler) DeleteConversation(c *gin.Context) {
 
 	userID := helper.GetUserID(c)
 	if err := h.service.DeleteConversation(c.Request.Context(), userID, uint(conversationID)); err != nil {
+		logger.Errorf("RequestID[%s]: Failed to delete conversation: %v", utils.GetRequestID(c), err)
 		helper.ErrorResponse(c, http.StatusInternalServerError, "Failed to delete conversation")
 		return
 	}
@@ -120,6 +125,7 @@ func (h *ChatHandler) UpdateConversation(c *gin.Context) {
 
 	userID := helper.GetUserID(c)
 	if err := h.service.UpdateConversation(c.Request.Context(), userID, uint(conversationID), req.Title); err != nil {
+		logger.Errorf("RequestID[%s]: Failed to update conversation: %v", utils.GetRequestID(c), err)
 		helper.ErrorResponse(c, http.StatusInternalServerError, "Failed to update conversation")
 		return
 	}
@@ -138,6 +144,7 @@ func (h *ChatHandler) ChooseConversation(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	messages, err := h.service.GetMessages(c.Request.Context(), userID, uint(conversationID))
 	if err != nil {
+		logger.Errorf("RequestID[%s]: Failed to get conversation messages: %v", utils.GetRequestID(c), err)
 		helper.ErrorResponse(c, http.StatusInternalServerError, "Failed to get conversation messages")
 		return
 	}
@@ -164,6 +171,7 @@ func (h *ChatHandler) ExportConversation(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	conv, messages, err := h.service.ExportConversation(c.Request.Context(), userID, uint(conversationID))
 	if err != nil {
+		logger.Errorf("RequestID[%s]: Failed to export conversation: %v", utils.GetRequestID(c), err)
 		helper.ErrorResponse(c, http.StatusInternalServerError, "Failed to export conversation")
 		return
 	}
@@ -192,6 +200,7 @@ func (h *ChatHandler) StreamConversation(c *gin.Context) {
 
 	outputChan, errChan, err := h.service.StreamChat(c.Request.Context(), userID, req.ConversationID, &req.Message, helper.GetAuthorizationToken(c))
 	if err != nil {
+		logger.Errorf("RequestID[%s]: Failed to stream conversation: %v", utils.GetRequestID(c), err)
 		helper.ErrorResponse(c, http.StatusInternalServerError, "Failed to stream conversation")
 		return
 	}
