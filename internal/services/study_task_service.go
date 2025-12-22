@@ -93,9 +93,9 @@ func (s *StudyTaskService) GetStudyTasks(ctx context.Context, userID uint, req *
 		return nil, err
 	}
 
-	// 分页查询
+	// 分页查询：优先级（高→低）、截止日期（近→远）、更新时间（近→远）
 	offset := (req.Page - 1) * req.Size
-	if err := query.Order("due_date ASC, created_at DESC").
+	if err := query.Order("priority ASC, due_date ASC, updated_at DESC, created_at DESC").
 		Offset(offset).
 		Limit(req.Size).
 		Find(&tasks).Error; err != nil {
