@@ -14,6 +14,8 @@ type QuestionProjectResponse struct {
 	Sort          int       `json:"sort"`
 	IsActive      bool      `json:"is_active"`
 	QuestionCount int64     `json:"question_count"` // 题目总数
+	UserCount     int64     `json:"user_count"`     // 使用过该项目的用户数
+	UsageCount    int64     `json:"usage_count"`    // 项目内题目总刷题次数（学习+练习）
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }
@@ -39,7 +41,7 @@ type QuestionResponse struct {
 }
 
 // ToQuestionProjectResponse 转换为项目响应
-func ToQuestionProjectResponse(project *models.QuestionProject, questionCount int64) QuestionProjectResponse {
+func ToQuestionProjectResponse(project *models.QuestionProject, questionCount int64, userCount, usageCount int64) QuestionProjectResponse {
 	return QuestionProjectResponse{
 		ID:            project.ID,
 		Name:          project.Name,
@@ -47,6 +49,8 @@ func ToQuestionProjectResponse(project *models.QuestionProject, questionCount in
 		Sort:          project.Sort,
 		IsActive:      project.IsActive,
 		QuestionCount: questionCount,
+		UserCount:     userCount,
+		UsageCount:    usageCount,
 		CreatedAt:     project.CreatedAt,
 		UpdatedAt:     project.UpdatedAt,
 	}

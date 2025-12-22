@@ -45,13 +45,35 @@ func (s *QuestionService) GetProjects(userID uint) ([]response.QuestionProjectRe
 
 	var result []response.QuestionProjectResponse
 	for _, project := range projects {
-		// 获取题目数量
-		var questionCount int64
-		s.db.Model(&models.Question{}).
+		// 获取项目下所有启用题目的 ID（用于统计数量和刷题次数）
+		var questionIDs []uint
+		if err := s.db.Model(&models.Question{}).
 			Where("project_id = ? AND is_active = ? AND type != 0", project.ID, true).
-			Count(&questionCount)
+			Pluck("id", &questionIDs).Error; err != nil {
+			return nil, err
+		}
 
-		result = append(result, response.ToQuestionProjectResponse(&project, questionCount))
+		// 题目数量
+		questionCount := int64(len(questionIDs))
+
+		// 获取使用过该项目的用户数量
+		var userCount int64
+		s.db.Model(&models.UserProjectUsage{}).
+			Where("project_id = ?", project.ID).
+			Count(&userCount)
+
+		// 统计项目内题目总刷题次数（学习+练习）
+		var usageCount int64
+		if len(questionIDs) > 0 {
+			if err := s.db.Model(&models.UserQuestionUsage{}).
+				Where("question_id IN ?", questionIDs).
+				Select("COALESCE(SUM(study_count + practice_count), 0)").
+				Scan(&usageCount).Error; err != nil {
+				return nil, err
+			}
+		}
+
+		result = append(result, response.ToQuestionProjectResponse(&project, questionCount, userCount, usageCount))
 	}
 
 	return result, nil
