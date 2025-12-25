@@ -49,6 +49,10 @@ func NewDatabase(cfg *config.Config) (*gorm.DB, error) {
 func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&models.User{},
+		&models.Role{},
+		&models.Permission{},
+		&models.UserRole{},
+		&models.RolePermission{},
 		&models.TeacherReview{},
 		&models.CourseTable{},
 		&models.ScheduleUser{},

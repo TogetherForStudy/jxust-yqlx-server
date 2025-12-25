@@ -6,6 +6,7 @@ import (
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
 	json "github.com/bytedance/sonic"
 	"gorm.io/datatypes"
@@ -242,8 +243,11 @@ func (s *CourseTableService) UpdateUserClass(ctx context.Context, userID uint, c
 			hasRecord = true
 		}
 
-		// 普通用户限制2次绑定（基于 bind_count）
-		if user.Role == models.UserRoleNormal {
+		// 检查是否有全量班级更新权限，若无则执行绑定次数限制
+		isPrivileged := utils.HasPermission(ctx, models.PermissionCourseTableClassUpdateAll)
+
+		// 普通权限用户限制2次绑定（基于 bind_count）
+		if !isPrivileged {
 			bindCount := 0
 			if hasRecord {
 				bindCount = br.BindCount

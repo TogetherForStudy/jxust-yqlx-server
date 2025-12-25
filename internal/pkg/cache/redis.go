@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/redis"
@@ -63,6 +64,26 @@ func (r *redisCache) Unlock(ctx context.Context, key string) error {
 
 func (r *redisCache) SetNX(ctx context.Context, key string, value string, expiration time.Duration) (bool, error) {
 	return r.cli.GetRedisCli().SetNX(ctx, key, value, expiration).Result()
+}
+
+func (r *redisCache) SAdd(ctx context.Context, key string, members ...interface{}) (int64, error) {
+	return r.cli.GetRedisCli().SAdd(ctx, key, members...).Result()
+}
+
+func (r *redisCache) SCard(ctx context.Context, key string) (int64, error) {
+	return r.cli.GetRedisCli().SCard(ctx, key).Result()
+}
+
+func (r *redisCache) GetInt(ctx context.Context, key string) (int64, error) {
+	val, err := r.cli.GetRedisCli().Get(ctx, key).Result()
+	if err != nil {
+		return 0, err
+	}
+	result, err := strconv.ParseInt(val, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	return result, nil
 }
 
 func (r *redisCache) Close() error {

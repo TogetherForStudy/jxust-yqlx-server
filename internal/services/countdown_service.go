@@ -54,7 +54,7 @@ func (s *CountdownService) CreateCountdown(ctx context.Context, userID uint, req
 }
 
 // GetCountdowns 获取用户倒数日列表
-func (s *CountdownService) GetCountdowns(ctx context.Context, userID uint, userRole models.UserRole) ([]response.CountdownResponse, error) {
+func (s *CountdownService) GetCountdowns(ctx context.Context, userID uint) ([]response.CountdownResponse, error) {
 	var countdowns []models.Countdown
 
 	// 构建查询

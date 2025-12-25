@@ -6,7 +6,6 @@ import (
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
-	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -44,9 +43,8 @@ func (h *CountdownHandler) CreateCountdown(c *gin.Context) {
 // GetCountdowns 获取用户倒数日列表
 func (h *CountdownHandler) GetCountdowns(c *gin.Context) {
 	userID := helper.GetUserID(c)
-	userRole := helper.GetUserRole(c)
 
-	result, err := h.countdownService.GetCountdowns(c, userID, models.UserRole(userRole))
+	result, err := h.countdownService.GetCountdowns(c, userID)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return

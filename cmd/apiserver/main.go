@@ -2,13 +2,16 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/database"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/redis"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/router"
@@ -18,6 +21,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"gorm.io/gorm"
 )
 
 func main() {
@@ -42,6 +46,10 @@ func main() {
 
 	// 初始化Redis和缓存
 	initRedisCache(cfg)
+	// 初始化项目相关的Redis数据
+	if cache.GlobalCache != nil {
+		initProjectRedisData(db)
+	}
 	// 初始化并启动定时任务调度器
 	taskScheduler := scheduler.NewScheduler(db)
 	if err := taskScheduler.Start(); err != nil {
@@ -111,4 +119,76 @@ func initRedisCache(cfg *config.Config) {
 	// 初始化缓存
 	cache.NewRedisCache(redisCli)
 	logger.Infof("Redis cache initialized successfully, idempotency feature enabled")
+}
+
+// initProjectRedisData 初始化项目相关的Redis数据
+func initProjectRedisData(db *gorm.DB) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if cache.GlobalCache == nil {
+		return
+	}
+
+	logger.Info("Initializing project Redis data...")
+
+	// 获取所有项目
+	var projects []models.QuestionProject
+	if err := db.Where("is_active = ?", true).Select("id").Find(&projects).Error; err != nil {
+		logger.Warnf("Failed to load projects: %v", err)
+		return
+	}
+
+	// 初始化每个项目的用户集合和刷题次数
+	for _, project := range projects {
+		projectID := project.ID
+		userSetKey := fmt.Sprintf("project:users:%d", projectID)
+		usageKey := fmt.Sprintf("project:usage:%d", projectID)
+
+		// 加载用户集合
+		var userIDs []uint
+		if err := db.Model(&models.UserProjectUsage{}).
+			Where("project_id = ?", projectID).
+			Pluck("user_id", &userIDs).Error; err == nil {
+			if len(userIDs) > 0 {
+				// 清空现有集合（如果存在）
+				_ = cache.GlobalCache.Delete(ctx, userSetKey)
+				// 添加所有用户ID到集合
+				members := make([]interface{}, len(userIDs))
+				for i, id := range userIDs {
+					members[i] = strconv.FormatUint(uint64(id), 10)
+				}
+				if _, err := cache.GlobalCache.SAdd(ctx, userSetKey, members...); err != nil {
+					logger.Warnf("Failed to initialize user set for project %d: %v", projectID, err)
+				}
+			}
+		} else {
+			logger.Warnf("Failed to load users for project %d: %v", projectID, err)
+		}
+
+		// 加载刷题次数
+		var questionIDs []uint
+		if err := db.Model(&models.Question{}).
+			Where("project_id = ? AND is_active = ?", projectID, true).
+			Pluck("id", &questionIDs).Error; err == nil {
+			if len(questionIDs) > 0 {
+				var usageCount int64
+				if err := db.Model(&models.UserQuestionUsage{}).
+					Where("question_id IN ?", questionIDs).
+					Select("COALESCE(SUM(study_count + practice_count), 0)").
+					Scan(&usageCount).Error; err == nil {
+					// 设置Redis中的刷题次数
+					if err := cache.GlobalCache.Set(ctx, usageKey, strconv.FormatInt(usageCount, 10), nil); err != nil {
+						logger.Warnf("Failed to initialize usage count for project %d: %v", projectID, err)
+					}
+				} else {
+					logger.Warnf("Failed to calculate usage count for project %d: %v", projectID, err)
+				}
+			}
+		} else {
+			logger.Warnf("Failed to load questions for project %d: %v", projectID, err)
+		}
+	}
+
+	logger.Info("Project Redis data initialization completed")
 }

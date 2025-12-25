@@ -24,6 +24,14 @@ type Cache interface {
 	// SetNX 仅当key不存在时设置值
 	SetNX(ctx context.Context, key string, value string, expiration time.Duration) (bool, error)
 
+	// Set 操作
+	// SAdd 向集合中添加成员
+	SAdd(ctx context.Context, key string, members ...interface{}) (int64, error)
+	// SCard 获取集合的成员数量
+	SCard(ctx context.Context, key string) (int64, error)
+	// GetInt 获取整数值（用于计数器）
+	GetInt(ctx context.Context, key string) (int64, error)
+
 	Close() error
 }
 

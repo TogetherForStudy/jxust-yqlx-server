@@ -1,13 +1,16 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
 
 	"gorm.io/gorm"
 )
@@ -56,20 +59,52 @@ func (s *QuestionService) GetProjects(userID uint) ([]response.QuestionProjectRe
 		// 题目数量
 		questionCount := int64(len(questionIDs))
 
-		// 获取使用过该项目的用户数量
+		// 从 Redis 获取使用过该项目的用户数量
+		ctx := context.Background()
 		var userCount int64
-		s.db.Model(&models.UserProjectUsage{}).
-			Where("project_id = ?", project.ID).
-			Count(&userCount)
+		if cache.GlobalCache != nil {
+			userSetKey := fmt.Sprintf("project:users:%d", project.ID)
+			var err error
+			userCount, err = cache.GlobalCache.SCard(ctx, userSetKey)
+			if err != nil {
+				// 如果 Redis 查询失败，回退到数据库查询
+				s.db.Model(&models.UserProjectUsage{}).
+					Where("project_id = ?", project.ID).
+					Count(&userCount)
+			}
+		} else {
+			// 如果 Redis 未初始化，使用数据库查询
+			s.db.Model(&models.UserProjectUsage{}).
+				Where("project_id = ?", project.ID).
+				Count(&userCount)
+		}
 
-		// 统计项目内题目总刷题次数（学习+练习）
+		// 从 Redis 获取项目内题目总刷题次数（学习+练习）
 		var usageCount int64
-		if len(questionIDs) > 0 {
-			if err := s.db.Model(&models.UserQuestionUsage{}).
-				Where("question_id IN ?", questionIDs).
-				Select("COALESCE(SUM(study_count + practice_count), 0)").
-				Scan(&usageCount).Error; err != nil {
-				return nil, err
+		if cache.GlobalCache != nil {
+			usageKey := fmt.Sprintf("project:usage:%d", project.ID)
+			var err error
+			usageCount, err = cache.GlobalCache.GetInt(ctx, usageKey)
+			if err != nil {
+				// 如果 Redis 查询失败，回退到数据库查询
+				if len(questionIDs) > 0 {
+					if err := s.db.Model(&models.UserQuestionUsage{}).
+						Where("question_id IN ?", questionIDs).
+						Select("COALESCE(SUM(study_count + practice_count), 0)").
+						Scan(&usageCount).Error; err != nil {
+						return nil, err
+					}
+				}
+			}
+		} else {
+			// 如果 Redis 未初始化，使用数据库查询
+			if len(questionIDs) > 0 {
+				if err := s.db.Model(&models.UserQuestionUsage{}).
+					Where("question_id IN ?", questionIDs).
+					Select("COALESCE(SUM(study_count + practice_count), 0)").
+					Scan(&usageCount).Error; err != nil {
+					return nil, err
+				}
 			}
 		}
 
@@ -205,7 +240,7 @@ func (s *QuestionService) GetQuestionByID(userID, questionID uint) (*response.Qu
 // RecordStudy 记录学习（仅记录学习次数）
 func (s *QuestionService) RecordStudy(userID uint, req *request.RecordStudyRequest) error {
 	// 验证题目存在
-	_, err := s.getQuestionByID(req.QuestionID)
+	question, err := s.getQuestionByID(req.QuestionID)
 	if err != nil {
 		return fmt.Errorf("题目不存在")
 	}
@@ -226,21 +261,34 @@ func (s *QuestionService) RecordStudy(userID uint, req *request.RecordStudyReque
 			CreatedAt:     now,
 			UpdatedAt:     now,
 		}
-		return s.db.Create(&usage).Error
+		if err := s.db.Create(&usage).Error; err != nil {
+			return err
+		}
+	} else {
+		// 更新记录
+		if err := s.db.Model(&existingUsage).Updates(map[string]interface{}{
+			"study_count":     gorm.Expr("study_count + ?", 1),
+			"last_studied_at": now,
+			"updated_at":      now,
+		}).Error; err != nil {
+			return err
+		}
 	}
 
-	// 更新记录
-	return s.db.Model(&existingUsage).Updates(map[string]interface{}{
-		"study_count":     gorm.Expr("study_count + ?", 1),
-		"last_studied_at": now,
-		"updated_at":      now,
-	}).Error
+	// 更新 Redis 中的项目刷题次数
+	ctx := context.Background()
+	usageKey := fmt.Sprintf("project:usage:%d", question.ProjectID)
+	if cache.GlobalCache != nil {
+		_, _ = cache.GlobalCache.Incr(ctx, usageKey)
+	}
+
+	return nil
 }
 
 // SubmitPractice 提交做题（仅记录做题次数）
 func (s *QuestionService) SubmitPractice(userID uint, req *request.SubmitPracticeRequest) error {
 	// 验证题目存在
-	_, err := s.getQuestionByID(req.QuestionID)
+	question, err := s.getQuestionByID(req.QuestionID)
 	if err != nil {
 		return fmt.Errorf("题目不存在")
 	}
@@ -261,15 +309,28 @@ func (s *QuestionService) SubmitPractice(userID uint, req *request.SubmitPractic
 			CreatedAt:       now,
 			UpdatedAt:       now,
 		}
-		return s.db.Create(&usage).Error
+		if err := s.db.Create(&usage).Error; err != nil {
+			return err
+		}
+	} else {
+		// 更新记录
+		if err := s.db.Model(&existingUsage).Updates(map[string]interface{}{
+			"practice_count":    gorm.Expr("practice_count + ?", 1),
+			"last_practiced_at": now,
+			"updated_at":        now,
+		}).Error; err != nil {
+			return err
+		}
 	}
 
-	// 更新记录
-	return s.db.Model(&existingUsage).Updates(map[string]interface{}{
-		"practice_count":    gorm.Expr("practice_count + ?", 1),
-		"last_practiced_at": now,
-		"updated_at":        now,
-	}).Error
+	// 更新 Redis 中的项目刷题次数
+	ctx := context.Background()
+	usageKey := fmt.Sprintf("project:usage:%d", question.ProjectID)
+	if cache.GlobalCache != nil {
+		_, _ = cache.GlobalCache.Incr(ctx, usageKey)
+	}
+
+	return nil
 }
 
 // ===================== 辅助函数 =====================
@@ -292,15 +353,28 @@ func (s *QuestionService) updateProjectUsage(userID, projectID uint) error {
 			CreatedAt:  now,
 			UpdatedAt:  now,
 		}
-		return s.db.Create(&usage).Error
+		if err := s.db.Create(&usage).Error; err != nil {
+			return err
+		}
 	} else if err != nil {
 		return err
+	} else {
+		// 更新记录
+		if err := s.db.Model(&usage).Updates(map[string]interface{}{
+			"usage_count":  gorm.Expr("usage_count + ?", 1),
+			"last_used_at": now,
+			"updated_at":   now,
+		}).Error; err != nil {
+			return err
+		}
 	}
 
-	// 更新记录
-	return s.db.Model(&usage).Updates(map[string]interface{}{
-		"usage_count":  gorm.Expr("usage_count + ?", 1),
-		"last_used_at": now,
-		"updated_at":   now,
-	}).Error
+	// 更新 Redis 中的用户集合
+	ctx := context.Background()
+	userSetKey := fmt.Sprintf("project:users:%d", projectID)
+	if cache.GlobalCache != nil {
+		_, _ = cache.GlobalCache.SAdd(ctx, userSetKey, strconv.FormatUint(uint64(userID), 10))
+	}
+
+	return nil
 }

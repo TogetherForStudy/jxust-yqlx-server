@@ -21,20 +21,12 @@ type User struct {
 	College   string         `json:"college" gorm:"type:varchar(50);comment:学院"`
 	Major     string         `json:"major" gorm:"type:varchar(50);comment:专业"`
 	ClassID   string         `json:"class_id" gorm:"type:varchar(256);comment:班级标识"`
-	Role      UserRole       `json:"role" gorm:"type:tinyint;default:1;comment:用户角色：1=普通用户，2=管理员"`
 	Status    UserStatus     `json:"status" gorm:"type:tinyint;default:1;comment:用户状态：1=正常，2=禁用"`
 	Points    uint           `json:"points" gorm:"type:int unsigned;default:0;comment:积分"`
 	CreatedAt time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
 	UpdatedAt time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"comment:软删除时间"`
 }
-type UserRole int8
-
-const (
-	UserRoleNormal   UserRole = 1 // 普通用户
-	UserRoleAdmin    UserRole = 2 // 管理员
-	UserRoleOperator UserRole = 3 // 运营人员
-)
 
 type UserStatus int8
 
@@ -421,22 +413,22 @@ type QuestionProject struct {
 
 // Question 题目
 type Question struct {
-	ID          uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:题目ID"`
-	ProjectID   uint           `json:"project_id" gorm:"not null;index:idx_project_question;comment:项目ID"`
-	ParentID    *uint          `json:"parent_id" gorm:"type:int unsigned;index:idx_parent_question;comment:父题目ID（用于题目分组，null表示主题或独立题）"`
-	Type        QuestionType   `json:"type" gorm:"type:tinyint;not null;comment:题目类型：1=选择题，2=简答题"`
-	Title       string         `json:"title" gorm:"type:text;not null;comment:题目标题"`
-	Options     datatypes.JSON `json:"options" gorm:"type:json;comment:选项（JSON数组，仅选择题使用）"`
-	Answer      string         `json:"answer" gorm:"type:text;not null;comment:答案"`
-	Sort        int            `json:"sort" gorm:"type:int;default:0;comment:排序"`
-	IsActive    bool           `json:"is_active" gorm:"type:tinyint(1);default:1;comment:是否启用"`
-	CreatedAt   time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
-	UpdatedAt   time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
-	DeletedAt   gorm.DeletedAt `json:"deleted_at" gorm:"type:datetime;index;comment:删除时间"`
+	ID        uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:题目ID"`
+	ProjectID uint           `json:"project_id" gorm:"not null;index:idx_project_question;comment:项目ID"`
+	ParentID  *uint          `json:"parent_id" gorm:"type:int unsigned;index:idx_parent_question;comment:父题目ID（用于题目分组，null表示主题或独立题）"`
+	Type      QuestionType   `json:"type" gorm:"type:tinyint;not null;comment:题目类型：1=选择题，2=简答题"`
+	Title     string         `json:"title" gorm:"type:text;not null;comment:题目标题"`
+	Options   datatypes.JSON `json:"options" gorm:"type:json;comment:选项（JSON数组，仅选择题使用）"`
+	Answer    string         `json:"answer" gorm:"type:text;not null;comment:答案"`
+	Sort      int            `json:"sort" gorm:"type:int;default:0;comment:排序"`
+	IsActive  bool           `json:"is_active" gorm:"type:tinyint(1);default:1;comment:是否启用"`
+	CreatedAt time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
+	UpdatedAt time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
+	DeletedAt gorm.DeletedAt `json:"deleted_at" gorm:"type:datetime;index;comment:删除时间"`
 	// 关联
-	Project    *QuestionProject `json:"project,omitempty" gorm:"foreignKey:ProjectID;references:ID;constraint:-"`
-	Parent     *Question        `json:"parent,omitempty" gorm:"foreignKey:ParentID;references:ID;constraint:-"`
-	SubQuestions []Question     `json:"sub_questions,omitempty" gorm:"foreignKey:ParentID;references:ID;constraint:-"`
+	Project      *QuestionProject `json:"project,omitempty" gorm:"foreignKey:ProjectID;references:ID;constraint:-"`
+	Parent       *Question        `json:"parent,omitempty" gorm:"foreignKey:ParentID;references:ID;constraint:-"`
+	SubQuestions []Question       `json:"sub_questions,omitempty" gorm:"foreignKey:ParentID;references:ID;constraint:-"`
 }
 
 // QuestionType 题目类型
@@ -463,17 +455,16 @@ type UserProjectUsage struct {
 
 // UserQuestionUsage 用户对题目的使用记录
 type UserQuestionUsage struct {
-	ID          uint      `json:"id" gorm:"type:int unsigned;primaryKey;comment:记录ID"`
-	UserID      uint      `json:"user_id" gorm:"not null;uniqueIndex:idx_user_question_usage;comment:用户ID"`
-	QuestionID  uint      `json:"question_id" gorm:"not null;uniqueIndex:idx_user_question_usage;comment:题目ID"`
-	StudyCount  int       `json:"study_count" gorm:"type:int;default:0;comment:学习次数"`
-	PracticeCount int     `json:"practice_count" gorm:"type:int;default:0;comment:做题次数"`
-	LastStudiedAt *time.Time `json:"last_studied_at" gorm:"type:datetime;comment:最后学习时间"`
+	ID              uint       `json:"id" gorm:"type:int unsigned;primaryKey;comment:记录ID"`
+	UserID          uint       `json:"user_id" gorm:"not null;uniqueIndex:idx_user_question_usage;comment:用户ID"`
+	QuestionID      uint       `json:"question_id" gorm:"not null;uniqueIndex:idx_user_question_usage;comment:题目ID"`
+	StudyCount      int        `json:"study_count" gorm:"type:int;default:0;comment:学习次数"`
+	PracticeCount   int        `json:"practice_count" gorm:"type:int;default:0;comment:做题次数"`
+	LastStudiedAt   *time.Time `json:"last_studied_at" gorm:"type:datetime;comment:最后学习时间"`
 	LastPracticedAt *time.Time `json:"last_practiced_at" gorm:"type:datetime;comment:最后做题时间"`
-	CreatedAt   time.Time `json:"created_at" gorm:"type:datetime;comment:创建时间"`
-	UpdatedAt   time.Time `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
+	CreatedAt       time.Time  `json:"created_at" gorm:"type:datetime;comment:创建时间"`
+	UpdatedAt       time.Time  `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
 	// 关联
 	User     *User     `json:"user,omitempty" gorm:"foreignKey:UserID;references:ID;constraint:-"`
 	Question *Question `json:"question,omitempty" gorm:"foreignKey:QuestionID;references:ID;constraint:-"`
 }
-

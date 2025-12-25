@@ -8,23 +8,25 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
-
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 	json "github.com/bytedance/sonic"
 	"gorm.io/gorm"
 )
 
 type NotificationService struct {
-	db *gorm.DB
+	db          *gorm.DB
+	rbacService *RBACService
 }
 
-func NewNotificationService(db *gorm.DB) *NotificationService {
+func NewNotificationService(db *gorm.DB, rbacService *RBACService) *NotificationService {
 	return &NotificationService{
-		db: db,
+		db:          db,
+		rbacService: rbacService,
 	}
 }
 
 // CreateNotification 创建通知（管理员专用）
-func (s *NotificationService) CreateNotification(ctx context.Context, userID uint, userRole models.UserRole, req *request.CreateNotificationRequest) (*response.NotificationResponse, error) {
+func (s *NotificationService) CreateNotification(ctx context.Context, userID uint, req *request.CreateNotificationRequest) (*response.NotificationResponse, error) {
 
 	// 序列化分类
 	categoriesJSON, err := json.Marshal(req.Categories)
@@ -50,7 +52,7 @@ func (s *NotificationService) CreateNotification(ctx context.Context, userID uin
 }
 
 // UpdateNotification 更新通知
-func (s *NotificationService) UpdateNotification(ctx context.Context, notificationID uint, userID uint, userRole models.UserRole, req *request.UpdateNotificationRequest) (*response.NotificationResponse, error) {
+func (s *NotificationService) UpdateNotification(ctx context.Context, notificationID uint, userID uint, req *request.UpdateNotificationRequest) (*response.NotificationResponse, error) {
 	// 查找通知
 	var notification models.Notification
 	if err := s.db.WithContext(ctx).First(&notification, notificationID).Error; err != nil {
@@ -66,16 +68,11 @@ func (s *NotificationService) UpdateNotification(ctx context.Context, notificati
 	}
 
 	// 权限校验：管理员无限制，运营人员只能修改草稿状态且是自己创建的通知
-	if userRole == models.UserRoleOperator {
-		// 运营人员的限制
-		if notification.Status != models.NotificationStatusDraft {
-			return nil, errors.New("运营人员只能修改草稿状态的通知")
-		}
+	if !utils.IsAdmin(ctx) && !utils.HasUserRole(ctx, models.RoleTagOperator) {
 		if notification.PublisherID != userID {
-			return nil, errors.New("运营人员只能修改自己创建的通知")
+			return nil, errors.New("无权限修改")
 		}
 	}
-	// 管理员（UserRoleAdmin）无限制，不需要额外检查
 
 	// 更新字段
 	updates := make(map[string]interface{})
@@ -104,7 +101,7 @@ func (s *NotificationService) UpdateNotification(ctx context.Context, notificati
 }
 
 // PublishNotification 发布通知
-func (s *NotificationService) PublishNotification(ctx context.Context, notificationID uint, userID uint, userRole models.UserRole) error {
+func (s *NotificationService) PublishNotification(ctx context.Context, notificationID uint, userID uint) error {
 
 	// 查找通知
 	var notification models.Notification
@@ -130,7 +127,7 @@ func (s *NotificationService) PublishNotification(ctx context.Context, notificat
 }
 
 // PublishNotificationAdmin 管理员直接发布通知（跳过审核流程）
-func (s *NotificationService) PublishNotificationAdmin(ctx context.Context, notificationID uint, userID uint, userRole models.UserRole) error {
+func (s *NotificationService) PublishNotificationAdmin(ctx context.Context, notificationID uint, userID uint) error {
 
 	// 查找通知
 	var notification models.Notification
@@ -525,7 +522,7 @@ func (s *NotificationService) UpdateCategory(ctx context.Context, categoryID uin
 }
 
 // DeleteNotification 删除通知（软删除）
-func (s *NotificationService) DeleteNotification(ctx context.Context, notificationID uint, userID uint, userRole models.UserRole) error {
+func (s *NotificationService) DeleteNotification(ctx context.Context, notificationID uint, userID uint) error {
 
 	// 查找通知
 	var notification models.Notification
@@ -541,7 +538,7 @@ func (s *NotificationService) DeleteNotification(ctx context.Context, notificati
 }
 
 // ApproveNotification 审核通知
-func (s *NotificationService) ApproveNotification(ctx context.Context, notificationID uint, reviewerID uint, userRole models.UserRole, req *request.ApproveNotificationRequest) error {
+func (s *NotificationService) ApproveNotification(ctx context.Context, notificationID uint, reviewerID uint, req *request.ApproveNotificationRequest) error {
 	// 查找通知
 	var notification models.Notification
 	if err := s.db.WithContext(ctx).First(&notification, notificationID).Error; err != nil {
@@ -626,7 +623,12 @@ func (s *NotificationService) ApproveNotification(ctx context.Context, notificat
 // getAdminAndOperatorCount 获取管理员和运营人员总数
 func (s *NotificationService) getAdminAndOperatorCount(ctx context.Context) (int64, error) {
 	var count int64
-	err := s.db.WithContext(ctx).Model(&models.User{}).Where("role IN ?", []models.UserRole{models.UserRoleAdmin, models.UserRoleOperator}).Count(&count).Error
+	// 统计拥有管理员或运营角色的唯一用户数
+	err := s.db.WithContext(ctx).
+		Table("user_roles").
+		Where("role_id IN (?)", []int{4, 5}). // 根据RBAC系统角色ID调整此处
+		Select("COUNT(DISTINCT user_id)").
+		Count(&count).Error
 	return count, err
 }
 
@@ -718,8 +720,8 @@ func (s *NotificationService) generateApprovalSummary(ctx context.Context, notif
 
 	// 获取所有管理员和运营人员
 	var allReviewers []models.User
-	if err := s.db.WithContext(ctx).Where("role IN ?", []models.UserRole{models.UserRoleAdmin, models.UserRoleOperator}).
-		Find(&allReviewers).Error; err != nil {
+	allReviewers, err = s.rbacService.GetUsersByRoleTags(ctx, []string{models.RoleTagAdmin, models.RoleTagOperator})
+	if err != nil {
 		return nil, err
 	}
 
@@ -749,7 +751,7 @@ func (s *NotificationService) generateApprovalSummary(ctx context.Context, notif
 }
 
 // GetAdminNotifications 获取管理员通知列表（包括所有状态的通知）
-func (s *NotificationService) GetAdminNotifications(ctx context.Context, userRole models.UserRole, req *request.GetNotificationsRequest) (*response.PageResponse, error) {
+func (s *NotificationService) GetAdminNotifications(ctx context.Context, req *request.GetNotificationsRequest) (*response.PageResponse, error) {
 	var notifications []models.Notification
 	var total int64
 
@@ -920,7 +922,7 @@ func (s *NotificationService) getCategoriesByIDs(ctx context.Context, categoryID
 }
 
 // PinNotification 置顶通知（管理员专用）
-func (s *NotificationService) PinNotification(ctx context.Context, notificationID uint, userRole models.UserRole) error {
+func (s *NotificationService) PinNotification(ctx context.Context, notificationID uint) error {
 	// 查找通知
 	var notification models.Notification
 	if err := s.db.WithContext(ctx).First(&notification, notificationID).Error; err != nil {
@@ -950,7 +952,7 @@ func (s *NotificationService) PinNotification(ctx context.Context, notificationI
 }
 
 // UnpinNotification 取消置顶通知（管理员专用）
-func (s *NotificationService) UnpinNotification(ctx context.Context, notificationID uint, userRole models.UserRole) error {
+func (s *NotificationService) UnpinNotification(ctx context.Context, notificationID uint) error {
 	// 查找通知
 	var notification models.Notification
 	if err := s.db.WithContext(ctx).First(&notification, notificationID).Error; err != nil {

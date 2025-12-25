@@ -17,14 +17,16 @@ import (
 )
 
 type AuthService struct {
-	db  *gorm.DB
-	cfg *config.Config
+	db   *gorm.DB
+	cfg  *config.Config
+	rbac *RBACService // 仅用于 EnsureUserHasRoleByTag
 }
 
-func NewAuthService(db *gorm.DB, cfg *config.Config) *AuthService {
+func NewAuthService(db *gorm.DB, cfg *config.Config, rbac *RBACService) *AuthService {
 	return &AuthService{
-		db:  db,
-		cfg: cfg,
+		db:   db,
+		cfg:  cfg,
+		rbac: rbac,
 	}
 }
 
@@ -49,7 +51,6 @@ func (s *AuthService) WechatLogin(ctx context.Context, code string) (*response.W
 			user = models.User{
 				OpenID:    session.OpenID,
 				UnionID:   session.UnionID,
-				Role:      models.UserRoleNormal,
 				Status:    models.UserStatusNormal,
 				CreatedAt: time.Now(),
 				UpdatedAt: time.Now(),
@@ -62,13 +63,20 @@ func (s *AuthService) WechatLogin(ctx context.Context, code string) (*response.W
 		}
 	}
 
+	// 确保默认角色
+	if s.rbac != nil {
+		if err := s.rbac.EnsureUserHasRoleByTag(ctx, user.ID, models.RoleTagUserBasic); err != nil {
+			return nil, fmt.Errorf("同步用户角色失败: %w", err)
+		}
+	}
+
 	// 检查用户状态
 	if user.Status == models.UserStatusDisabled {
 		return nil, fmt.Errorf("用户账号已被禁用")
 	}
 
 	// 生成JWT token
-	token, err := utils.GenerateJWT(user.ID, user.OpenID, uint8(user.Role), s.cfg.JWTSecret)
+	token, err := utils.GenerateJWT(user.ID, s.cfg.JWTSecret)
 	if err != nil {
 		return nil, fmt.Errorf("生成token失败: %w", err)
 	}
@@ -137,7 +145,6 @@ func (s *AuthService) UpdateUserProfile(ctx context.Context, userID uint, profil
 func (s *AuthService) MockWechatLogin(ctx context.Context, testUser string) (*response.WechatLoginResponse, error) {
 	// 根据测试用户类型生成不同的模拟数据
 	var mockOpenID, mockUnionID, nickname, avatar string
-	var role models.UserRole
 
 	switch testUser {
 	case "admin":
@@ -145,25 +152,26 @@ func (s *AuthService) MockWechatLogin(ctx context.Context, testUser string) (*re
 		mockUnionID = "mock_admin_unionid_123456"
 		nickname = "测试管理员"
 		avatar = "https://thirdwx.qlogo.cn/mmopen/vi_32/admin_avatar.png"
-		role = models.UserRoleAdmin
-	case "normal":
-		mockOpenID = "mock_normal_openid_789012"
-		mockUnionID = "mock_normal_unionid_789012"
-		nickname = "测试用户"
+	case "basic":
+		mockOpenID = "mock_basic_openid_789012"
+		mockUnionID = "mock_basic_unionid_789012"
+		nickname = "测试基本用户"
 		avatar = "https://thirdwx.qlogo.cn/mmopen/vi_32/normal_avatar.png"
-		role = models.UserRoleNormal
-	case "new_user":
-		mockOpenID = "mock_new_openid_345678"
-		mockUnionID = "mock_new_unionid_345678"
-		nickname = "新用户"
-		avatar = "https://thirdwx.qlogo.cn/mmopen/vi_32/new_avatar.png"
-		role = models.UserRoleNormal
+	case "active":
+		mockOpenID = "mock_active_openid_345678"
+		mockUnionID = "mock_active_unionid_345678"
+		nickname = "测试活跃用户"
+		avatar = "https://thirdwx.qlogo.cn/mmopen/vi_32/active_avatar.png"
+	case "verified":
+		mockOpenID = "mock_verified_openid_123456"
+		mockUnionID = "mock_verified_unionid_123456"
+		nickname = "测试认证用户"
+		avatar = "https://thirdwx.qlogo.cn/mmopen/vi_32/verified_avatar.png"
 	case "operator":
 		mockOpenID = "mock_operator_openid_123456"
 		mockUnionID = "mock_operator_unionid_123456"
 		nickname = "测试运营"
 		avatar = "https://thirdwx.qlogo.cn/mmopen/vi_32/operator_avatar.png"
-		role = models.UserRoleOperator
 	default:
 		return nil, fmt.Errorf("不支持的测试用户类型: %s", testUser)
 	}
@@ -184,7 +192,6 @@ func (s *AuthService) MockWechatLogin(ctx context.Context, testUser string) (*re
 				College:   "计算机学院",
 				Major:     "软件工程",
 				ClassID:   "2023级1班",
-				Role:      role,
 				Status:    models.UserStatusNormal,
 				CreatedAt: time.Now(),
 				UpdatedAt: time.Now(),
@@ -197,13 +204,36 @@ func (s *AuthService) MockWechatLogin(ctx context.Context, testUser string) (*re
 		}
 	}
 
+	// 同步角色绑定，所有用户都分配 UserBasic，admin 不需多角色，active/verified/operator 再额外分配具体角色
+	if s.rbac != nil {
+		// 必须绑定 UserBasic 角色
+		if err := s.rbac.EnsureUserHasRoleByTag(ctx, user.ID, models.RoleTagUserBasic); err != nil {
+			return nil, fmt.Errorf("同步测试用户基础角色失败: %w", err)
+		}
+
+		switch testUser {
+		case "active":
+			if err := s.rbac.EnsureUserHasRoleByTag(ctx, user.ID, models.RoleTagUserActive); err != nil {
+				return nil, fmt.Errorf("同步测试用户 active 角色失败: %w", err)
+			}
+		case "verified":
+			if err := s.rbac.EnsureUserHasRoleByTag(ctx, user.ID, models.RoleTagUserVerified); err != nil {
+				return nil, fmt.Errorf("同步测试用户 verified 角色失败: %w", err)
+			}
+		case "operator":
+			if err := s.rbac.EnsureUserHasRoleByTag(ctx, user.ID, models.RoleTagOperator); err != nil {
+				return nil, fmt.Errorf("同步测试用户 operator 角色失败: %w", err)
+			}
+		}
+	}
+
 	// 检查用户状态
 	if user.Status == models.UserStatusDisabled {
 		return nil, fmt.Errorf("用户账号已被禁用")
 	}
 
 	// 生成JWT token
-	token, err := utils.GenerateJWT(user.ID, user.OpenID, uint8(user.Role), s.cfg.JWTSecret)
+	token, err := utils.GenerateJWT(user.ID, s.cfg.JWTSecret)
 	if err != nil {
 		return nil, fmt.Errorf("生成token失败: %w", err)
 	}

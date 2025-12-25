@@ -3,27 +3,27 @@ package services
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
 	json "github.com/bytedance/sonic"
 	"gorm.io/gorm"
 )
 
 type ContributionService struct {
-	db                  *gorm.DB
-	pointsService       *PointsService
-	notificationService *NotificationService
+	db            *gorm.DB
+	pointsService *PointsService
 }
 
-func NewContributionService(db *gorm.DB) *ContributionService {
+func NewContributionService(db *gorm.DB, pointsService *PointsService) *ContributionService {
 	return &ContributionService{
-		db:                  db,
-		pointsService:       NewPointsService(db),
-		notificationService: NewNotificationService(db),
+		db:            db,
+		pointsService: pointsService,
 	}
 }
 
@@ -53,7 +53,7 @@ func (s *ContributionService) CreateContribution(ctx context.Context, userID uin
 }
 
 // GetContributions 获取投稿列表
-func (s *ContributionService) GetContributions(ctx context.Context, userID uint, userRole models.UserRole, req *request.GetContributionsRequest) (*response.PageResponse, error) {
+func (s *ContributionService) GetContributions(ctx context.Context, userID uint, req *request.GetContributionsRequest) (*response.PageResponse, error) {
 	var contributions []models.UserContribution
 	var total int64
 
@@ -61,7 +61,8 @@ func (s *ContributionService) GetContributions(ctx context.Context, userID uint,
 	query := s.db.WithContext(ctx).Model(&models.UserContribution{})
 
 	// 普通用户只能看自己的投稿
-	if userRole == models.UserRoleNormal {
+	userRoleTags := utils.GetUserRoles(ctx)
+	if !slices.Contains(userRoleTags, models.RoleTagOperator) && !slices.Contains(userRoleTags, models.RoleTagAdmin) {
 		query = query.Where("user_id = ?", userID)
 	} else if req.UserID != nil {
 		// 管理员可以按用户ID过滤
@@ -112,7 +113,7 @@ func (s *ContributionService) GetContributions(ctx context.Context, userID uint,
 }
 
 // GetContributionByID 根据ID获取投稿详情
-func (s *ContributionService) GetContributionByID(ctx context.Context, contributionID uint, userID uint, userRole models.UserRole) (*response.ContributionResponse, error) {
+func (s *ContributionService) GetContributionByID(ctx context.Context, contributionID uint, userID uint) (*response.ContributionResponse, error) {
 	var contribution models.UserContribution
 	if err := s.db.Preload("User", func(db *gorm.DB) *gorm.DB {
 		return db.Select("id, nickname")
@@ -125,8 +126,9 @@ func (s *ContributionService) GetContributionByID(ctx context.Context, contribut
 		return nil, err
 	}
 
-	// 权限检查：普通用户只能查看自己的投稿
-	if contribution.UserID != userID && userRole == models.UserRoleNormal {
+	// 普通用户试图请求其他ID时候禁止
+	userRoleTags := utils.GetUserRoles(ctx)
+	if !slices.Contains(userRoleTags, models.RoleTagOperator) && !slices.Contains(userRoleTags, models.RoleTagAdmin) && contribution.UserID != userID {
 		return nil, errors.New("无权限")
 	}
 
@@ -134,7 +136,7 @@ func (s *ContributionService) GetContributionByID(ctx context.Context, contribut
 }
 
 // ReviewContribution 审核投稿
-func (s *ContributionService) ReviewContribution(ctx context.Context, contributionID uint, reviewerID uint, reviewerRole models.UserRole, req *request.ReviewContributionRequest) error {
+func (s *ContributionService) ReviewContribution(ctx context.Context, contributionID uint, reviewerID uint, req *request.ReviewContributionRequest) error {
 
 	// 查找投稿
 	var contribution models.UserContribution

@@ -10,11 +10,9 @@ import (
 )
 
 // GenerateJWT 生成JWT token
-func GenerateJWT(userID uint, openID string, role uint8, secret string) (string, error) {
+func GenerateJWT(userID uint, secret string) (string, error) {
 	claims := jwt.MapClaims{
 		"user_id": userID,
-		"open_id": openID,
-		"role":    role,
 		"exp":     time.Now().Add(time.Hour * 24 * 7).Unix(), // 7天过期
 		"iat":     time.Now().Unix(),
 	}

@@ -27,15 +27,3 @@ func GetUserID(c *gin.Context) uint {
 	}
 	return 0
 }
-
-// GetUserRole 获取用户角色
-func GetUserRole(c *gin.Context) uint8 {
-	role, ok := c.Get("role")
-	if !ok {
-		return 0
-	}
-	if roleVal, ok := role.(uint8); ok {
-		return roleVal
-	}
-	return 0
-}

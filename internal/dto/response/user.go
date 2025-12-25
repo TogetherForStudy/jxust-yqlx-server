@@ -32,7 +32,7 @@ type UserProfileResponse struct {
 	College   string            `json:"college"`
 	Major     string            `json:"major"`
 	ClassID   string            `json:"class_id"`
-	Role      models.UserRole   `json:"role"`
+	RoleTags  []string          `json:"role_tags,omitempty"`
 	Status    models.UserStatus `json:"status"`
 	CreatedAt time.Time         `json:"created_at"`
 	UpdatedAt time.Time         `json:"updated_at"`

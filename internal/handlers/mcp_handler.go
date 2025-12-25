@@ -82,11 +82,9 @@ func NewMCPHandler(
 func (h *MCPHandler) Handle(c *gin.Context) {
 	// Get user info from Gin context (set by AuthMiddleware)
 	userID := helper.GetUserID(c)
-	userRole := helper.GetUserRole(c)
 
 	// Inject user info into request context for MCP tool handlers
 	ctx := context.WithValue(c.Request.Context(), mcpUserIDKey, userID)
-	ctx = context.WithValue(ctx, mcpUserRoleKey, userRole)
 
 	h.handler.ServeHTTP(c.Writer, c.Request.WithContext(ctx))
 }
@@ -95,14 +93,12 @@ func (h *MCPHandler) Handle(c *gin.Context) {
 type mcpContextKey string
 
 const (
-	mcpUserIDKey   mcpContextKey = "user_id"
-	mcpUserRoleKey mcpContextKey = "role"
+	mcpUserIDKey mcpContextKey = "user_id"
 )
 
-func getUserFromContext(ctx context.Context) (uint, models.UserRole) {
+func getUserFromContext(ctx context.Context) uint {
 	userID, _ := ctx.Value(mcpUserIDKey).(uint)
-	userRole, _ := ctx.Value(mcpUserRoleKey).(uint8)
-	return userID, models.UserRole(userRole)
+	return userID
 }
 
 // registerTools registers all MCP tools
@@ -275,7 +271,7 @@ func (th *mcpToolHandlers) handleNotifications(ctx context.Context, req *mcp.Cal
 }
 
 func (th *mcpToolHandlers) handleUserProfile(ctx context.Context, req *mcp.CallToolRequest, params *UserProfileParams) (*mcp.CallToolResult, any, error) {
-	userID, _ := getUserFromContext(ctx)
+	userID := getUserFromContext(ctx)
 	if userID == 0 {
 		return nil, nil, fmt.Errorf("用户未认证")
 	}
@@ -301,7 +297,7 @@ func (th *mcpToolHandlers) handleUserProfile(ctx context.Context, req *mcp.CallT
 }
 
 func (th *mcpToolHandlers) handleTeacherReview(ctx context.Context, req *mcp.CallToolRequest, params *TeacherReviewParams) (*mcp.CallToolResult, any, error) {
-	userID, _ := getUserFromContext(ctx)
+	userID := getUserFromContext(ctx)
 
 	switch params.Action {
 	case "create":
@@ -341,7 +337,7 @@ func (th *mcpToolHandlers) handleTeacherReview(ctx context.Context, req *mcp.Cal
 }
 
 func (th *mcpToolHandlers) handleGetCourseTable(ctx context.Context, req *mcp.CallToolRequest, params *GetCourseTableParams) (*mcp.CallToolResult, any, error) {
-	userID, _ := getUserFromContext(ctx)
+	userID := getUserFromContext(ctx)
 	if userID == 0 {
 		return nil, nil, fmt.Errorf("用户未认证")
 	}
@@ -354,7 +350,7 @@ func (th *mcpToolHandlers) handleGetCourseTable(ctx context.Context, req *mcp.Ca
 }
 
 func (th *mcpToolHandlers) handleEditCourseCell(ctx context.Context, req *mcp.CallToolRequest, params *EditCourseCellParams) (*mcp.CallToolResult, any, error) {
-	userID, _ := getUserFromContext(ctx)
+	userID := getUserFromContext(ctx)
 	if userID == 0 {
 		return nil, nil, fmt.Errorf("用户未认证")
 	}
@@ -393,7 +389,7 @@ func (th *mcpToolHandlers) handleQueryFailRate(ctx context.Context, req *mcp.Cal
 }
 
 func (th *mcpToolHandlers) handleCountdown(ctx context.Context, req *mcp.CallToolRequest, params *CountdownParams) (*mcp.CallToolResult, any, error) {
-	userID, userRole := getUserFromContext(ctx)
+	userID := getUserFromContext(ctx)
 	if userID == 0 {
 		return nil, nil, fmt.Errorf("用户未认证")
 	}
@@ -410,7 +406,7 @@ func (th *mcpToolHandlers) handleCountdown(ctx context.Context, req *mcp.CallToo
 		data, _ := sonic.Marshal(result)
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(data)}}}, nil, nil
 	case "list":
-		result, err := th.countdownService.GetCountdowns(ctx, userID, userRole)
+		result, err := th.countdownService.GetCountdowns(ctx, userID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("获取倒数日列表失败: %w", err)
 		}
@@ -430,7 +426,17 @@ func (th *mcpToolHandlers) handleCountdown(ctx context.Context, req *mcp.CallToo
 		if params.ID == 0 {
 			return nil, nil, fmt.Errorf("请提供倒数日ID")
 		}
-		result, err := th.countdownService.UpdateCountdown(ctx, params.ID, userID, &request.UpdateCountdownRequest{Title: params.Title, Description: params.Description, TargetDate: params.TargetDate})
+		var titlePtr, descPtr, datePtr *string
+		if params.Title != "" {
+			titlePtr = &params.Title
+		}
+		if params.Description != "" {
+			descPtr = &params.Description
+		}
+		if params.TargetDate != "" {
+			datePtr = &params.TargetDate
+		}
+		result, err := th.countdownService.UpdateCountdown(ctx, params.ID, userID, &request.UpdateCountdownRequest{Title: titlePtr, Description: descPtr, TargetDate: datePtr})
 		if err != nil {
 			return nil, nil, fmt.Errorf("更新倒数日失败: %w", err)
 		}
@@ -450,7 +456,7 @@ func (th *mcpToolHandlers) handleCountdown(ctx context.Context, req *mcp.CallToo
 }
 
 func (th *mcpToolHandlers) handleStudyTask(ctx context.Context, req *mcp.CallToolRequest, params *StudyTaskParams) (*mcp.CallToolResult, any, error) {
-	userID, _ := getUserFromContext(ctx)
+	userID := getUserFromContext(ctx)
 	if userID == 0 {
 		return nil, nil, fmt.Errorf("用户未认证")
 	}
@@ -498,7 +504,17 @@ func (th *mcpToolHandlers) handleStudyTask(ctx context.Context, req *mcp.CallToo
 		if params.ID == 0 {
 			return nil, nil, fmt.Errorf("请提供任务ID")
 		}
-		result, err := th.studyTaskService.UpdateStudyTask(ctx, params.ID, userID, &request.UpdateStudyTaskRequest{Title: params.Title, Description: params.Description, DueDate: params.DueDate, Priority: params.Priority, Status: params.Status})
+		var titlePtr, descPtr, datePtr *string
+		if params.Title != "" {
+			titlePtr = &params.Title
+		}
+		if params.Description != "" {
+			descPtr = &params.Description
+		}
+		if params.DueDate != "" {
+			datePtr = &params.DueDate
+		}
+		result, err := th.studyTaskService.UpdateStudyTask(ctx, params.ID, userID, &request.UpdateStudyTaskRequest{Title: titlePtr, Description: descPtr, DueDate: datePtr, Priority: params.Priority, Status: params.Status})
 		if err != nil {
 			return nil, nil, fmt.Errorf("更新学习任务失败: %w", err)
 		}

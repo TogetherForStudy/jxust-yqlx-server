@@ -4,22 +4,13 @@ RBAC是每一个涉及到权限控制的系统都需要设计的部分。它提�
 
 在微信登录完成后，我们可以获取到OpenID和UnionID，我们需要根据用户的角色和权限来控制他们在系统中的操作。RBAC设计将帮助我们实现这一目标。
 
-系统采用 **全局-永久-组-角色** 四级关系进行权限控制。每个用户可以拥有多个角色，也可以拥有自己的权限，每个角色可以拥有多个权限。
-
-```mermaid
-graph TD
-    A[管理员] -->|全局覆盖| D[权限]
-    B[直接权限] -->|用户级| D
-    C[角色权限组] -->|组级| D
-    E[基础角色] -->|角色级| D
-```
-
 ## 文档更新记录
 
 
 | Code | Module | Date       | Author | PRI | Description |
 |------|--------|------------|--------|-----|-------------|
 | 1    | init   | 2025-06-25 | AEnjoy | P0  | 初始设计文档创建    |
+| 2    | update | 2025-12-22 | Benins | P0  | 更新           |
 
 
 ## 设计原则
@@ -33,158 +24,130 @@ graph TD
 
 ## 用户类别
 
-- **访客**: 未微信登录的用户，没有任何权限，仅能查看公开信息页面
-- **被禁言用户**: 普通用户被禁言后，无法进行评论、请求上传资源等操作
-- **普通用户**: 通过微信已登录的用户，拥有基本的查看、评论、请求添加/上传资源、下载资源权限
-- **社区管理员**: 负责社区管理，拥有数据查看、编辑、删除、审查评论和资源、禁言用户等权限（不可查看用户隐私信息）
-- **系统管理员**: 负责系统管理，拥有所有权限，包括用户管理（可以查看用户详细信息）、角色管理、权限管理等
+- **访客**: 未微信登录的用户，仅能访问公开接口
+- **基本用户**: 微信登陆后默认授予的用户角色
+- **活跃用户**: 系统根据活跃度计算规则自动升级，解锁部分权限
+- **认证用户**: 主动完成校内身份认证的用户，解锁部分权限
+- **运营**: 负责社区管理，拥有部分管理权限
+- **管理**: 负责系统管理，拥有所有权限
 
 ## 模型
 
-角色表: (RoleControlTag (PK), Description)
+角色表: (Id (PK), RoleTag, Name, Description)
 
-权限表: (PermissionTag (PK), Description)
+权限表: (Id (PK), PermissionTag, Name, Description)
 
-用户角色关联表 (UserRole): (UnionID (FK), RoleControlTag (FK), IsActive (bool, 默认true))
+用户角色关联 (UserRole): (UserId (FK), RoleId)
 
-用户直接权限表 (RolePermission): (UnionID (FK), PermissionTag (FK),IsGranted(bool,default true), *ExpiryTime)
-
-用户权限关联表 (RolePermission): (RoleControlTag (FK), PermissionTag (FK))
-
-权限组表 (PermissionGroup): (GroupTag (PK), Description)
-
-权限组关联表 (GroupPermission): (GroupTag (FK), PermissionTag (FK))
-
-角色-组权限关联表 (RoleGroupPermission): (RoleControlTag (FK), GroupTag (FK))
+角色权限关联表 (RolePermission): (RoleId (FK), PermissionId (FK))
 
 ## 初始化：
 ```sql
-/*
-权限组：
+-- 角色种子数据
+INSERT INTO Role (RoleTag, Name, Description) VALUES
+  ('guest',        '访客',     '未登录，仅可访问公开接口'),
+  ('user_basic',   '基本用户', '微信登录后默认角色'),
+  ('user_active',  '活跃用户', '活跃度达标，解锁更多读写能力'),
+  ('user_verified','认证用户', '完成校内身份认证'),
+  ('operator',     '运营',     '内容/社区运营管理'),
+  ('admin',        '管理',     '系统管理员，拥有全部权限')
+ON DUPLICATE KEY UPDATE Name = VALUES(Name), Description = VALUES(Description);
 
-定义一个权限
+-- 权限种子数据（结合当前接口：公共/用户/学习任务/运营/系统）
+INSERT INTO Permission (PermissionTag, Name, Description) VALUES
+  -- 公共能力
+  ('public.health',              '健康检查',           'GET /healthz'),
+  ('public.review.list',         '查看点评列表',       'GET /api/v0/reviews'),
+  ('public.config.read',         '读取公开配置',       'GET /api/v0/config'),
+  ('public.hero.read',           '查看英雄榜',         'GET /api/v0/heroes'),
+  ('public.notification.read',   '查看通知',           'GET /api/v0/notifications'),
+  ('public.category.read',       '查看分类',           'GET /api/v0/categories'),
+  -- 基础用户能力
+  ('profile.read.self',          '查看个人资料',       'GET /api/v0/profile'),
+  ('review.create',              '发布点评',           'POST /api/v0/reviews'),
+  ('review.update.self',         '修改本人点评',       'PUT /api/v0/reviews/{id}'),
+  ('review.delete.self',         '删除本人点评',       'DELETE /api/v0/reviews/{id}'),
+  ('course.table.read',          '查看课表',           'GET /api/v0/course-table'),
+  ('exam.failrate.read',         '查看挂科率',         'GET /api/v0/fail-rate'),
+  ('points.read',                '查看积分',           'GET /api/v0/points'),
+  ('contribution.read',          '查看贡献/勋章',     'GET /api/v0/contributions'),
+  ('countdown.read',             '查看倒计时',         'GET /api/v0/countdowns'),
+  ('studytask.read.self',        '查看个人学习任务',   'GET /api/v0/study-tasks'),
+  ('studytask.write.self',       '管理个人学习任务',   'POST/PUT/DELETE /api/v0/study-tasks'),
+  -- 活跃/认证用户增量
+  ('studytask.read.all',         '查看公共学习任务',   'GET /api/v0/study-tasks/public'),
+  -- 运营能力
+  ('review.moderate',            '点评审核/隐藏',      'PUT /api/v0/admin/reviews'),
+  ('notification.manage',        '通知管理',           'POST/PUT/DELETE /api/v0/admin/notifications'),
+  ('hero.manage',                '英雄榜管理',         'POST/PUT/DELETE /api/v0/admin/heroes'),
+  ('category.manage',            '分类管理',           'POST/PUT/DELETE /api/v0/admin/categories'),
+  ('studytask.manage',           '公共学习任务管理',   'POST/PUT/DELETE /api/v0/admin/study-tasks'),
+  -- 系统能力
+  ('config.manage',              '系统配置管理',       'POST/PUT/DELETE /api/v0/admin/config'),
+  ('user.manage',                '用户管理',           '管理员用户/角色分配'),
+  ('rbac.manage',                'RBAC管理',           '角色/权限维护')
+ON DUPLICATE KEY UPDATE Name = VALUES(Name), Description = VALUES(Description);
 
-*/
-CREATE TABLE PermissionGroup (
-    GroupTag VARCHAR(50) PRIMARY KEY,
-    Description TEXT 
-);
-CREATE TABLE GroupPermission (
-    GroupTag VARCHAR(50) NOT NULL,
-    PermissionTag VARCHAR(50) NOT NULL,
-    PRIMARY KEY (GroupTag, PermissionTag),
-    FOREIGN KEY (GroupTag) REFERENCES PermissionGroup(GroupTag),
-    FOREIGN KEY (PermissionTag) REFERENCES Permission(PermissionTag)
-);
-CREATE TABLE RolePermissionGroup (
-    RoleControlTag VARCHAR(50) NOT NULL,
-    GroupTag VARCHAR(50) NOT NULL,
-    PRIMARY KEY (RoleControlTag, GroupTag),
-    FOREIGN KEY (RoleControlTag) REFERENCES Role(RoleControlTag),
-    FOREIGN KEY (GroupTag) REFERENCES PermissionGroup(GroupTag)
-);
-/*
-用户直接权限表：
+-- 角色-权限绑定（INSERT IGNORE 便于幂等）
+-- 访客：仅公共读取
+INSERT IGNORE INTO RolePermission (RoleId, PermissionId)
+SELECT r.Id, p.Id FROM Role r JOIN Permission p ON p.PermissionTag IN (
+  'public.health','public.review.list','public.config.read',
+  'public.hero.read','public.notification.read','public.category.read'
+) WHERE r.RoleTag = 'guest';
 
-用户可以直接拥有某些权限，这些权限不受角色限制。
-同时该权限可以设置过期时间，过期后自动失效。
-*/
-CREATE TABLE UserDirectPermission (
-    UnionID VARCHAR(50) NOT NULL,
-    PermissionTag VARCHAR(50) NOT NULL,
-    IsGranted BOOLEAN NOT NULL DEFAULT TRUE,
-    ExpiryTime TIMESTAMP NULL,
-    CreatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (UnionID, PermissionTag),
-    FOREIGN KEY (UnionID) REFERENCES User(UnionID),
-    FOREIGN KEY (PermissionTag) REFERENCES Permission(PermissionTag)
-);
-INSERT INTO PermissionGroup (GroupTag, Description)
-VALUES
-    ('BASIC_ACCESS', '基础访问权限（所有登录用户）'),
-    ('CONTENT_INTERACTION', '内容交互权限'),
-    ('RESOURCE_MANAGEMENT', '资源管理权限'),
-    ('COMMUNITY_MODERATION', '社区管理权限'),
-    ('SYSTEM_ADMINISTRATION', '系统管理权限'),
-    ('RESTRICTED_USER', '受限用户权限组');
+-- 基本用户：访客 + 个人资源读写
+INSERT IGNORE INTO RolePermission (RoleId, PermissionId)
+SELECT r.Id, p.Id FROM Role r JOIN Permission p ON p.PermissionTag IN (
+  'public.health','public.review.list','public.config.read',
+  'public.hero.read','public.notification.read','public.category.read',
+  'profile.read.self','review.create','review.update.self','review.delete.self',
+  'course.table.read','exam.failrate.read','points.read','contribution.read',
+  'countdown.read','studytask.read.self','studytask.write.self'
+) WHERE r.RoleTag = 'user_basic';
 
-INSERT INTO Permission (PermissionTag, Description)
-VALUES
-    ('PUBLIC_VIEW', '查看公开信息'),
-    ('LOGIN_REQUIRED_VIEW', '查看需登录内容'),
-    ('COMMENT_POST', '发表评论'),
-    ('REQUEST_RESOURCE', '请求添加资源'),
-    ('UPLOAD_RESOURCE', '上传资源文件'),
-    ('DOWNLOAD_RESOURCE', '下载资源'),
-    ('EDIT_ANY_CONTENT', '编辑所有内容'),
-    ('DELETE_ANY_CONTENT', '删除任何内容'),
-    ('REVIEW_COMMENTS', '审核评论'),
-    ('MUTE_USERS', '禁言用户'),
-    ('MANAGE_RESOURCES', '管理资源审批'),
-    ('VIEW_USER_PROFILES', '查看用户完整资料'),
-    ('MANAGE_USER_ROLES', '管理用户角色'),
-    ('MANAGE_SYSTEM_SETTINGS', '管理系统配置'),
-    ('BYPASS_RESTRICTIONS', '绕过所有限制');
+INSERT IGNORE INTO RolePermission (RoleId, PermissionId)
+SELECT r.Id, p.Id FROM Role r JOIN Permission p ON p.PermissionTag IN (
+  'public.health','public.review.list','public.config.read',
+  'public.hero.read','public.notification.read','public.category.read',
+  'profile.read.self','review.create','review.update.self','review.delete.self',
+  'course.table.read','exam.failrate.read','points.read','contribution.read',
+  'countdown.read','studytask.read.self','studytask.write.self',
+  'studytask.read.all'
+) WHERE r.RoleTag = 'user_active';
 
-INSERT INTO GroupPermission (GroupTag, PermissionTag)
-VALUES
-    -- 基础访问
-    ('BASIC_ACCESS', 'PUBLIC_VIEW'),
-    ('BASIC_ACCESS', 'LOGIN_REQUIRED_VIEW'),
+-- 认证用户：沿用活跃用户权限（若需差异，可在此追加）
+INSERT IGNORE INTO RolePermission (RoleId, PermissionId)
+SELECT r.Id, p.Id FROM Role r JOIN Permission p ON p.PermissionTag IN (
+  'public.health','public.review.list','public.config.read',
+  'public.hero.read','public.notification.read','public.category.read',
+  'profile.read.self','review.create','review.update.self','review.delete.self',
+  'course.table.read','exam.failrate.read','points.read','contribution.read',
+  'countdown.read','studytask.read.self','studytask.write.self',
+  'studytask.read.all'
+) WHERE r.RoleTag = 'user_verified';
 
-    -- 内容交互
-    ('CONTENT_INTERACTION', 'COMMENT_POST'),
-    ('CONTENT_INTERACTION', 'REQUEST_RESOURCE'),
-    ('CONTENT_INTERACTION', 'DOWNLOAD_RESOURCE'),
+-- 运营：用户权限 + 内容管理
+INSERT IGNORE INTO RolePermission (RoleId, PermissionId)
+SELECT r.Id, p.Id FROM Role r JOIN Permission p ON p.PermissionTag IN (
+  'public.health','public.review.list','public.config.read',
+  'public.hero.read','public.notification.read','public.category.read',
+  'profile.read.self','review.create','review.update.self','review.delete.self',
+  'course.table.read','exam.failrate.read','points.read','contribution.read',
+  'countdown.read','studytask.read.self','studytask.write.self',
+  'studytask.read.all',
+  'review.moderate','notification.manage','hero.manage',
+  'category.manage','studytask.manage'
+) WHERE r.RoleTag = 'operator';
 
-    -- 资源管理
-    ('RESOURCE_MANAGEMENT', 'UPLOAD_RESOURCE'),
+-- 管理：全量权限（包含运营 + 系统能力）
+INSERT IGNORE INTO RolePermission (RoleId, PermissionId)
+SELECT r.Id, p.Id FROM Role r JOIN Permission p
+WHERE r.RoleTag = 'admin';
 
-    -- 社区管理
-    ('COMMUNITY_MODERATION', 'EDIT_ANY_CONTENT'),
-    ('COMMUNITY_MODERATION', 'DELETE_ANY_CONTENT'),
-    ('COMMUNITY_MODERATION', 'REVIEW_COMMENTS'),
-    ('COMMUNITY_MODERATION', 'MUTE_USERS'),
-    ('COMMUNITY_MODERATION', 'MANAGE_RESOURCES'),
-
-    -- 系统管理组
-    ('SYSTEM_ADMINISTRATION', 'VIEW_USER_PROFILES'),
-    ('SYSTEM_ADMINISTRATION', 'MANAGE_USER_ROLES'),
-    ('SYSTEM_ADMINISTRATION', 'MANAGE_SYSTEM_SETTINGS'),
-    ('SYSTEM_ADMINISTRATION', 'BYPASS_RESTRICTIONS'),
-
-    -- 受限用户（空权限）
-    ('RESTRICTED_USER', 'PUBLIC_VIEW');
-INSERT INTO Role (RoleControlTag, Description, IsSuperAdmin)
-VALUES
-    ('GUEST', '未登录访客', false),
-    ('RESTRICTED', '被禁言用户', false),
-    ('USER', '普通用户', false),
-    ('MODERATOR', '社区管理员', false),
-    ('ADMIN', '系统管理员', true);
-
-INSERT INTO RolePermissionGroup (RoleControlTag, GroupTag)
-VALUES
-    -- 访客（仅基础访问中的公开部分）
-    ('GUEST', 'BASIC_ACCESS'),
-
-    -- 被禁言用户（基础访问+受限标记）
-    ('RESTRICTED', 'BASIC_ACCESS'),
-    ('RESTRICTED', 'RESTRICTED_USER'),
-
-    -- 普通用户（基础+内容交互+资源上传）
-    ('USER', 'BASIC_ACCESS'),
-    ('USER', 'CONTENT_INTERACTION'),
-    ('USER', 'RESOURCE_MANAGEMENT'),
-
-    -- 社区管理员（继承普通用户所有权限+管理权限）
-    ('MODERATOR', 'BASIC_ACCESS'),
-    ('MODERATOR', 'CONTENT_INTERACTION'),
-    ('MODERATOR', 'RESOURCE_MANAGEMENT'),
-    ('MODERATOR', 'COMMUNITY_MODERATION'),
-
-    -- 超级管理员（通过IsSuperAdmin字段自动获得所有权限）
-    ('ADMIN', 'SYSTEM_ADMINISTRATION');
+-- 可选：初始化一个超级管理员账号，将其绑定管理角色
+-- INSERT IGNORE INTO UserRole (UserId, RoleId)
+-- VALUES ('SUPER_ADMIN_UNION_ID', (SELECT Id FROM Role WHERE RoleTag = 'admin'));
 ```
 
 ## 鉴权流程：
@@ -193,7 +156,7 @@ VALUES
    - 例如，用户1001请求删除数据，系统首先检查用户1001是否有DATA_DELETE权限。
    - 如果有，则直接允许访问。
    - 如果没有，则继续下一步。
-2. 系统根据用户的UnionID查询其关联的角色列表。
+2. 系统根据用户的UserID查询其关联的角色列表。
 3. 根据角色列表查询每个角色的权限列表。
 4. 将权限列表缓存到用户会话中。
 5. 在每次请求时，系统检查用户的权限是否包含所请求的操作对应的权限。
@@ -272,18 +235,18 @@ func checkPermission(union_id, required_permission) {
 
 ```sql
 CREATE VIEW UserEffectivePermissions AS
-SELECT UnionID, PermissionTag, 'DIRECT' AS Source
+SELECT userId, PermissionTag, 'DIRECT' AS Source
 FROM UserDirectPermission
 WHERE IsGranted = TRUE 
   AND (ExpiryTime IS NULL OR ExpiryTime > NOW())
 UNION 
-SELECT ur.UnionID, rp.PermissionTag, 'ROLE' AS Source
+SELECT ur.userId, rp.PermissionTag, 'ROLE' AS Source
 FROM UserRole ur
 JOIN RolePermission rp ON ur.RoleControlTag = rp.RoleControlTag
 WHERE ur.IsActive = TRUE
     AND (rp.ExpiryTime IS NULL OR rp.ExpiryTime > NOW())
 UNION
-SELECT ur.UnionID, gp.PermissionTag, 'GROUP' AS Source
+SELECT ur.userId, gp.PermissionTag, 'GROUP' AS Source
 FROM UserRole ur
 JOIN RoleGroupPermission rgp ON ur.RoleControlTag = rgp.RoleControlTag
 JOIN GroupPermission gp ON rgp.GroupTag = gp.GroupTag
@@ -291,42 +254,7 @@ WHERE ur.IsActive = TRUE
     AND (gp.ExpiryTime IS NULL OR gp.ExpiryTime > NOW());
 ```
 
-
-## 角色控制标签
-
-| code | 角色控制标签     | 描述                  |
-|------|------------|---------------------|
-| 1    | GUEST      | 未登录访客               |
-| 2    | RESTRICTED | 被禁言用户               |  
-| 3    | USER       | 普通用户                |    
-| 4    | MODERATOR  | 社区管理员               |  
-| 5    | ADMIN      | 系统超级管理员             |  
-| 6    | SYSTEM     | 系统账户（系统账户会自动管理用户权限） |
-
-
-## 审计
-
-审计日志记录用户的权限变更记录，以及是谁对用户进行了权限变更。审计日志表结构如下：
-
-```sql
-CREATE TABLE AuditLog (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    UnionID VARCHAR(50) NOT NULL,
-    Action VARCHAR(100) NOT NULL,
-    TargetRole VARCHAR(50) NOT NULL,
-    ChangedBy VARCHAR(50) NOT NULL,
-    ChangeTime TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (UnionID) REFERENCES User(UnionID),
-    FOREIGN KEY (ChangedBy) REFERENCES User(UnionID)
-);
-```
-
 ## 接口定义
-
-以下是RBAC模块的核心接口定义，包含用户管理、角色管理、权限管理、权限组管理、鉴权服务和审计服务等。
-
-**在实现功能时，不必完全遵循接口定义和里面的数据类型，但建议遵循接口的设计原则和方法签名，以便于后续的维护和扩展。**
-
 
 ```go
 package rbac
@@ -338,15 +266,6 @@ import (
 	"model"
 )
 
-type repository interface {
-	// cache 
-	SetRedisClient(redisClient RedisClient)
-	GetRedisClient() RedisClient
-	// database
-	SetDBClient(dbClient DBClient)
-	GetDBClient() DBClient
-}
-
 // 权限系统核心接口
 type RBACManager interface {
 	// 用户管理
@@ -355,97 +274,29 @@ type RBACManager interface {
 	RoleManager
 	// 权限管理
 	PermissionManager
-	// 权限组管理
-	GroupManager
 	// 鉴权服务
 	AuthorizationService
-	// 审计服务
-	AuditLogger
 }
 
 // 用户管理接口
 type UserManager interface {
-	AddUser(ctx context.Context, user model.User) error
-	GetUser(ctx context.Context, unionID string) (*model.User, error)
-	AssignRoleToUser(ctx context.Context, unionID, roleTag string) error
-	RevokeRoleFromUser(ctx context.Context, unionID, roleTag string) error
-	GetUserRoles(ctx context.Context, unionID string) ([]model.Role, error)
-	
-	// 用户直接权限管理
-	GrantPermissionToUser(ctx context.Context, unionID, permissionTag string, expiry *time.Time) error
-	RevokePermissionFromUser(ctx context.Context, unionID, permissionTag string) error
-	UpdateUserPermission(ctx context.Context, unionID, permissionTag string, granted bool, expiry *time.Time) error
-	GetUserDirectPermissions(ctx context.Context, unionID string) ([]model.PermissionAssignment, error)
 
-    repository
 }
 
 // 角色管理接口
 type RoleManager interface {
-	CreateRole(ctx context.Context, role model.Role) error
-	DeleteRole(ctx context.Context, roleTag string) error
-	GetRole(ctx context.Context, roleTag string) (*model.Role, error)
-	SetRoleSuperAdmin(ctx context.Context, roleTag string, isSuper bool) error
-	AssignGroupToRole(ctx context.Context, roleTag, groupTag string) error
-	RemoveGroupFromRole(ctx context.Context, roleTag, groupTag string) error
 
-    repository
 }
 
 // 权限管理接口
 type PermissionManager interface {
-	CreatePermission(ctx context.Context, permission model.Permission) error
-	DeletePermission(ctx context.Context, permissionTag string) error
-	GetPermission(ctx context.Context, permissionTag string) (*model.Permission, error)
-	AddPermissionToGroup(ctx context.Context, groupTag, permissionTag string) error
-	RemovePermissionFromGroup(ctx context.Context, groupTag, permissionTag string) error
-	
-	GetPermissionsByGroup(ctx context.Context, groupTag string) ([]model.Permission, error)
-	GetAllPermissions(ctx context.Context) ([]model.Permission, error)
-	GetUserEffectivePermissions(ctx context.Context, unionID string) ([]model.Permission, error)
-	GetRolePermissions(ctx context.Context, roleTag string) ([]model.Permission, error)
 
-    repository
-}
-
-// 权限组管理接口
-type GroupManager interface {
-	AddGroup(ctx context.Context, group model.PermissionGroup) error
-	DeleteGroup(ctx context.Context, groupTag string) error
-	GetGroup(ctx context.Context, groupTag string) (*model.PermissionGroup, error)
-	GetGroupPermissions(ctx context.Context, groupTag string) ([]model.Permission, error)
-
-    repository
 }
 
 // 鉴权服务接口
 type AuthorizationService interface {
-	CheckPermission(ctx context.Context, unionID, permissionTag string) (bool, error)
-	GetUserEffectivePermissions(ctx context.Context, unionID string) ([]model.Permission, error)
-	HasAnyPermission(ctx context.Context, unionID string, permissionTags ...string) (bool, error)
-	HasAllPermissions(ctx context.Context, unionID string, permissionTags ...string) (bool, error)
-	
-	// 带上下文的鉴权（资源级权限）(optionally)
-	CheckPermissionWithResource(ctx context.Context, unionID, permissionTag, resourceID string) (bool, error)
 
-    repository
 }
 
-// 审计日志接口
-type AuditLogger interface {
-	SetLogger(logger Logger)
-	LogPermissionGrant(ctx context.Context, operatorID, targetUserID, permissionTag string, expiry *time.Time) error
-	LogPermissionRevoke(ctx context.Context, operatorID, targetUserID, permissionTag string) error
-	QueryAuditLogs(ctx context.Context, query ...model.AuditQuery) ([]model.AuditLog, error)
-}
-
-// 支持资源级权限的接口(可选)
-type ResourceAuthorizer interface {
-	SetResourcePermission(ctx context.Context, resourceID, permissionTag string, granted bool) error
-	DeleteResourcePermission(ctx context.Context, resourceID, permissionTag string) error
-	GetResourcePermissions(ctx context.Context, resourceID string) ([]model.PermissionAssignment, error)
-
-   repository
-}
 ```
 

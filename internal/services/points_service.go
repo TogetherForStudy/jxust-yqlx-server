@@ -7,6 +7,7 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
 	"gorm.io/gorm"
 )
@@ -43,7 +44,7 @@ func (s *PointsService) GetUserPoints(ctx context.Context, userID uint) (*respon
 }
 
 // GetPointsTransactions 获取积分交易记录
-func (s *PointsService) GetPointsTransactions(ctx context.Context, userID uint, userRole models.UserRole, req *request.GetPointsTransactionsRequest) (*response.PageResponse, error) {
+func (s *PointsService) GetPointsTransactions(ctx context.Context, userID uint, req *request.GetPointsTransactionsRequest) (*response.PageResponse, error) {
 	var transactions []models.PointsTransaction
 	var total int64
 
@@ -51,13 +52,13 @@ func (s *PointsService) GetPointsTransactions(ctx context.Context, userID uint, 
 	query := s.db.WithContext(ctx).Model(&models.PointsTransaction{})
 
 	// 普通用户只能看自己的记录
-	if userRole != models.UserRoleAdmin {
+	if utils.IsAdmin(ctx) {
+		if req.UserID != nil {
+			query = query.Where("user_id = ?", *req.UserID)
+		}
+	} else {
 		query = query.Where("user_id = ?", userID)
-	} else if req.UserID != nil {
-		// 管理员可以按用户ID过滤
-		query = query.Where("user_id = ?", *req.UserID)
 	}
-
 	// 类型过滤
 	if req.Type != nil {
 		query = query.Where("type = ?", *req.Type)
@@ -83,19 +84,23 @@ func (s *PointsService) GetPointsTransactions(ctx context.Context, userID uint, 
 	}
 
 	// 批量获取用户信息（管理员查看时）
+	isAdmin := utils.IsAdmin(ctx)
 	userMap := make(map[uint]*response.UserSimpleResponse)
-	if userRole == models.UserRoleAdmin && len(transactions) > 0 {
-		var userIDs []uint
-		for _, transaction := range transactions {
-			userIDs = append(userIDs, transaction.UserID)
-		}
+	if isAdmin {
 
-		var users []models.User
-		if err := s.db.Select("id, nickname").Where("id IN ?", userIDs).Find(&users).Error; err == nil {
-			for _, user := range users {
-				userMap[user.ID] = &response.UserSimpleResponse{
-					ID:       user.ID,
-					Nickname: user.Nickname,
+		if len(transactions) > 0 {
+			var userIDs []uint
+			for _, transaction := range transactions {
+				userIDs = append(userIDs, transaction.UserID)
+			}
+
+			var users []models.User
+			if err := s.db.Select("id, nickname").Where("id IN ?", userIDs).Find(&users).Error; err == nil {
+				for _, user := range users {
+					userMap[user.ID] = &response.UserSimpleResponse{
+						ID:       user.ID,
+						Nickname: user.Nickname,
+					}
 				}
 			}
 		}
@@ -106,7 +111,7 @@ func (s *PointsService) GetPointsTransactions(ctx context.Context, userID uint, 
 	for _, transaction := range transactions {
 		// 使用预查询的用户信息
 		var user *response.UserSimpleResponse
-		if userRole == models.UserRoleAdmin {
+		if isAdmin && len(userMap) > 0 {
 			user = userMap[transaction.UserID]
 		}
 

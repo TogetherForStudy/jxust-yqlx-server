@@ -8,17 +8,20 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 
 	"github.com/gin-gonic/gin"
 )
 
 type AuthHandler struct {
 	authService *services.AuthService
+	rbacService *services.RBACService
 }
 
-func NewAuthHandler(authService *services.AuthService) *AuthHandler {
+func NewAuthHandler(authService *services.AuthService, rbacService *services.RBACService) *AuthHandler {
 	return &AuthHandler{
 		authService: authService,
+		rbacService: rbacService,
 	}
 }
 
@@ -97,6 +100,16 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 		return
 	}
 
+	// 获取角色标签（RBAC新逻辑）
+	var roleTags []string
+	if h.rbacService != nil {
+		if snap, err := h.rbacService.GetUserPermissionSnapshot(c, user.ID); err != nil {
+			logger.Warnf("获取用户角色失败 user_id=%d err=%v", user.ID, err)
+		} else {
+			roleTags = snap.RoleTags
+		}
+	}
+
 	resp := response.UserProfileResponse{
 		ID:        user.ID,
 		Nickname:  user.Nickname,
@@ -107,7 +120,7 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 		College:   user.College,
 		Major:     user.Major,
 		ClassID:   user.ClassID,
-		Role:      user.Role,
+		RoleTags:  roleTags,
 		Status:    user.Status,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,

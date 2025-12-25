@@ -5,7 +5,6 @@ import (
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
-	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -37,7 +36,6 @@ func (h *PointsHandler) GetUserPoints(c *gin.Context) {
 // GetPointsTransactions 获取积分交易记录
 func (h *PointsHandler) GetPointsTransactions(c *gin.Context) {
 	userID := helper.GetUserID(c)
-	userRole := helper.GetUserRole(c)
 
 	var req request.GetPointsTransactionsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -62,7 +60,7 @@ func (h *PointsHandler) GetPointsTransactions(c *gin.Context) {
 		req.UserID = nil
 	}
 
-	result, err := h.pointsService.GetPointsTransactions(c, userID, models.UserRole(userRole), &req)
+	result, err := h.pointsService.GetPointsTransactions(c, userID, &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return

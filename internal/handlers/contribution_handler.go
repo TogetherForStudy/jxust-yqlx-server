@@ -6,7 +6,6 @@ import (
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
-	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -25,12 +24,6 @@ func NewContributionHandler(contributionService *services.ContributionService) *
 // CreateContribution 创建投稿
 func (h *ContributionHandler) CreateContribution(c *gin.Context) {
 	userID := helper.GetUserID(c)
-	userRole := helper.GetUserRole(c)
-
-	if models.UserRole(userRole) != models.UserRoleNormal {
-		helper.ErrorResponse(c, http.StatusForbidden, "无权限操作")
-		return
-	}
 
 	var req request.CreateContributionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -50,7 +43,6 @@ func (h *ContributionHandler) CreateContribution(c *gin.Context) {
 // GetContributions 获取投稿列表
 func (h *ContributionHandler) GetContributions(c *gin.Context) {
 	userID := helper.GetUserID(c)
-	userRole := helper.GetUserRole(c)
 
 	var req request.GetContributionsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -72,7 +64,7 @@ func (h *ContributionHandler) GetContributions(c *gin.Context) {
 		req.UserID = nil
 	}
 
-	result, err := h.contributionService.GetContributions(c, userID, models.UserRole(userRole), &req)
+	result, err := h.contributionService.GetContributions(c, userID, &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
@@ -92,7 +84,7 @@ func (h *ContributionHandler) GetContributionByID(c *gin.Context) {
 		return
 	}
 
-	result, err := h.contributionService.GetContributionByID(c, uint(id), userID, models.UserRole(helper.GetUserRole(c)))
+	result, err := h.contributionService.GetContributionByID(c, uint(id), userID)
 	if err != nil {
 		if err.Error() == "投稿不存在" {
 			helper.ErrorResponse(c, http.StatusNotFound, err.Error())
@@ -108,7 +100,6 @@ func (h *ContributionHandler) GetContributionByID(c *gin.Context) {
 // ReviewContribution 审核投稿（运营/管理员专用）
 func (h *ContributionHandler) ReviewContribution(c *gin.Context) {
 	reviewerID := helper.GetUserID(c)
-	reviewerRole := helper.GetUserRole(c)
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -123,7 +114,7 @@ func (h *ContributionHandler) ReviewContribution(c *gin.Context) {
 		return
 	}
 
-	err = h.contributionService.ReviewContribution(c, uint(id), reviewerID, models.UserRole(reviewerRole), &req)
+	err = h.contributionService.ReviewContribution(c, uint(id), reviewerID, &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
