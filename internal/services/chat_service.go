@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
+	"github.com/cloudwego/eino/compose"
 	"github.com/mark3labs/mcp-go/mcp"
 
 	einoopenai "github.com/cloudwego/eino-ext/components/model/openai"
@@ -335,8 +337,9 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 	messages = append(messages, newMessage)
 
 	var (
-		mcpClients mcpClient
-		einoTools  []*schema.ToolInfo
+		mcpClients    mcpClient
+		einoToolInfos []*schema.ToolInfo
+		allTools      []einotool.BaseTool
 	)
 
 	// MCP 工具为“增强能力”，不应阻塞基础聊天能力。
@@ -350,18 +353,19 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 				logger.Warnf("RequestID[%s]: Failed to get tools from mcp client, ignore: %v", utils.GetRequestID(ctx), err)
 				continue
 			}
+			allTools = append(allTools, tools...)
 			for toolsIndex := range tools {
 				info, err := tools[toolsIndex].Info(ctx)
 				if err != nil {
 					logger.Warnf("RequestID[%s]: Failed to get tool info, ignore tool: %v", utils.GetRequestID(ctx), err)
 					return nil, nil, err
 				}
-				einoTools = append(einoTools, info)
+				einoToolInfos = append(einoToolInfos, info)
 			}
 
 		}
 	}
-	logger.Infof("RequestID[%s]: Streaming chat loaded mcp tools count:%d", utils.GetRequestID(ctx), len(einoTools))
+	logger.Infof("RequestID[%s]: Streaming chat loaded mcp tools count:%d", utils.GetRequestID(ctx), len(einoToolInfos))
 	// 添加系统提示词（仅在首次聊天时）
 	var prompts []*schema.Message
 	if len(messages) > 0 && messages[0].Role == schema.System {
@@ -390,12 +394,29 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 		}
 		chatModel = model
 	}
-
-	// 创建流式请求
-	sr, err := chatModel.Stream(ctx, prompts, einomodel.WithTools(einoTools))
+	err = chatModel.BindTools(einoToolInfos)
 	if err != nil {
-		logger.Errorf("RequestID[%s]: Failed to create chat stream: %v", utils.GetRequestID(ctx), err)
-		return nil, nil, fmt.Errorf("failed to create chat stream: %w", err)
+		logger.Errorf("RequestID[%s]: Failed to bind tools to chat model: %v", utils.GetRequestID(ctx), err)
+		return nil, nil, err
+	}
+	node, err := compose.NewToolNode(ctx, &compose.ToolsNodeConfig{Tools: allTools})
+	if err != nil {
+		logger.Errorf("RequestID[%s]: Failed to create tool node: %v", utils.GetRequestID(ctx), err)
+		return nil, nil, err
+	}
+	chain := compose.NewChain[[]*schema.Message, []*schema.Message]()
+	chain.
+		AppendChatModel(chatModel, compose.WithNodeName("chat_model")).
+		AppendToolsNode(node, compose.WithNodeName("tools"))
+	agent, err := chain.Compile(ctx)
+	if err != nil {
+		logger.Errorf("RequestID[%s]: Failed to compile chat node: %v", utils.GetRequestID(ctx), err)
+	}
+	// 创建流式请求
+	sr, err := agent.Stream(ctx, prompts)
+	if err != nil {
+		logger.Errorf("RequestID[%s]: Failed to create agent chat stream: %v", utils.GetRequestID(ctx), err)
+		return nil, nil, fmt.Errorf("failed to create agent chat stream: %w", err)
 	}
 
 	// 创建输出通道
