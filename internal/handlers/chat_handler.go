@@ -206,7 +206,7 @@ func (h *ChatHandler) StreamConversation(c *gin.Context) {
 	}
 
 	// 设置 SSE 响应头
-	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
 	c.Writer.Header().Set("Cache-Control", "no-cache")
 	c.Writer.Header().Set("Connection", "keep-alive")
 	c.Writer.Header().Set("Transfer-Encoding", "chunked")

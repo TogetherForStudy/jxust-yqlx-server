@@ -128,12 +128,33 @@ curl -X POST "$BASE_URL/api/v0/chat/conversation" `
 curl -X POST "$BASE_URL/api/v0/chat/conversation" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d "{\"conversation_id\": $CONV_ID, \"message\": {\"role\": \"user\", \"content\": \"什么是 Go 语言的 goroutine？\"}}"
+  -d '{"conversation_id": $CONV_ID, "message": {"role": "user", "content": "什么是 Go 语言的 goroutine？"}}'
 ```
 
 ### 响应示例（SSE 流）
 
 **注意：** 此端点返回 Server-Sent Events (SSE) 流，不是标准 JSON 格式。
+
+#### Windows / PowerShell 中文乱码与缓冲问题
+
+1) **请优先使用 `curl.exe`（而不是 PowerShell 内置的 `curl` 别名/Invoke-WebRequest）**，否则 SSE 很容易被缓冲、或出现编码显示异常。
+
+```powershell
+# 强制 PowerShell 控制台使用 UTF-8
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+
+# 使用 curl.exe + -N 禁用缓冲（实时看到流式输出）
+curl.exe -N -X POST "$BASE_URL/api/v0/chat/conversation" `
+  -H "Authorization: Bearer $TOKEN" `
+  -H "Content-Type: application/json" `
+  -d "{\"conversation_id\": $CONV_ID, \"message\": {\"role\": \"user\", \"content\": \"什么是 Go 语言的 goroutine？\"}}"
+```
+
+2) 如果你在 **cmd.exe** 下运行，先执行 `chcp 65001` 切到 UTF-8：
+
+```bat
+chcp 65001
+```
 
 ```
 data: {"type":"start"}
