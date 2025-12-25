@@ -15,6 +15,7 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
+	"github.com/mark3labs/mcp-go/mcp"
 
 	einoopenai "github.com/cloudwego/eino-ext/components/model/openai"
 	einomcp "github.com/cloudwego/eino-ext/components/tool/mcp"
@@ -83,7 +84,17 @@ func (s *ChatService) initRAGFlowMCP(ctx context.Context) (*client.Client, error
 		logger.Errorf("RequestID[%s]:Failed to initialize RAG flow MCP client: %v ", utils.GetRequestID(ctx), err)
 		return nil, fmt.Errorf("failed to create ragflow mcp client: %w", err)
 	}
-	return mcpClient, mcpClient.Start(ctx)
+	err = mcpClient.Start(ctx)
+	if err != nil {
+		logger.Errorf("RequestID[%s]:Failed to start RAG flow MCP client: %v ", utils.GetRequestID(ctx), err)
+		return nil, err
+	}
+	_, err = mcpClient.Initialize(ctx, mcp.InitializeRequest{})
+	if err != nil {
+		logger.Errorf("RequestID[%s]:Failed to initialize RAG flow MCP client connection: %v ", utils.GetRequestID(ctx), err)
+		return nil, err
+	}
+	return mcpClient, nil
 }
 
 // CreateConversation 创建新对话
@@ -281,6 +292,11 @@ func (s *ChatService) prepareUserMcpClient(ctx context.Context, userID uint, use
 		logger.Errorf("RequestID[%s]: failed to start yqlx mcp client: %v userID:%d", utils.GetRequestID(ctx), err, userID)
 		return nil, err
 	}
+	_, err = yqlxMcpClient.Initialize(ctx, mcp.InitializeRequest{})
+	if err != nil {
+		logger.Errorf("RequestID[%s]: failed to initialize yqlx mcp client connection: %v userID:%d", utils.GetRequestID(ctx), err, userID)
+		return nil, err
+	}
 	// 初始化 RAGFlow MCP 工具
 	// todo: sessionId 应该是每个用户唯一的，可以用 userID 或者其他方式生成
 	ragMcpClient, err := s.initRAGFlowMCP(ctx)
@@ -320,22 +336,32 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 
 	var (
 		mcpClients mcpClient
-		einoTools  []einotool.BaseTool
+		einoTools  []*schema.ToolInfo
 	)
 
+	// MCP 工具为“增强能力”，不应阻塞基础聊天能力。
 	mcpClients, err = s.prepareUserMcpClient(ctx, userID, userToken)
 	if err != nil {
-		return nil, nil, err
-	}
-	for _, client := range mcpClients {
-		tools, err := einomcp.GetTools(ctx, &einomcp.Config{Cli: client})
-		if err != nil {
-			logger.Errorf("RequestID[%s]: Failed to get tools from mcp client: %v", utils.GetRequestID(ctx), err)
-			return nil, nil, fmt.Errorf("failed to get tools from mcp client: %w", err)
-		}
-		einoTools = append(einoTools, tools...)
-	}
+		logger.Warnf("RequestID[%s]: MCP client unavailable, fallback to no-tools chat: %v", utils.GetRequestID(ctx), err)
+	} else {
+		for _, client := range mcpClients {
+			tools, err := einomcp.GetTools(ctx, &einomcp.Config{Cli: client})
+			if err != nil {
+				logger.Warnf("RequestID[%s]: Failed to get tools from mcp client, ignore: %v", utils.GetRequestID(ctx), err)
+				continue
+			}
+			for toolsIndex := range tools {
+				info, err := tools[toolsIndex].Info(ctx)
+				if err != nil {
+					logger.Warnf("RequestID[%s]: Failed to get tool info, ignore tool: %v", utils.GetRequestID(ctx), err)
+					return nil, nil, err
+				}
+				einoTools = append(einoTools, info)
+			}
 
+		}
+	}
+	logger.Infof("RequestID[%s]: Streaming chat loaded mcp tools count:%d", utils.GetRequestID(ctx), len(einoTools))
 	// 添加系统提示词（仅在首次聊天时）
 	var prompts []*schema.Message
 	if len(messages) > 0 && messages[0].Role == schema.System {
@@ -366,7 +392,7 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 	}
 
 	// 创建流式请求
-	sr, err := chatModel.Stream(ctx, prompts)
+	sr, err := chatModel.Stream(ctx, prompts, einomodel.WithTools(einoTools))
 	if err != nil {
 		logger.Errorf("RequestID[%s]: Failed to create chat stream: %v", utils.GetRequestID(ctx), err)
 		return nil, nil, fmt.Errorf("failed to create chat stream: %w", err)
