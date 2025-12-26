@@ -243,8 +243,8 @@ func (s *CourseTableService) UpdateUserClass(ctx context.Context, userID uint, c
 			hasRecord = true
 		}
 
-		// 检查是否有全量班级更新权限，若无则执行绑定次数限制
-		isPrivileged := utils.HasPermission(ctx, models.PermissionCourseTableClassUpdateAll)
+		// 检查是否有全量班级更新权限或是管理员，若无则执行绑定次数限制
+		isPrivileged := utils.IsAdmin(ctx) || utils.HasPermission(ctx, models.PermissionCourseTableClassUpdateAll)
 
 		// 普通权限用户限制2次绑定（基于 bind_count）
 		if !isPrivileged {

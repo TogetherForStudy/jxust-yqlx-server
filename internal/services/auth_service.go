@@ -75,8 +75,19 @@ func (s *AuthService) WechatLogin(ctx context.Context, code string) (*response.W
 		return nil, fmt.Errorf("用户账号已被禁用")
 	}
 
-	// 生成JWT token
-	token, err := utils.GenerateJWT(user.ID, s.cfg.JWTSecret)
+	// 获取用户角色并映射到旧的role字段（向前兼容）
+	role := s.mapRoleTagToLegacyRole(ctx, user.ID)
+
+	// 更新User模型中的role字段
+	if user.Role != role {
+		if err := s.db.WithContext(ctx).Model(&user).Update("role", role).Error; err != nil {
+			return nil, fmt.Errorf("更新用户角色失败: %w", err)
+		}
+		user.Role = role
+	}
+
+	// 生成JWT token（带角色信息）
+	token, err := utils.GenerateJWT(user.ID, s.cfg.JWTSecret, role)
 	if err != nil {
 		return nil, fmt.Errorf("生成token失败: %w", err)
 	}
@@ -232,8 +243,19 @@ func (s *AuthService) MockWechatLogin(ctx context.Context, testUser string) (*re
 		return nil, fmt.Errorf("用户账号已被禁用")
 	}
 
-	// 生成JWT token
-	token, err := utils.GenerateJWT(user.ID, s.cfg.JWTSecret)
+	// 获取用户角色并映射到旧的role字段（向前兼容）
+	role := s.mapRoleTagToLegacyRole(ctx, user.ID)
+
+	// 更新User模型中的role字段
+	if user.Role != role {
+		if err := s.db.WithContext(ctx).Model(&user).Update("role", role).Error; err != nil {
+			return nil, fmt.Errorf("更新用户角色失败: %w", err)
+		}
+		user.Role = role
+	}
+
+	// 生成JWT token（带角色信息）
+	token, err := utils.GenerateJWT(user.ID, s.cfg.JWTSecret, role)
 	if err != nil {
 		return nil, fmt.Errorf("生成token失败: %w", err)
 	}
@@ -242,4 +264,40 @@ func (s *AuthService) MockWechatLogin(ctx context.Context, testUser string) (*re
 		Token:    token,
 		UserInfo: user,
 	}, nil
+}
+
+// mapRoleTagToLegacyRole 将RBAC角色标签映射到旧的role字段（向前兼容）
+// 返回：1=普通用户，2=管理员，3=运营
+func (s *AuthService) mapRoleTagToLegacyRole(ctx context.Context, userID uint) int8 {
+	if s.rbac == nil {
+		return 1 // 默认普通用户
+	}
+
+	snap, err := s.rbac.GetUserPermissionSnapshot(ctx, userID)
+	if err != nil {
+		return 1 // 默认普通用户
+	}
+
+	// 检查角色优先级：admin > operator > user
+	hasAdmin := false
+	hasOperator := false
+
+	for _, tag := range snap.RoleTags {
+		if tag == models.RoleTagAdmin {
+			hasAdmin = true
+			break // admin优先级最高，找到就返回
+		}
+		if tag == models.RoleTagOperator {
+			hasOperator = true
+		}
+	}
+
+	if hasAdmin {
+		return 2 // 管理员
+	}
+	if hasOperator {
+		return 3 // 运营
+	}
+
+	return 1 // 普通用户
 }

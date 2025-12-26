@@ -5,7 +5,6 @@ import (
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
-	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 	"github.com/gin-gonic/gin"
 )
 
@@ -27,7 +26,7 @@ func RequirePermission(rbac *services.RBACService, permissions ...string) gin.Ha
 		}
 
 		// 获取用户权限快照
-		snap, err := rbac.GetUserPermissionSnapshot(c.Request.Context(), userID)
+		snap, err := rbac.GetUserPermissionSnapshot(c, userID)
 		if err != nil {
 			helper.ErrorResponse(c, http.StatusInternalServerError, "权限校验失败")
 			c.Abort()
@@ -35,10 +34,9 @@ func RequirePermission(rbac *services.RBACService, permissions ...string) gin.Ha
 		}
 
 		// 将权限信息注入到 context
-		ctx := utils.WithUserRoles(c.Request.Context(), snap.RoleTags)
-		ctx = utils.WithUserPermissions(ctx, snap.PermissionTags)
-		ctx = utils.WithIsAdmin(ctx, snap.IsAdmin)
-		c.Request = c.Request.WithContext(ctx)
+		c.Set("user_roles", snap.RoleTags)
+		c.Set("user_permissions", snap.PermissionTags)
+		c.Set("is_admin", snap.IsAdmin)
 
 		// 检查权限
 		if snap.IsAdmin {

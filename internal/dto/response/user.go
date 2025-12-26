@@ -32,6 +32,7 @@ type UserProfileResponse struct {
 	College   string            `json:"college"`
 	Major     string            `json:"major"`
 	ClassID   string            `json:"class_id"`
+	Role      int8              `json:"role,omitempty"` // 向前兼容字段：1=普通用户，2=管理员，3=运营
 	RoleTags  []string          `json:"role_tags,omitempty"`
 	Status    models.UserStatus `json:"status"`
 	CreatedAt time.Time         `json:"created_at"`

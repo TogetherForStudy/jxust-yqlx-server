@@ -32,8 +32,10 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 	// 初始化服务
 	rbacService := services.NewRBACService(db)
-	if err := rbacService.SeedDefaults(context.Background()); err != nil {
-		logger.Warnf("RBAC seed 初始化失败: %v", err)
+	if cfg.InitRbac {
+		if err := rbacService.SeedDefaults(context.Background()); err != nil {
+			logger.Warnf("RBAC seed 初始化失败: %v", err)
+		}
 	}
 
 	authService := services.NewAuthService(db, cfg, rbacService)

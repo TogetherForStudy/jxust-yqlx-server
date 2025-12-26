@@ -16,6 +16,7 @@ type Config struct {
 	ServerPort      string `yaml:"server_port" env:"SERVER_PORT" envDefault:"8085"`
 	WechatAppID     string `yaml:"wechat_app_id" env:"WECHAT_APP_ID"`
 	WechatAppSecret string `yaml:"wechat_app_secret" env:"WECHAT_APP_SECRET" envDefault:""`
+	InitRbac        bool   `yaml:"init_rbac" env:"INIT_RBAC" envDefault:"false"`
 
 	// Upyun/CDN Token 防盗链配置
 	UpyunTokenSecret string `yaml:"upyun_token_secret" env:"UPYUN_TOKEN_SECRET" envDefault:""`

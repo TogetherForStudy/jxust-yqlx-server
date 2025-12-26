@@ -51,7 +51,7 @@ func (s *QuestionService) GetProjects(userID uint) ([]response.QuestionProjectRe
 		// 获取项目下所有启用题目的 ID（用于统计数量和刷题次数）
 		var questionIDs []uint
 		if err := s.db.Model(&models.Question{}).
-			Where("project_id = ? AND is_active = ? AND type != 0", project.ID, true).
+			Where("project_id = ? AND is_active = ?", project.ID, true).
 			Pluck("id", &questionIDs).Error; err != nil {
 			return nil, err
 		}
@@ -62,8 +62,8 @@ func (s *QuestionService) GetProjects(userID uint) ([]response.QuestionProjectRe
 		// 从 Redis 获取使用过该项目的用户数量
 		ctx := context.Background()
 		var userCount int64
+		userSetKey := fmt.Sprintf("project:users:%d", project.ID)
 		if cache.GlobalCache != nil {
-			userSetKey := fmt.Sprintf("project:users:%d", project.ID)
 			var err error
 			userCount, err = cache.GlobalCache.SCard(ctx, userSetKey)
 			if err != nil {
@@ -71,6 +71,19 @@ func (s *QuestionService) GetProjects(userID uint) ([]response.QuestionProjectRe
 				s.db.Model(&models.UserProjectUsage{}).
 					Where("project_id = ?", project.ID).
 					Count(&userCount)
+
+				// 从数据库初始化Redis：查询所有使用过该项目的用户ID并添加到Redis集合
+				var userIDs []uint
+				if err := s.db.Model(&models.UserProjectUsage{}).
+					Where("project_id = ?", project.ID).
+					Pluck("user_id", &userIDs).Error; err == nil && len(userIDs) > 0 {
+					// 将用户ID转换为字符串并添加到Redis集合
+					members := make([]interface{}, len(userIDs))
+					for i, id := range userIDs {
+						members[i] = strconv.FormatUint(uint64(id), 10)
+					}
+					_, _ = cache.GlobalCache.SAdd(ctx, userSetKey, members...)
+				}
 			}
 		} else {
 			// 如果 Redis 未初始化，使用数据库查询
@@ -81,8 +94,8 @@ func (s *QuestionService) GetProjects(userID uint) ([]response.QuestionProjectRe
 
 		// 从 Redis 获取项目内题目总刷题次数（学习+练习）
 		var usageCount int64
+		usageKey := fmt.Sprintf("project:usage:%d", project.ID)
 		if cache.GlobalCache != nil {
-			usageKey := fmt.Sprintf("project:usage:%d", project.ID)
 			var err error
 			usageCount, err = cache.GlobalCache.GetInt(ctx, usageKey)
 			if err != nil {
@@ -95,6 +108,11 @@ func (s *QuestionService) GetProjects(userID uint) ([]response.QuestionProjectRe
 						return nil, err
 					}
 				}
+				// 从数据库初始化Redis：将查询到的值写入Redis（包括0值，避免每次都查询数据库）
+				// 即使questionIDs为空，usageCount为0，也写入Redis以保持一致性
+				// 使用 time.Duration(0) 表示永不过期
+				noExpiration := time.Duration(0)
+				_ = cache.GlobalCache.Set(ctx, usageKey, strconv.FormatInt(usageCount, 10), &noExpiration)
 			}
 		} else {
 			// 如果 Redis 未初始化，使用数据库查询

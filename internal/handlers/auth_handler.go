@@ -120,6 +120,7 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 		College:   user.College,
 		Major:     user.Major,
 		ClassID:   user.ClassID,
+		Role:      user.Role, // 向前兼容字段
 		RoleTags:  roleTags,
 		Status:    user.Status,
 		CreatedAt: user.CreatedAt,

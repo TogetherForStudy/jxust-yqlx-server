@@ -3,25 +3,28 @@ package utils
 import (
 	"context"
 	"slices"
+
+	"github.com/gin-gonic/gin"
 )
 
-type contextKey string
-
-const (
-	userRolesKey       contextKey = "user_roles"
-	userPermissionsKey contextKey = "user_permissions"
-	isAdminKey         contextKey = "is_admin"
-)
-
-// WithUserRoles 将用户角色信息存储到 context 中
-func WithUserRoles(ctx context.Context, roles []string) context.Context {
-	return context.WithValue(ctx, userRolesKey, roles)
+// getGinContext 从 context.Context 中提取 *gin.Context
+func getGinContext(ctx context.Context) *gin.Context {
+	if c, ok := ctx.(*gin.Context); ok {
+		return c
+	}
+	return nil
 }
 
 // GetUserRoles 从 context 中获取用户角色信息
 func GetUserRoles(ctx context.Context) []string {
-	if roles, ok := ctx.Value(userRolesKey).([]string); ok {
-		return roles
+	c := getGinContext(ctx)
+	if c == nil {
+		return nil
+	}
+	if roles, ok := c.Get("user_roles"); ok {
+		if roleList, ok := roles.([]string); ok {
+			return roleList
+		}
 	}
 	return nil
 }
@@ -34,27 +37,29 @@ func HasUserRole(ctx context.Context, role string) bool {
 
 // IsAdmin 检查 context 中的用户是否是管理员
 func IsAdmin(ctx context.Context) bool {
-	if isAdmin, ok := ctx.Value(isAdminKey).(bool); ok {
-		return isAdmin
+	c := getGinContext(ctx)
+	if c == nil {
+		return false
+	}
+	if isAdmin, ok := c.Get("is_admin"); ok {
+		if admin, ok := isAdmin.(bool); ok {
+			return admin
+		}
 	}
 	// 如果没有显式设置，检查是否包含 admin 角色
 	return HasUserRole(ctx, "admin")
 }
 
-// WithIsAdmin 将管理员标识存储到 context 中
-func WithIsAdmin(ctx context.Context, isAdmin bool) context.Context {
-	return context.WithValue(ctx, isAdminKey, isAdmin)
-}
-
-// WithUserPermissions 将用户权限信息存储到 context 中
-func WithUserPermissions(ctx context.Context, permissions []string) context.Context {
-	return context.WithValue(ctx, userPermissionsKey, permissions)
-}
-
 // GetUserPermissions 从 context 中获取用户权限信息
 func GetUserPermissions(ctx context.Context) []string {
-	if permissions, ok := ctx.Value(userPermissionsKey).([]string); ok {
-		return permissions
+	c := getGinContext(ctx)
+	if c == nil {
+		return nil
+	}
+	if permissions, ok := c.Get("user_permissions"); ok {
+		if permList, ok := permissions.([]string); ok {
+			return permList
+		}
 	}
 	return nil
 }

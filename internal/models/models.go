@@ -21,6 +21,7 @@ type User struct {
 	College   string         `json:"college" gorm:"type:varchar(50);comment:学院"`
 	Major     string         `json:"major" gorm:"type:varchar(50);comment:专业"`
 	ClassID   string         `json:"class_id" gorm:"type:varchar(256);comment:班级标识"`
+	Role      int8           `json:"role" gorm:"type:tinyint;default:1;comment:用户角色：1=普通用户，2=管理员，3=运营（向前兼容字段）"`
 	Status    UserStatus     `json:"status" gorm:"type:tinyint;default:1;comment:用户状态：1=正常，2=禁用"`
 	Points    uint           `json:"points" gorm:"type:int unsigned;default:0;comment:积分"`
 	CreatedAt time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
