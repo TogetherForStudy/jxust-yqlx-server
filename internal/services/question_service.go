@@ -300,6 +300,14 @@ func (s *QuestionService) RecordStudy(userID uint, req *request.RecordStudyReque
 		_, _ = cache.GlobalCache.Incr(ctx, usageKey)
 	}
 
+	// 更新项目在线人数统计（每个用户独立TTL 1分钟）
+	if cache.GlobalCache != nil {
+		userIDStr := strconv.FormatUint(uint64(userID), 10)
+		projectOnlineKey := fmt.Sprintf("online:project:%d", question.ProjectID)
+		now := float64(time.Now().Unix())
+		_ = cache.GlobalCache.ZAdd(ctx, projectOnlineKey, now, userIDStr)
+	}
+
 	return nil
 }
 
@@ -346,6 +354,14 @@ func (s *QuestionService) SubmitPractice(userID uint, req *request.SubmitPractic
 	usageKey := fmt.Sprintf("project:usage:%d", question.ProjectID)
 	if cache.GlobalCache != nil {
 		_, _ = cache.GlobalCache.Incr(ctx, usageKey)
+	}
+
+	// 更新项目在线人数统计（每个用户独立TTL 1分钟）
+	if cache.GlobalCache != nil {
+		userIDStr := strconv.FormatUint(uint64(userID), 10)
+		projectOnlineKey := fmt.Sprintf("online:project:%d", question.ProjectID)
+		now := float64(time.Now().Unix())
+		_ = cache.GlobalCache.ZAdd(ctx, projectOnlineKey, now, userIDStr)
 	}
 
 	return nil

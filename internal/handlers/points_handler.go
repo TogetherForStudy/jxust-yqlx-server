@@ -53,7 +53,7 @@ func (h *PointsHandler) GetPointsTransactions(c *gin.Context) {
 	if req.Type != nil && *req.Type == 0 {
 		req.Type = nil
 	}
-	if req.Source != nil && *req.Source == 0 {
+	if req.Source != nil && *req.Source == "" {
 		req.Source = nil
 	}
 	if req.UserID != nil && *req.UserID == 0 {
@@ -99,4 +99,21 @@ func (h *PointsHandler) GetUserPointsStats(c *gin.Context) {
 	}
 
 	helper.SuccessResponse(c, result)
+}
+
+// GrantPoints 管理员手动赋予积分
+func (h *PointsHandler) GrantPoints(c *gin.Context) {
+	var req request.GrantPointsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		helper.ValidateResponse(c, "参数验证失败")
+		return
+	}
+
+	err := h.pointsService.GrantPoints(c, req.UserID, req.Points, req.Description)
+	if err != nil {
+		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	helper.SuccessResponse(c, gin.H{"message": "积分操作成功"})
 }

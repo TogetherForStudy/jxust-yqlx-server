@@ -89,12 +89,38 @@ func (s *AuthService) WechatLogin(ctx context.Context, code string) (*response.W
 	// 生成JWT token（带角色信息）
 	token, err := utils.GenerateJWT(user.ID, s.cfg.JWTSecret, role)
 	if err != nil {
-		return nil, fmt.Errorf("生成token失败: %w", err)
+		return nil, fmt.Errorf("生成 Token 失败: %w", err)
+	}
+
+	// 获取角色标签（RBAC新逻辑）
+	var roleTags []string
+	if s.rbac != nil {
+		if snap, err := s.rbac.GetUserPermissionSnapshot(ctx, user.ID); err == nil {
+			roleTags = snap.RoleTags
+		}
+	}
+
+	// 转换为 UserProfileResponse
+	userProfile := response.UserProfileResponse{
+		ID:        user.ID,
+		Nickname:  user.Nickname,
+		Avatar:    user.Avatar,
+		Phone:     user.Phone,
+		StudentID: user.StudentID,
+		RealName:  user.RealName,
+		College:   user.College,
+		Major:     user.Major,
+		ClassID:   user.ClassID,
+		Role:      user.Role, // 向前兼容字段
+		RoleTags:  roleTags,
+		Status:    user.Status,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
 	}
 
 	return &response.WechatLoginResponse{
 		Token:    token,
-		UserInfo: user,
+		UserInfo: userProfile,
 	}, nil
 }
 
@@ -260,9 +286,35 @@ func (s *AuthService) MockWechatLogin(ctx context.Context, testUser string) (*re
 		return nil, fmt.Errorf("生成token失败: %w", err)
 	}
 
+	// 获取角色标签（RBAC新逻辑）
+	var roleTags []string
+	if s.rbac != nil {
+		if snap, err := s.rbac.GetUserPermissionSnapshot(ctx, user.ID); err == nil {
+			roleTags = snap.RoleTags
+		}
+	}
+
+	// 转换为 UserProfileResponse
+	userProfile := response.UserProfileResponse{
+		ID:        user.ID,
+		Nickname:  user.Nickname,
+		Avatar:    user.Avatar,
+		Phone:     user.Phone,
+		StudentID: user.StudentID,
+		RealName:  user.RealName,
+		College:   user.College,
+		Major:     user.Major,
+		ClassID:   user.ClassID,
+		Role:      user.Role, // 向前兼容字段
+		RoleTags:  roleTags,
+		Status:    user.Status,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+	}
+
 	return &response.WechatLoginResponse{
 		Token:    token,
-		UserInfo: user,
+		UserInfo: userProfile,
 	}, nil
 }
 

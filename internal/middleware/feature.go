@@ -16,7 +16,7 @@ func RequireFeature(featureService *services.FeatureService, featureKey string) 
 		// 获取用户ID
 		userID := helper.GetUserID(c)
 		if userID == 0 {
-			helper.ErrorResponse(c, http.StatusUnauthorized, "未授权访问")
+			helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
 			c.Abort()
 			return
 		}
@@ -30,7 +30,7 @@ func RequireFeature(featureService *services.FeatureService, featureKey string) 
 		}
 
 		if !hasFeature {
-			helper.ErrorResponse(c, http.StatusForbidden, "无权访问此功能")
+			helper.ValidateResponse(c, "无权访问此功能")
 			c.Abort()
 			return
 		}

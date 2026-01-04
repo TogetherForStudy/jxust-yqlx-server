@@ -29,8 +29,20 @@ type Cache interface {
 	SAdd(ctx context.Context, key string, members ...interface{}) (int64, error)
 	// SCard 获取集合的成员数量
 	SCard(ctx context.Context, key string) (int64, error)
+	// SIsMember 检查成员是否在集合中
+	SIsMember(ctx context.Context, key string, member interface{}) (bool, error)
 	// GetInt 获取整数值（用于计数器）
 	GetInt(ctx context.Context, key string) (int64, error)
+	// Expire 设置key的过期时间
+	Expire(ctx context.Context, key string, expiration time.Duration) error
+
+	// Sorted Set 操作
+	// ZAdd 向有序集合中添加成员，score 为时间戳
+	ZAdd(ctx context.Context, key string, score float64, member interface{}) error
+	// ZCount 统计有序集合中 score 在指定范围内的成员数量
+	ZCount(ctx context.Context, key string, min, max float64) (int64, error)
+	// ZRemRangeByScore 移除有序集合中 score 在指定范围内的成员
+	ZRemRangeByScore(ctx context.Context, key string, min, max float64) (int64, error)
 
 	Close() error
 }

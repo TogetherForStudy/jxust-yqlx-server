@@ -8,8 +8,8 @@ import (
 
 // WechatLoginResponse 微信登录响应
 type WechatLoginResponse struct {
-	Token    string      `json:"token"` // jwt token
-	UserInfo models.User `json:"user_info"`
+	Token    string              `json:"token"` // jwt token
+	UserInfo UserProfileResponse `json:"user_info"`
 }
 
 // WechatSession 微信session信息

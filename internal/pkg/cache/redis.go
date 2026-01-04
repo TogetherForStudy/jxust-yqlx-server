@@ -2,10 +2,12 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/redis"
+	rediscache "github.com/redis/go-redis/v9"
 )
 
 var _ Cache = (*redisCache)(nil)
@@ -74,6 +76,10 @@ func (r *redisCache) SCard(ctx context.Context, key string) (int64, error) {
 	return r.cli.GetRedisCli().SCard(ctx, key).Result()
 }
 
+func (r *redisCache) SIsMember(ctx context.Context, key string, member interface{}) (bool, error) {
+	return r.cli.GetRedisCli().SIsMember(ctx, key, member).Result()
+}
+
 func (r *redisCache) GetInt(ctx context.Context, key string) (int64, error) {
 	val, err := r.cli.GetRedisCli().Get(ctx, key).Result()
 	if err != nil {
@@ -84,6 +90,25 @@ func (r *redisCache) GetInt(ctx context.Context, key string) (int64, error) {
 		return 0, err
 	}
 	return result, nil
+}
+
+func (r *redisCache) Expire(ctx context.Context, key string, expiration time.Duration) error {
+	return r.cli.GetRedisCli().Expire(ctx, key, expiration).Err()
+}
+
+func (r *redisCache) ZAdd(ctx context.Context, key string, score float64, member interface{}) error {
+	return r.cli.GetRedisCli().ZAdd(ctx, key, rediscache.Z{
+		Score:  score,
+		Member: member,
+	}).Err()
+}
+
+func (r *redisCache) ZCount(ctx context.Context, key string, min, max float64) (int64, error) {
+	return r.cli.GetRedisCli().ZCount(ctx, key, fmt.Sprintf("%.0f", min), fmt.Sprintf("%.0f", max)).Result()
+}
+
+func (r *redisCache) ZRemRangeByScore(ctx context.Context, key string, min, max float64) (int64, error) {
+	return r.cli.GetRedisCli().ZRemRangeByScore(ctx, key, fmt.Sprintf("%.0f", min), fmt.Sprintf("%.0f", max)).Result()
 }
 
 func (r *redisCache) Close() error {

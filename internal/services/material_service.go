@@ -355,7 +355,7 @@ func (s *MaterialService) GetMaterialDesc(md5 string) (*response.MaterialDescRes
 func (s *MaterialService) GetCategoriesByParent(parentID *uint) ([]response.MaterialCategoryResponse, error) {
 	var categories []models.MaterialCategory
 
-	query := s.db.Order("sort ASC, created_at ASC")
+	query := s.db.Order("sort ASC, name ASC")
 	if parentID != nil {
 		query = query.Where("parent_id = ?", *parentID)
 	} else {

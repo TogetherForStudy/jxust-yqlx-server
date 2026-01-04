@@ -227,14 +227,14 @@ type ScheduleTimeSlot struct {
 
 // PointsTransaction 积分变动记录模型
 type PointsTransaction struct {
-	ID          uint                    `json:"id" gorm:"type:int unsigned;primaryKey;comment:交易ID"`
-	UserID      uint                    `json:"user_id" gorm:"not null;index:idx_user_created;comment:用户ID"`
-	Type        PointsTransactionType   `json:"type" gorm:"type:tinyint;not null;index:idx_type_source;comment:类型：1=获得，2=消耗"`
-	Source      PointsTransactionSource `json:"source" gorm:"type:tinyint;not null;index:idx_type_source;comment:来源：1=投稿采纳，2=兑换奖品"`
-	Points      int                     `json:"points" gorm:"type:int;not null;comment:积分数量"`
-	Description string                  `json:"description" gorm:"type:varchar(200);comment:描述"`
-	RelatedID   *uint                   `json:"related_id" gorm:"comment:关联ID(投稿ID/奖品ID等)"`
-	CreatedAt   time.Time               `json:"created_at" gorm:"type:datetime;index:idx_user_created;comment:创建时间"`
+	ID          uint                  `json:"id" gorm:"type:int unsigned;primaryKey;comment:交易ID"`
+	UserID      uint                  `json:"user_id" gorm:"not null;index:idx_user_created;comment:用户ID"`
+	Type        PointsTransactionType `json:"type" gorm:"type:tinyint;not null;index:idx_type_source;comment:类型：1=获得，2=消耗"`
+	Source      string                `json:"source" gorm:"type:varchar(50);not null;index:idx_type_source;comment:来源"`
+	Points      int                   `json:"points" gorm:"type:int;not null;comment:积分数量"`
+	Description string                `json:"description" gorm:"type:varchar(200);comment:描述"`
+	RelatedID   *uint                 `json:"related_id" gorm:"comment:关联ID(投稿ID/奖品ID等)"`
+	CreatedAt   time.Time             `json:"created_at" gorm:"type:datetime;index:idx_user_created;comment:创建时间"`
 }
 
 // PointsTransactionType 积分交易类型
@@ -245,13 +245,24 @@ const (
 	PointsTransactionTypeSpend PointsTransactionType = 2 // 消耗
 )
 
-// PointsTransactionSource 积分交易来源
-type PointsTransactionSource int8
-
+// PointsTransactionSource 积分交易来源常量
 const (
-	PointsTransactionSourceContribution PointsTransactionSource = 1 // 投稿采纳
-	PointsTransactionSourceRedeem       PointsTransactionSource = 2 // 兑换奖品
+	PointsTransactionSourceDailyLogin   = "daily_login"  // 每日登录
+	PointsTransactionSourceReview       = "review"       // 发布评价并审核通过
+	PointsTransactionSourceContribution = "contribution" // 投稿信息并审核通过
+	PointsTransactionSourceRedeem       = "redeem"       // 兑换奖品
+	PointsTransactionSourceAdminGrant   = "admin_grant"  // 管理员手动赋予
 )
+
+// UserActivity 用户活动记录模型
+type UserActivity struct {
+	ID         uint      `json:"id" gorm:"type:int unsigned;primaryKey;comment:记录ID"`
+	UserID     uint      `json:"user_id" gorm:"not null;uniqueIndex:idx_user_date;comment:用户ID"`
+	Date       time.Time `json:"date" gorm:"type:date;not null;uniqueIndex:idx_user_date;comment:活动日期"`
+	VisitCount int       `json:"visit_count" gorm:"type:int;default:1;comment:访问次数"`
+	CreatedAt  time.Time `json:"created_at" gorm:"type:datetime;comment:创建时间"`
+	UpdatedAt  time.Time `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
+}
 
 // UserContribution 用户投稿模型
 type UserContribution struct {

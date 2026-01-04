@@ -65,6 +65,7 @@ func (s *RBACService) SeedDefaults(ctx context.Context) error {
 		{PermissionTag: models.PermissionFailRate, Name: "挂科率查询", Description: ""},
 		{PermissionTag: models.PermissionPointGet, Name: "积分查看", Description: ""},
 		{PermissionTag: models.PermissionPointSpend, Name: "积分消费", Description: ""},
+		{PermissionTag: models.PermissionPointManage, Name: "积分管理", Description: ""},
 		{PermissionTag: models.PermissionContributionGet, Name: "投稿查看", Description: ""},
 		{PermissionTag: models.PermissionContributionCreate, Name: "投稿创建", Description: ""},
 		{PermissionTag: models.PermissionCountdown, Name: "倒数日", Description: ""},
@@ -479,6 +480,38 @@ func (s *RBACService) GetUsersByRoleTags(ctx context.Context, roleTags []string)
 	}
 
 	return users, nil
+}
+
+// GrantRole 授予用户角色（如果不存在）
+func (s *RBACService) GrantRole(ctx context.Context, userID uint, roleID uint) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var rel models.UserRole
+		err := tx.Where("user_id = ? AND role_id = ?", userID, roleID).First(&rel).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			rel = models.UserRole{
+				UserID: userID,
+				RoleID: roleID,
+			}
+			if err := tx.Create(&rel).Error; err != nil {
+				return err
+			}
+			s.invalidateUserCache(userID)
+		} else if err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+// RevokeRole 撤销用户角色
+func (s *RBACService) RevokeRole(ctx context.Context, userID uint, roleID uint) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ? AND role_id = ?", userID, roleID).Delete(&models.UserRole{}).Error; err != nil {
+			return err
+		}
+		s.invalidateUserCache(userID)
+		return nil
+	})
 }
 
 // invalidateUserCache 清理用户权限缓存

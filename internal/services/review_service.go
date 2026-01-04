@@ -13,12 +13,14 @@ import (
 )
 
 type ReviewService struct {
-	db *gorm.DB
+	db            *gorm.DB
+	pointsService *PointsService
 }
 
-func NewReviewService(db *gorm.DB) *ReviewService {
+func NewReviewService(db *gorm.DB, pointsService *PointsService) *ReviewService {
 	return &ReviewService{
-		db: db,
+		db:            db,
+		pointsService: pointsService,
 	}
 }
 

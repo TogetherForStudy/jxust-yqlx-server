@@ -64,7 +64,7 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 		// 检查Bearer前缀
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		if tokenString == authHeader {
-			helper.ErrorResponse(c, http.StatusUnauthorized, "无效的Authorization头")
+			helper.ErrorResponse(c, http.StatusUnauthorized, "无效的 Authorization 头")
 			c.Abort()
 			return
 		}
@@ -78,7 +78,7 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 		})
 
 		if err != nil || !token.Valid {
-			helper.ErrorResponse(c, http.StatusUnauthorized, "无效的token")
+			helper.ErrorResponse(c, http.StatusUnauthorized, "无效的 Token")
 			c.Abort()
 			return
 		}
@@ -89,7 +89,7 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 
 			c.Set("user_id", userID)
 		} else {
-			helper.ErrorResponse(c, http.StatusUnauthorized, "无效的token Claims")
+			helper.ErrorResponse(c, http.StatusUnauthorized, "无效的 Token Claims")
 			c.Abort()
 			return
 		}

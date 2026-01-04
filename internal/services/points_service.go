@@ -170,7 +170,7 @@ func (s *PointsService) SpendPoints(ctx context.Context, userID uint, req *reque
 }
 
 // AddPoints 增加积分（内部方法，用于其他服务调用）
-func (s *PointsService) AddPoints(ctx context.Context, tx *gorm.DB, userID uint, points int, source models.PointsTransactionSource, description string, relatedID *uint) error {
+func (s *PointsService) AddPoints(ctx context.Context, tx *gorm.DB, userID uint, points int, source string, description string, relatedID *uint) error {
 	// 获取用户信息
 	var user models.User
 	if err := tx.WithContext(ctx).First(&user, userID).Error; err != nil {
@@ -239,4 +239,45 @@ func (s *PointsService) GetUserPointsStats(ctx context.Context, userID uint) (ma
 	stats["redeem_points"] = redeemPoints
 
 	return stats, nil
+}
+
+// GrantPoints 管理员手动赋予积分
+func (s *PointsService) GrantPoints(ctx context.Context, userID uint, points int, description string) error {
+	// 获取用户信息
+	var user models.User
+	if err := s.db.WithContext(ctx).First(&user, userID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return errors.New("用户不存在")
+		}
+		return err
+	}
+
+	// 开启事务
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 更新积分（支持正数和负数）
+		newPoints := int(user.Points) + points
+		if newPoints < 0 {
+			return errors.New("积分不足，无法扣除")
+		}
+
+		if err := tx.Model(&user).Update("points", newPoints).Error; err != nil {
+			return err
+		}
+
+		// 记录交易
+		transactionType := models.PointsTransactionTypeEarn
+		if points < 0 {
+			transactionType = models.PointsTransactionTypeSpend
+		}
+
+		transaction := models.PointsTransaction{
+			UserID:      userID,
+			Type:        transactionType,
+			Source:      models.PointsTransactionSourceAdminGrant,
+			Points:      points,
+			Description: description,
+		}
+
+		return tx.Create(&transaction).Error
+	})
 }
