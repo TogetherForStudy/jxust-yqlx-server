@@ -55,6 +55,8 @@ func (s *PointsService) GetPointsTransactions(ctx context.Context, userID uint, 
 	if utils.IsAdmin(ctx) {
 		if req.UserID != nil {
 			query = query.Where("user_id = ?", *req.UserID)
+		} else {
+			query = query.Where("user_id = ?", userID)
 		}
 	} else {
 		query = query.Where("user_id = ?", userID)
@@ -216,27 +218,49 @@ func (s *PointsService) GetUserPointsStats(ctx context.Context, userID uint) (ma
 	}
 	stats["rank"] = rank + 1
 
-	// 投稿获得积分总数
-	var contributionPoints int64
+	// 按 source 分组统计各类来源的积分汇总
+	// 统计获得的积分（按 source 分组）
+	var earnedStats []struct {
+		Source string `gorm:"column:source"`
+		Points int64  `gorm:"column:points"`
+	}
 	if err := s.db.WithContext(ctx).Model(&models.PointsTransaction{}).
-		Where("user_id = ? AND type = ? AND source = ?",
-			userID, models.PointsTransactionTypeEarn, models.PointsTransactionSourceContribution).
-		Select("COALESCE(SUM(points), 0)").
-		Scan(&contributionPoints).Error; err != nil {
+		Where("user_id = ? AND type = ?", userID, models.PointsTransactionTypeEarn).
+		Select("source, COALESCE(SUM(points), 0) as points").
+		Group("source").
+		Find(&earnedStats).Error; err != nil {
 		return nil, err
 	}
-	stats["contribution_points"] = contributionPoints
 
-	// 兑换使用积分总数
-	var redeemPoints int64
+	// 统计消耗的积分（按 source 分组）
+	var spentStats []struct {
+		Source string `gorm:"column:source"`
+		Points int64  `gorm:"column:points"`
+	}
 	if err := s.db.WithContext(ctx).Model(&models.PointsTransaction{}).
-		Where("user_id = ? AND type = ? AND source = ?",
-			userID, models.PointsTransactionTypeSpend, models.PointsTransactionSourceRedeem).
-		Select("COALESCE(SUM(ABS(points)), 0)").
-		Scan(&redeemPoints).Error; err != nil {
+		Where("user_id = ? AND type = ?", userID, models.PointsTransactionTypeSpend).
+		Select("source, COALESCE(SUM(ABS(points)), 0) as points").
+		Group("source").
+		Find(&spentStats).Error; err != nil {
 		return nil, err
 	}
-	stats["redeem_points"] = redeemPoints
+
+	// 合并统计结果
+	sourceMap := make(map[string]map[string]int64)
+	for _, stat := range earnedStats {
+		if sourceMap[stat.Source] == nil {
+			sourceMap[stat.Source] = make(map[string]int64)
+		}
+		sourceMap[stat.Source]["earned"] = stat.Points
+	}
+	for _, stat := range spentStats {
+		if sourceMap[stat.Source] == nil {
+			sourceMap[stat.Source] = make(map[string]int64)
+		}
+		sourceMap[stat.Source]["spent"] = stat.Points
+	}
+
+	stats["source_stats"] = sourceMap
 
 	return stats, nil
 }
@@ -266,9 +290,6 @@ func (s *PointsService) GrantPoints(ctx context.Context, userID uint, points int
 
 		// 记录交易
 		transactionType := models.PointsTransactionTypeEarn
-		if points < 0 {
-			transactionType = models.PointsTransactionTypeSpend
-		}
 
 		transaction := models.PointsTransaction{
 			UserID:      userID,

@@ -340,9 +340,9 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			// 通知管理（管理员）
 			notificationAdmin := authorized.Group("/admin/notifications")
 			{
-				notificationAdmin.GET("/", middleware.RequirePermission(rbacService, models.PermissionNotificationGet), notificationHandler.GetAdminNotifications)                                                                      // 获取管理员通知列表
-				notificationAdmin.GET("/stats", middleware.RequirePermission(rbacService, models.PermissionNotificationGet), notificationHandler.GetNotificationStats)                                                                  // 获取通知统计信息
-				notificationAdmin.GET("/:id", middleware.RequirePermission(rbacService, models.PermissionNotificationGet), notificationHandler.GetNotificationAdminByID)                                                                // 获取通知详情
+				notificationAdmin.GET("/", middleware.RequirePermission(rbacService, models.PermissionNotificationGetAdmin), notificationHandler.GetAdminNotifications)                                                                 // 获取管理员通知列表
+				notificationAdmin.GET("/stats", middleware.RequirePermission(rbacService, models.PermissionNotificationGetAdmin), notificationHandler.GetNotificationStats)                                                             // 获取通知统计信息
+				notificationAdmin.GET("/:id", middleware.RequirePermission(rbacService, models.PermissionNotificationGetAdmin), notificationHandler.GetNotificationAdminByID)                                                           // 获取通知详情
 				notificationAdmin.POST("/", middleware.RequirePermission(rbacService, models.PermissionNotificationCreate), middleware.IdempotencyRecommended(ca), notificationHandler.CreateNotification)                              // 创建通知（幂等性保护）
 				notificationAdmin.POST("/:id/publish", middleware.RequirePermission(rbacService, models.PermissionNotificationPublish), middleware.IdempotencyRecommended(ca), notificationHandler.PublishNotification)                 // 发布通知（幂等性保护）
 				notificationAdmin.PUT("/:id", middleware.RequirePermission(rbacService, models.PermissionNotificationUpdate), notificationHandler.UpdateNotification)                                                                   // 更新通知
@@ -389,6 +389,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			rbacAdmin.Use(middleware.RequirePermission(rbacService, models.PermissionUserManage))
 			{
 				rbacAdmin.GET("/roles", rbacHandler.ListRoles)
+				rbacAdmin.GET("/roles/permissions", rbacHandler.ListRolesWithPermissions) // 获取所有角色及其权限列表
 				rbacAdmin.POST("/roles", rbacHandler.CreateRole)
 				rbacAdmin.PUT("/roles/:id", rbacHandler.UpdateRole)
 				// rbacAdmin.DELETE("/roles/:id", rbacHandler.DeleteRole)

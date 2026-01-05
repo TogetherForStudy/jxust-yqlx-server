@@ -82,9 +82,9 @@ func (s *NotificationService) UpdateNotification(ctx context.Context, notificati
 	if req.Content != nil {
 		updates["content"] = *req.Content
 	}
-	if len(req.Categories) > 0 {
+	if req.Categories != nil {
 		// 序列化分类
-		categoriesJSON, err := json.Marshal(req.Categories)
+		categoriesJSON, err := json.Marshal(*req.Categories)
 		if err != nil {
 			return nil, err
 		}

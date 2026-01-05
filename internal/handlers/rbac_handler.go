@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
@@ -66,8 +67,10 @@ func (h *RBACHandler) UpdateRole(c *gin.Context) {
 	}
 
 	updates := map[string]any{
-		"name":        req.Name,
-		"description": req.Description,
+		"name": req.Name,
+	}
+	if req.Description != nil {
+		updates["description"] = *req.Description
 	}
 	if err := h.svc.UpdateRole(c.Request.Context(), id, updates); err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
@@ -172,6 +175,31 @@ func (h *RBACHandler) GetUserPermissions(c *gin.Context) {
 	helper.SuccessResponse(c, gin.H{
 		"user_id":     userID,
 		"permissions": perms,
+	})
+}
+
+// ListRolesWithPermissions 获取所有角色及其对应的权限列表
+func (h *RBACHandler) ListRolesWithPermissions(c *gin.Context) {
+	roles, rolePermMap, err := h.svc.GetRolesWithPermissions(c.Request.Context())
+	if err != nil {
+		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	var result []response.RoleWithPermissionsResponse
+	for _, role := range roles {
+		permissions := rolePermMap[role.ID]
+		if permissions == nil {
+			permissions = []models.Permission{} // 确保返回空数组而不是nil
+		}
+		result = append(result, response.RoleWithPermissionsResponse{
+			Role:        role,
+			Permissions: permissions,
+		})
+	}
+
+	helper.SuccessResponse(c, response.RolesWithPermissionsResponse{
+		Roles: result,
 	})
 }
 

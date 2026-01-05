@@ -243,6 +243,43 @@ func (s *RBACService) ListPermissions(ctx context.Context) ([]models.Permission,
 	return perms, nil
 }
 
+// GetRolesWithPermissions 获取所有角色及其对应的权限列表
+func (s *RBACService) GetRolesWithPermissions(ctx context.Context) ([]models.Role, map[uint][]models.Permission, error) {
+	// 获取所有角色
+	var roles []models.Role
+	if err := s.db.WithContext(ctx).Find(&roles).Error; err != nil {
+		return nil, nil, err
+	}
+
+	// 获取所有角色-权限关联
+	var rolePermissions []models.RolePermission
+	if err := s.db.WithContext(ctx).Find(&rolePermissions).Error; err != nil {
+		return nil, nil, err
+	}
+
+	// 获取所有权限
+	var permissions []models.Permission
+	if err := s.db.WithContext(ctx).Find(&permissions).Error; err != nil {
+		return nil, nil, err
+	}
+
+	// 构建权限ID到权限对象的映射
+	permMap := make(map[uint]models.Permission)
+	for _, perm := range permissions {
+		permMap[perm.ID] = perm
+	}
+
+	// 构建角色ID到权限列表的映射
+	rolePermMap := make(map[uint][]models.Permission)
+	for _, rp := range rolePermissions {
+		if perm, exists := permMap[rp.PermissionID]; exists {
+			rolePermMap[rp.RoleID] = append(rolePermMap[rp.RoleID], perm)
+		}
+	}
+
+	return roles, rolePermMap, nil
+}
+
 // CreateRole 创建角色
 func (s *RBACService) CreateRole(ctx context.Context, role *models.Role) error {
 	return s.db.WithContext(ctx).Create(role).Error

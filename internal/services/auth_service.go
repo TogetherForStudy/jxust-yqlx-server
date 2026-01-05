@@ -164,18 +164,19 @@ func (s *AuthService) GetUserByID(ctx context.Context, userID uint) (*models.Use
 }
 
 // UpdateUserProfile 更新用户资料
-func (s *AuthService) UpdateUserProfile(ctx context.Context, userID uint, profile *models.User) error {
-	return s.db.WithContext(ctx).Model(&models.User{}).Where("id = ?", userID).Updates(map[string]any{
-		"nickname":   profile.Nickname,
-		"avatar":     profile.Avatar,
-		"phone":      profile.Phone,
-		"student_id": profile.StudentID,
-		"real_name":  profile.RealName,
-		"college":    profile.College,
-		"major":      profile.Major,
-		"class_id":   profile.ClassID,
-		"updated_at": time.Now(),
-	}).Error
+// updates map 中的字段：
+// - 如果 key 不存在：表示前端未传递该字段，不更新
+// - 如果 key 存在且值为 nil：表示前端传递了 null，不更新（或可根据需求处理）
+// - 如果 key 存在且值不为 nil：表示前端传递了该字段，需要更新（即使值为空字符串）
+func (s *AuthService) UpdateUserProfile(ctx context.Context, userID uint, updates map[string]any) error {
+	if len(updates) == 0 {
+		return nil
+	}
+
+	// 总是更新 updated_at
+	updates["updated_at"] = time.Now()
+
+	return s.db.WithContext(ctx).Model(&models.User{}).Where("id = ?", userID).Updates(updates).Error
 }
 
 // MockWechatLogin 模拟微信小程序登录 - 仅用于测试

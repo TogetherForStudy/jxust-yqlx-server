@@ -17,10 +17,10 @@ type GetContributionsRequest struct {
 
 // ReviewContributionRequest 审核投稿请求
 type ReviewContributionRequest struct {
-	Status     uint8  `json:"status" binding:"required,oneof=2 3"`      // 审核结果：2=采纳，3=拒绝
-	ReviewNote string `json:"review_note" binding:"max=500"`            // 审核备注
-	Points     uint   `json:"points" binding:"omitempty,min=1,max=100"` // 奖励积分（采纳时）
-	Title      string `json:"title" binding:"omitempty,max=200"`        // 修改后的标题（采纳时）
-	Content    string `json:"content"`                                  // 修改后的内容（采纳时）
-	Categories []int  `json:"categories" binding:"omitempty,dive"`      // 修改后的分类（采纳时）
+	Status     uint8   `json:"status" binding:"required,oneof=2 3"`      // 审核结果：2=采纳，3=拒绝
+	ReviewNote *string `json:"review_note" binding:"omitempty,max=500"`  // 审核备注
+	Points     *uint   `json:"points" binding:"omitempty,min=1,max=100"` // 奖励积分（采纳时）
+	Title      *string `json:"title" binding:"omitempty,max=200"`        // 修改后的标题（采纳时）
+	Content    *string `json:"content"`                                  // 修改后的内容（采纳时）
+	Categories *[]int  `json:"categories" binding:"omitempty,dive"`      // 修改后的分类（采纳时）
 }

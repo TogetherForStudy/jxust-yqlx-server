@@ -160,20 +160,40 @@ func (s *ContributionService) ReviewContribution(ctx context.Context, contributi
 		updates := map[string]interface{}{
 			"status":      models.UserContributionStatus(req.Status),
 			"reviewer_id": reviewerID,
-			"review_note": req.ReviewNote,
 			"reviewed_at": &now,
 		}
 
+		// 如果提供了审核备注，则更新
+		if req.ReviewNote != nil {
+			updates["review_note"] = *req.ReviewNote
+		}
+
 		if req.Status == 2 { // 采纳
-			updates["points_awarded"] = req.Points
+			// 如果提供了积分，则更新
+			if req.Points != nil {
+				updates["points_awarded"] = *req.Points
+			}
 
 			// 创建通知
-			notificationReq := &request.CreateNotificationRequest{
-				Title:   req.Title,
-				Content: req.Content,
+			var title, content string
+			if req.Title != nil {
+				title = *req.Title
+			} else {
+				title = contribution.Title
 			}
-			if len(req.Categories) > 0 {
-				notificationReq.Categories = req.Categories
+			if req.Content != nil {
+				content = *req.Content
+			} else {
+				content = contribution.Content
+			}
+
+			notificationReq := &request.CreateNotificationRequest{
+				Title:   title,
+				Content: content,
+			}
+
+			if req.Categories != nil && len(*req.Categories) > 0 {
+				notificationReq.Categories = *req.Categories
 			} else {
 				// 使用原分类
 				var originalCategories []int
@@ -207,8 +227,8 @@ func (s *ContributionService) ReviewContribution(ctx context.Context, contributi
 			updates["notification_id"] = notification.ID
 
 			// 奖励积分
-			if req.Points > 0 {
-				if err := s.pointsService.AddPoints(ctx, tx, contribution.UserID, int(req.Points),
+			if req.Points != nil && *req.Points > 0 {
+				if err := s.pointsService.AddPoints(ctx, tx, contribution.UserID, int(*req.Points),
 					models.PointsTransactionSourceContribution, "投稿被采纳", &contributionID); err != nil {
 					return err
 				}

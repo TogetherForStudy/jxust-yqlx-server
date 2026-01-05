@@ -9,8 +9,8 @@ type CreateRoleRequest struct {
 
 // UpdateRoleRequest 更新角色
 type UpdateRoleRequest struct {
-	Name        string `json:"name" binding:"required"`
-	Description string `json:"description"`
+	Name        string  `json:"name" binding:"required"`
+	Description *string `json:"description"`
 }
 
 // CreatePermissionRequest 创建权限

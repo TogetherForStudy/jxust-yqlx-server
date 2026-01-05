@@ -286,8 +286,26 @@ func (th *mcpToolHandlers) handleUserProfile(ctx context.Context, req *mcp.CallT
 		data, _ := sonic.Marshal(result)
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(data)}}}, nil, nil
 	case "update":
-		profile := &models.User{Nickname: params.Nickname, RealName: params.RealName, College: params.College, Major: params.Major, ClassID: params.ClassID}
-		if err := th.authService.UpdateUserProfile(ctx, userID, profile); err != nil {
+		// 构建更新 map，只包含非空字段
+		// 注意：MCP 工具调用中，如果字段未传递，值为空字符串，这里只更新非空字段
+		// 如果需要支持清空字段，需要修改 UserProfileParams 为指针类型
+		updates := make(map[string]any)
+		if params.Nickname != "" {
+			updates["nickname"] = params.Nickname
+		}
+		if params.RealName != "" {
+			updates["real_name"] = params.RealName
+		}
+		if params.College != "" {
+			updates["college"] = params.College
+		}
+		if params.Major != "" {
+			updates["major"] = params.Major
+		}
+		if params.ClassID != "" {
+			updates["class_id"] = params.ClassID
+		}
+		if err := th.authService.UpdateUserProfile(ctx, userID, updates); err != nil {
 			return nil, nil, fmt.Errorf("更新用户信息失败: %w", err)
 		}
 		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: `{"message": "更新成功"}`}}}, nil, nil

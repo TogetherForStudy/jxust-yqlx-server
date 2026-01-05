@@ -10,9 +10,9 @@ type CreateConfigRequest struct {
 
 // UpdateConfigRequest 更新配置项请求
 type UpdateConfigRequest struct {
-	Value       string `json:"value" binding:"required"`
-	ValueType   string `json:"value_type" binding:"oneof=string number boolean json"`
-	Description string `json:"description"`
+	Value       string  `json:"value" binding:"required"`
+	ValueType   string  `json:"value_type" binding:"oneof=string number boolean json"`
+	Description *string `json:"description"`
 }
 
 // SearchConfigRequest 搜索配置项请求

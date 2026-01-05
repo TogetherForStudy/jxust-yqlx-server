@@ -9,9 +9,9 @@ type CreateNotificationRequest struct {
 
 // UpdateNotificationRequest 更新通知请求
 type UpdateNotificationRequest struct {
-	Title      *string `json:"title" binding:"omitempty,max=200"` // 通知标题
-	Content    *string `json:"content"`                           // 详细内容
-	Categories []int   `json:"categories" binding:"dive"`         // 分类ID数组
+	Title      *string `json:"title" binding:"omitempty,max=200"`   // 通知标题
+	Content    *string `json:"content"`                             // 详细内容
+	Categories *[]int  `json:"categories" binding:"omitempty,dive"` // 分类ID数组
 }
 
 // GetNotificationsRequest 获取通知列表请求

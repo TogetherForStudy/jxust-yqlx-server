@@ -42,7 +42,7 @@ func (s *HeroService) Create(ctx context.Context, name string, sort int, isShow 
 	return hero, nil
 }
 
-func (s *HeroService) Update(ctx context.Context, id uint, name string, sort int, isShow bool) error {
+func (s *HeroService) Update(ctx context.Context, id uint, name string, sort *int, isShow *bool) error {
 	// 如果修改 name，需要确保唯一（排除自身）
 	var cnt int64
 	if err := s.db.WithContext(ctx).Model(&models.Hero{}).Where("name = ? AND id <> ?", name, id).Count(&cnt).Error; err != nil {
@@ -51,12 +51,17 @@ func (s *HeroService) Update(ctx context.Context, id uint, name string, sort int
 	if cnt > 0 {
 		return fmt.Errorf("名称已存在")
 	}
-	return s.db.WithContext(ctx).Model(&models.Hero{}).Where("id = ?", id).Updates(map[string]any{
+	updates := map[string]any{
 		"name":       name,
-		"sort":       sort,
-		"is_show":    isShow,
 		"updated_at": time.Now(),
-	}).Error
+	}
+	if sort != nil {
+		updates["sort"] = *sort
+	}
+	if isShow != nil {
+		updates["is_show"] = *isShow
+	}
+	return s.db.WithContext(ctx).Model(&models.Hero{}).Where("id = ?", id).Updates(updates).Error
 }
 
 func (s *HeroService) Delete(ctx context.Context, id uint) error {
