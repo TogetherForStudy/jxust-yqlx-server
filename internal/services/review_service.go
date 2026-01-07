@@ -131,13 +131,46 @@ func (s *ReviewService) GetUserReviews(ctx context.Context, userID uint, page, s
 
 // ApproveReview 审核通过评价
 func (s *ReviewService) ApproveReview(ctx context.Context, reviewID uint, adminNote string) error {
-	return s.db.WithContext(ctx).Model(&models.TeacherReview{}).
-		Where("id = ?", reviewID).
-		Updates(map[string]any{
-			"status":     models.TeacherReviewStatusApproved,
-			"admin_note": adminNote,
-			"updated_at": time.Now(),
-		}).Error
+	// 获取评价信息
+	var review models.TeacherReview
+	if err := s.db.WithContext(ctx).First(&review, reviewID).Error; err != nil {
+		return fmt.Errorf("评价不存在: %w", err)
+	}
+
+	// 检查是否已经审核通过
+	if review.Status == models.TeacherReviewStatusApproved {
+		return fmt.Errorf("评价已审核通过，无需重复审核")
+	}
+
+	// 开启事务
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 更新评价状态
+		if err := tx.Model(&models.TeacherReview{}).
+			Where("id = ?", reviewID).
+			Updates(map[string]any{
+				"status":     models.TeacherReviewStatusApproved,
+				"admin_note": adminNote,
+				"updated_at": time.Now(),
+			}).Error; err != nil {
+			return err
+		}
+
+		// 给投稿用户加50积分
+		reviewIDPtr := &reviewID
+		if err := s.pointsService.AddPoints(
+			ctx,
+			tx,
+			review.UserID,
+			50,
+			models.PointsTransactionSourceReview,
+			fmt.Sprintf("教师评价审核通过（教师：%s，课程：%s）", review.TeacherName, review.CourseName),
+			reviewIDPtr,
+		); err != nil {
+			return fmt.Errorf("添加积分失败: %w", err)
+		}
+
+		return nil
+	})
 }
 
 // RejectReview 审核拒绝评价

@@ -234,6 +234,45 @@ func (s *RBACService) ListRoles(ctx context.Context) ([]models.Role, error) {
 	return roles, nil
 }
 
+// ListRolesWithUsers 获取角色列表及其用户信息
+func (s *RBACService) ListRolesWithUsers(ctx context.Context) ([]models.Role, map[uint]int, map[uint][]uint, error) {
+	// 获取所有角色
+	var roles []models.Role
+	if err := s.db.WithContext(ctx).Find(&roles).Error; err != nil {
+		return nil, nil, nil, err
+	}
+
+	// 构建角色ID到用户数量和用户ID列表的映射
+	roleUserCountMap := make(map[uint]int)
+	roleUserIDsMap := make(map[uint][]uint)
+
+	// 为每个角色统计用户数量
+	for _, role := range roles {
+		var count int64
+		if err := s.db.WithContext(ctx).
+			Model(&models.UserRole{}).
+			Where("role_id = ?", role.ID).
+			Count(&count).Error; err != nil {
+			return nil, nil, nil, err
+		}
+		roleUserCountMap[role.ID] = int(count)
+
+		// 只为非 basic_user 角色获取用户ID列表
+		if role.RoleTag != models.RoleTagUserBasic {
+			var userIDs []uint
+			if err := s.db.WithContext(ctx).
+				Model(&models.UserRole{}).
+				Where("role_id = ?", role.ID).
+				Pluck("user_id", &userIDs).Error; err != nil {
+				return nil, nil, nil, err
+			}
+			roleUserIDsMap[role.ID] = userIDs
+		}
+	}
+
+	return roles, roleUserCountMap, roleUserIDsMap, nil
+}
+
 // ListPermissions 获取权限列表
 func (s *RBACService) ListPermissions(ctx context.Context) ([]models.Permission, error) {
 	var perms []models.Permission

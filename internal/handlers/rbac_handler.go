@@ -24,12 +24,28 @@ func NewRBACHandler(svc *services.RBACService) *RBACHandler {
 
 // ListRoles 获取角色列表
 func (h *RBACHandler) ListRoles(c *gin.Context) {
-	roles, err := h.svc.ListRoles(c.Request.Context())
+	roles, roleUserCountMap, roleUserIDsMap, err := h.svc.ListRolesWithUsers(c.Request.Context())
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
-	helper.SuccessResponse(c, roles)
+
+	// 构建响应
+	var result []response.RoleWithUsersResponse
+	for _, role := range roles {
+		userCount := roleUserCountMap[role.ID]
+		userIDs := roleUserIDsMap[role.ID]
+		if userIDs == nil {
+			userIDs = []uint{} // 确保返回空数组而不是nil
+		}
+		result = append(result, response.RoleWithUsersResponse{
+			Role:      role,
+			UserCount: userCount,
+			UserIDs:   userIDs,
+		})
+	}
+
+	helper.SuccessResponse(c, result)
 }
 
 // CreateRole 创建角色

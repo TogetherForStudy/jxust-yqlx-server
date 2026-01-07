@@ -118,9 +118,35 @@ func (h *PointsHandler) SpendPoints(c *gin.Context) {
 
 // GetUserPointsStats 获取用户积分统计
 func (h *PointsHandler) GetUserPointsStats(c *gin.Context) {
-	userID := helper.GetUserID(c)
+	currentUserID := helper.GetUserID(c)
+	targetUserID := currentUserID
 
-	result, err := h.pointsService.GetUserPointsStats(c, userID)
+	// 检查是否传入了 user_id 参数
+	userIDStr := c.Query("user_id")
+	if userIDStr != "" {
+		// 解析 user_id 参数
+		parsedUserID, err := strconv.ParseUint(userIDStr, 10, 32)
+		if err != nil {
+			helper.ValidateResponse(c, "无效的用户ID参数")
+			return
+		}
+
+		// 判断是否是管理员
+		isAdmin := utils.IsAdmin(c)
+		if isAdmin {
+			// 管理员可以查询指定用户的积分
+			targetUserID = uint(parsedUserID)
+		} else {
+			// 非管理员只能查询自己的积分
+			if uint(parsedUserID) != currentUserID {
+				helper.ErrorResponse(c, http.StatusForbidden, "无权查看其他用户的积分")
+				return
+			}
+			targetUserID = uint(parsedUserID)
+		}
+	}
+
+	result, err := h.pointsService.GetUserPointsStats(c, targetUserID)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
