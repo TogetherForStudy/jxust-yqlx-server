@@ -39,6 +39,10 @@ services:
     networks:
       - gojxust-network
 
+volumes:
+  mysql_data:
+  redis_data:
+
 networks:
   gojxust-network:
     driver: bridge
