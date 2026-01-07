@@ -1,82 +1,30 @@
-# GoJxust - 校园服务微信小程序后端
+# GoJxust
 
-基于Go语言开发的校园服务微信小程序后端系统，主要提供选课参考功能，支持未来功能扩展。
+GoJxust 是专为在校大学生设计的开源自托管服务平台，基于学习与生活中常见的需求出发，提供一系列提高效率、降低信息差的服务，让大学生能够节约有限时间，提高自我认知，创造无限价值。
 
-## V1.1.0
+## 亮点
 
-- 自动登录：同意条款
-- 选课助手：输入姓名查询老师评价；点评老师；审核评价；客服反馈
-- 课程表：查看课程表，基于全量导出的数据；编辑课程表，自由基于已有数据进行添加、编辑和删除
-- 挂科率：数据查询
-- 英雄榜：增删改查
-- 系统配置：增删改查，提供前端读取一些必要配置
-- 倒数日：增删改查
-- 学习清单：简易TODO
-- 通知公告：运营账号发布；用户投稿；审核机制
-- 功能白名单：基于用户的功能级权限控制；支持临时权限；灰度测试支持
-
-## 未来计划
-
-请参考设计文档。
-
-## 功能特性
-
-- ✅ 微信小程序登录认证
-- ✅ 用户管理（注册、资料更新）
-- ✅ 用户权限控制（基于角色+功能白名单）
-- ✅ 功能白名单系统（灰度测试、VIP功能）
-- ✅ RESTful API设计
-- ✅ JWT Token认证
-- ✅ 数据库设计与迁移
-- ✅ Redis缓存支持
+🔐 **强幂等性保障**：基于Redis分布式锁的幂等性中间件，支持严格/宽松双模式，保障数据一致性
+🎯 **精细权限控制**：RBAC角色权限系统 + 功能白名单双重保障，灵活应对复杂权限场景
+⚡ **智能缓存加速**：Redis分布式缓存支持，幂等性响应缓存、权限快照缓存、在线人数统计等
+🤖 **MCP协议支持**：原生支持Model Context Protocol，提供9+校园服务工具
+📊 **实时在线统计**：基于Redis Sorted Set的在线人数统计，支持系统级和项目级统计
+💎 **完整积分体系**：每日登录自动奖励、积分消费、交易记录、统计分析，激励用户活跃度
+🌐 **RESTful API设计**：标准RESTful接口设计，统一响应格式，完善的错误处理，支持API版本控制
+🔒 **安全认证机制**：JWT Token认证、微信小程序登录、请求ID追踪、CORS跨域支持，保障接口安全
+📚 **丰富校园服务**：课程表、教师评价、挂科率、学习任务、倒数日、资料、刷题，一站式校园服务
 
 ## 技术栈
 
 - **语言**: Go 1.24.1+
 - **框架**: Gin Web Framework
-- **数据库**: MySQL 8.0+
+- **数据库**: MySQL 8.0+、Redis
 - **ORM**: GORM
 - **认证**: JWT (golang-jwt/jwt)
 - **配置**: 环境变量 + godotenv
+- **日志**：Zap
 
-## 项目结构
-
-```
-goJxust/
-├── main.go                 # 应用入口
-├── go.mod                 # Go模块文件
-├── .env.example           # 环境变量模板
-├── .gitignore            # Git忽略文件
-├── readme.md             # 项目说明
-├── internal/             # 内部包
-│   ├── config/           # 配置管理
-│   │   └── config.go
-│   ├── database/         # 数据库连接
-│   │   └── database.go
-│   ├── models/           # 数据模型
-│   │   └── models.go
-│   ├── services/         # 业务逻辑层
-│   │   ├── auth_service.go
-│   │   ├── teacher_service.go
-│   │   └── review_service.go
-│   ├── handlers/         # 控制器层
-│   │   ├── auth_handler.go
-│   │   ├── teacher_handler.go
-│   │   ├── review_handler.go
-│   │   └── admin_handler.go
-│   ├── middleware/       # 中间件
-│   │   └── middleware.go
-│   ├── utils/           # 工具函数
-│   │   ├── response.go
-│   │   └── auth.go
-│   └── router/          # 路由配置
-│       └── router.go
-└── scripts/             # 脚本文件
-    ├── init.sql         # 数据库初始化脚本(deprecated because of GORM automatically initializes)
-    └── e2e_test.py      # E2E测试脚本
-```
-
-## 快速开始
+## 快速部署
 
 ### 1. 环境准备
 
@@ -93,44 +41,6 @@ cp .env.example .env
 # 编辑环境变量
 vim .env
 ```
-
-配置示例：
-```env
-# 数据库配置
-DB_HOST=localhost
-DB_PORT=3306
-DB_USERNAME=root
-DB_PASSWORD=your_password
-DB_NAME=gojxust
-
-# JWT密钥
-JWT_SECRET=your_jwt_secret_key_here
-
-# 服务器配置
-SERVER_PORT=8080
-
-# 微信小程序配置
-WECHAT_APP_ID=your_wechat_app_id
-WECHAT_APP_SECRET=your_wechat_app_secret
-
-# minio 对象存储
-MINIO_ENDPOINT=localhost:9000
-MINIO_ACCESS_KEY=minioadmin
-MINIO_SECRET_KEY=minioadmin
-MINIO_USE_SSL=false
-BUCKET_NAME=yqlx
-
-# 主机配置（用于确保minio反向代理时签名匹配）
-HOST=localhost:8085
-SCHEME=http
-
-# Redis 配置
-REDIS_HOST=localhost
-REDIS_PORT=6379
-REDIS_PASSWORD=
-REDIS_DB=0
-```
-
 ### 3. 安装依赖
 
 ```bash
@@ -145,64 +55,18 @@ go run main.go
 
 应用将在 `http://localhost:8080` 启动
 
-### 5. 运行E2E测试
-
-E2E测试使用Python + httpx编写，通过模拟微信登录接口获取授权token进行测试。
-
-```bash
-# 安装Python依赖
-pip install httpx
-
-# 运行E2E测试（需要先启动API服务，且非release模式）
-python scripts/e2e_test.py
-
-# 指定自定义API地址
-python scripts/e2e_test.py --base-url http://localhost:8085
-```
-
-测试覆盖的接口：
-- 公开接口：健康检查、教师评价查询、配置获取、英雄榜、通知列表、分类列表
-- 认证接口：用户资料、评价CRUD、课程表、挂科率、积分系统、投稿、倒数日、学习任务
-- 管理员接口：评价管理、通知管理、英雄管理、配置管理
-
-> 注意：E2E测试使用 `/api/v0/auth/mock-wechat-login` 接口获取测试token，该接口仅在非release模式下可用。
-
 ## 部署说明
 
-### 使用Docker部署
+### Docker
 
-1. 创建Dockerfile
-2. 构建镜像: `make docker-build`
-3. 运行容器: `docker run -p 8080:8080 gojxust`
+1. 构建镜像: `make docker-build`
+2. 运行容器: `docker run -p 8080:8080 gojxust`
 
-### 生产环境配置
+### Docker Compose
 
-1. 设置 `GIN_MODE=release`
-2. 使用反向代理 (Nginx)
-3. 配置HTTPS证书
-4. 设置数据库连接池
-5. 配置日志文件
-6. 监控和报警
-
-## 开发规范
-
-### 代码规范
-- 遵循Go官方代码规范
-- 使用gofmt格式化代码
-- 添加必要的注释
-- 错误处理规范
-
-### API设计规范
-- RESTful API设计
-- 统一的响应格式
-- 合理的HTTP状态码
-- 参数验证和错误处理
-
-### 数据库规范
-- 表名使用复数形式
-- 字段名使用下划线命名
-- 添加必要的索引
-- 软删除支持
+创建一个新目录并将 docker-compose.yml 文件放入其中
+在该目录下执行以下命令启动服务：
+```docker-compose up -d```
 
 ## 贡献指南
 

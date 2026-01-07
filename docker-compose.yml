@@ -1,5 +1,5 @@
 services:
-  # MySQL数据库
+  # MySQL
   mysql:
     image: mysql:8.0
     container_name: gojxust-mysql
@@ -17,31 +17,27 @@ services:
     networks:
       - gojxust-network
 
-  # Go应用
-  app:
-    build: .
-    container_name: gojxust-app
-    environment:
-      DB_HOST: mysql
-      DB_PORT: 3306
-      DB_USERNAME: gojxust
-      DB_PASSWORD: gojxustpassword
-      DB_NAME: gojxust
-      JWT_SECRET: your_jwt_secret_key_here
-      SERVER_PORT: 8080
-      WECHAT_APP_ID: your_wechat_app_id
-      WECHAT_APP_SECRET: your_wechat_app_secret
-      GIN_MODE: release
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: gojxust-redis
     ports:
-      - "8080:8080"
-    depends_on:
-      - mysql
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
     networks:
       - gojxust-network
-    restart: unless-stopped
 
-volumes:
-  mysql_data:
+  # GoJXUST API Server
+  app:
+    build:
+      context: .
+      dockerfile: cmd/apiserver/Dockerfile
+    container_name: gojxust-app
+    ports:
+      - "8080:8080"
+    networks:
+      - gojxust-network
 
 networks:
   gojxust-network:
