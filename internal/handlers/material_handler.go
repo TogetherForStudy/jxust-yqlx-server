@@ -98,7 +98,10 @@ func (h *MaterialHandler) GetMaterialDetail(c *gin.Context) {
 			Type:        2, // 查看
 			MaterialMD5: md5,
 		}
-		h.materialService.CreateMaterialLog(*userIDPtr, logReq)
+		if err := h.materialService.CreateMaterialLog(*userIDPtr, logReq); err != nil {
+			helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+			return
+		}
 	}
 
 	helper.SuccessResponse(c, detail)
@@ -170,7 +173,10 @@ func (h *MaterialHandler) SearchMaterials(c *gin.Context) {
 			Type:     1, // 搜索
 			Keywords: req.Keywords,
 		}
-		h.materialService.CreateMaterialLog(userID.(uint), logReq)
+		if err := h.materialService.CreateMaterialLog(userID.(uint), logReq); err != nil {
+			helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+			return
+		}
 	}
 
 	helper.SuccessResponse(c, result)
