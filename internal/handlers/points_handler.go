@@ -2,11 +2,12 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
-	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,9 +24,35 @@ func NewPointsHandler(pointsService *services.PointsService) *PointsHandler {
 
 // GetUserPoints 获取用户积分信息
 func (h *PointsHandler) GetUserPoints(c *gin.Context) {
-	userID := helper.GetUserID(c)
+	currentUserID := helper.GetUserID(c)
+	targetUserID := currentUserID
 
-	result, err := h.pointsService.GetUserPoints(c, userID)
+	// 检查是否传入了 user_id 参数
+	userIDStr := c.Query("user_id")
+	if userIDStr != "" {
+		// 解析 user_id 参数
+		parsedUserID, err := strconv.ParseUint(userIDStr, 10, 32)
+		if err != nil {
+			helper.ValidateResponse(c, "无效的用户ID参数")
+			return
+		}
+
+		// 判断是否是管理员
+		isAdmin := utils.IsAdmin(c)
+		if isAdmin {
+			// 管理员可以查询指定用户的积分
+			targetUserID = uint(parsedUserID)
+		} else {
+			// 非管理员只能查询自己的积分
+			if uint(parsedUserID) != currentUserID {
+				helper.ErrorResponse(c, http.StatusForbidden, "无权查看其他用户的积分")
+				return
+			}
+			targetUserID = uint(parsedUserID)
+		}
+	}
+
+	result, err := h.pointsService.GetUserPoints(c, targetUserID)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
@@ -37,7 +64,6 @@ func (h *PointsHandler) GetUserPoints(c *gin.Context) {
 // GetPointsTransactions 获取积分交易记录
 func (h *PointsHandler) GetPointsTransactions(c *gin.Context) {
 	userID := helper.GetUserID(c)
-	userRole := helper.GetUserRole(c)
 
 	var req request.GetPointsTransactionsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -55,14 +81,14 @@ func (h *PointsHandler) GetPointsTransactions(c *gin.Context) {
 	if req.Type != nil && *req.Type == 0 {
 		req.Type = nil
 	}
-	if req.Source != nil && *req.Source == 0 {
+	if req.Source != nil && *req.Source == "" {
 		req.Source = nil
 	}
 	if req.UserID != nil && *req.UserID == 0 {
 		req.UserID = nil
 	}
 
-	result, err := h.pointsService.GetPointsTransactions(c, userID, models.UserRole(userRole), &req)
+	result, err := h.pointsService.GetPointsTransactions(c, userID, &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
@@ -92,13 +118,56 @@ func (h *PointsHandler) SpendPoints(c *gin.Context) {
 
 // GetUserPointsStats 获取用户积分统计
 func (h *PointsHandler) GetUserPointsStats(c *gin.Context) {
-	userID := helper.GetUserID(c)
+	currentUserID := helper.GetUserID(c)
+	targetUserID := currentUserID
 
-	result, err := h.pointsService.GetUserPointsStats(c, userID)
+	// 检查是否传入了 user_id 参数
+	userIDStr := c.Query("user_id")
+	if userIDStr != "" {
+		// 解析 user_id 参数
+		parsedUserID, err := strconv.ParseUint(userIDStr, 10, 32)
+		if err != nil {
+			helper.ValidateResponse(c, "无效的用户ID参数")
+			return
+		}
+
+		// 判断是否是管理员
+		isAdmin := utils.IsAdmin(c)
+		if isAdmin {
+			// 管理员可以查询指定用户的积分
+			targetUserID = uint(parsedUserID)
+		} else {
+			// 非管理员只能查询自己的积分
+			if uint(parsedUserID) != currentUserID {
+				helper.ErrorResponse(c, http.StatusForbidden, "无权查看其他用户的积分")
+				return
+			}
+			targetUserID = uint(parsedUserID)
+		}
+	}
+
+	result, err := h.pointsService.GetUserPointsStats(c, targetUserID)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	helper.SuccessResponse(c, result)
+}
+
+// GrantPoints 管理员手动赋予积分
+func (h *PointsHandler) GrantPoints(c *gin.Context) {
+	var req request.GrantPointsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		helper.ValidateResponse(c, "参数验证失败")
+		return
+	}
+
+	err := h.pointsService.GrantPoints(c, req.UserID, req.Points, req.Description)
+	if err != nil {
+		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	helper.SuccessResponse(c, gin.H{"message": "积分操作成功"})
 }

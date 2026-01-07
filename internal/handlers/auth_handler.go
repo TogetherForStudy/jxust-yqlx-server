@@ -6,19 +6,21 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
-	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 
 	"github.com/gin-gonic/gin"
 )
 
 type AuthHandler struct {
 	authService *services.AuthService
+	rbacService *services.RBACService
 }
 
-func NewAuthHandler(authService *services.AuthService) *AuthHandler {
+func NewAuthHandler(authService *services.AuthService, rbacService *services.RBACService) *AuthHandler {
 	return &AuthHandler{
 		authService: authService,
+		rbacService: rbacService,
 	}
 }
 
@@ -97,6 +99,16 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 		return
 	}
 
+	// 获取角色标签（RBAC新逻辑）
+	var roleTags []string
+	if h.rbacService != nil {
+		if snap, err := h.rbacService.GetUserPermissionSnapshot(c, user.ID); err != nil {
+			logger.Warnf("获取用户角色失败 user_id=%d err=%v", user.ID, err)
+		} else {
+			roleTags = snap.RoleTags
+		}
+	}
+
 	resp := response.UserProfileResponse{
 		ID:        user.ID,
 		Nickname:  user.Nickname,
@@ -107,7 +119,8 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 		College:   user.College,
 		Major:     user.Major,
 		ClassID:   user.ClassID,
-		Role:      user.Role,
+		Role:      user.Role, // 向前兼容字段
+		RoleTags:  roleTags,
 		Status:    user.Status,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
@@ -140,18 +153,37 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	profile := &models.User{
-		Nickname:  req.Nickname,
-		Avatar:    req.Avatar,
-		Phone:     req.Phone,
-		StudentID: req.StudentID,
-		RealName:  req.RealName,
-		College:   req.College,
-		Major:     req.Major,
-		ClassID:   req.ClassID,
+	// 构建更新 map，只包含前端传递的字段（指针不为 nil 的字段）
+	// 这样可以区分"未传递"和"空值"：
+	// - 指针为 nil：字段未传递，不更新
+	// - 指针不为 nil：字段已传递，更新（即使值为空字符串）
+	updates := make(map[string]any)
+	if req.Nickname != nil {
+		updates["nickname"] = *req.Nickname
+	}
+	if req.Avatar != nil {
+		updates["avatar"] = *req.Avatar
+	}
+	if req.Phone != nil {
+		updates["phone"] = *req.Phone
+	}
+	if req.StudentID != nil {
+		updates["student_id"] = *req.StudentID
+	}
+	if req.RealName != nil {
+		updates["real_name"] = *req.RealName
+	}
+	if req.College != nil {
+		updates["college"] = *req.College
+	}
+	if req.Major != nil {
+		updates["major"] = *req.Major
+	}
+	if req.ClassID != nil {
+		updates["class_id"] = *req.ClassID
 	}
 
-	if err := h.authService.UpdateUserProfile(c, userID.(uint), profile); err != nil {
+	if err := h.authService.UpdateUserProfile(c, userID.(uint), updates); err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, "更新失败")
 		return
 	}

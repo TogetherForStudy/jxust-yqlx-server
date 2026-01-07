@@ -2,7 +2,8 @@ package request
 
 // GetCourseTableRequest 获取课程表请求
 type GetCourseTableRequest struct {
-	Semester string `form:"semester" binding:"required" json:"semester"` // 学期
+	Semester     string `form:"semester" binding:"required" json:"semester"` // 学期
+	LastModified *int64 `form:"last_modified" json:"last_modified"`          // 客户端上次获取数据的时间戳
 }
 
 // SearchClassRequest 搜索班级请求

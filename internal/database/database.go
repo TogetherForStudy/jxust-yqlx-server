@@ -49,6 +49,10 @@ func NewDatabase(cfg *config.Config) (*gorm.DB, error) {
 func AutoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&models.User{},
+		&models.Role{},
+		&models.Permission{},
+		&models.UserRole{},
+		&models.RolePermission{},
 		&models.TeacherReview{},
 		&models.CourseTable{},
 		&models.ScheduleUser{},
@@ -67,5 +71,14 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.NotificationCategory{},
 		&models.Feature{},
 		&models.UserFeatureWhitelist{},
+		&models.MaterialCategory{},
+		&models.Material{},
+		&models.MaterialDesc{},
+		&models.MaterialLog{},
+		&models.QuestionProject{},
+		&models.Question{},
+		&models.UserProjectUsage{},
+		&models.UserQuestionUsage{},
+		&models.UserActivity{},
 	)
 }

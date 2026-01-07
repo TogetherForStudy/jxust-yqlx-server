@@ -6,7 +6,6 @@ import (
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
-	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -25,7 +24,6 @@ func NewNotificationHandler(notificationService *services.NotificationService) *
 // CreateNotification 创建通知（运营专用）
 func (h *NotificationHandler) CreateNotification(c *gin.Context) {
 	userID := helper.GetUserID(c)
-	userRole := helper.GetUserRole(c)
 
 	var req request.CreateNotificationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -33,7 +31,7 @@ func (h *NotificationHandler) CreateNotification(c *gin.Context) {
 		return
 	}
 
-	result, err := h.notificationService.CreateNotification(c, userID, models.UserRole(userRole), &req)
+	result, err := h.notificationService.CreateNotification(c, userID, &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -120,7 +118,6 @@ func (h *NotificationHandler) GetNotificationAdminByID(c *gin.Context) {
 // UpdateNotification 更新通知
 func (h *NotificationHandler) UpdateNotification(c *gin.Context) {
 	userID := helper.GetUserID(c)
-	userRole := helper.GetUserRole(c)
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -135,7 +132,7 @@ func (h *NotificationHandler) UpdateNotification(c *gin.Context) {
 		return
 	}
 
-	result, err := h.notificationService.UpdateNotification(c, uint(id), userID, models.UserRole(userRole), &req)
+	result, err := h.notificationService.UpdateNotification(c, uint(id), userID, &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -147,7 +144,6 @@ func (h *NotificationHandler) UpdateNotification(c *gin.Context) {
 // PublishNotification 发布通知
 func (h *NotificationHandler) PublishNotification(c *gin.Context) {
 	userID := helper.GetUserID(c)
-	userRole := helper.GetUserRole(c)
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -156,7 +152,7 @@ func (h *NotificationHandler) PublishNotification(c *gin.Context) {
 		return
 	}
 
-	err = h.notificationService.PublishNotification(c, uint(id), userID, models.UserRole(userRole))
+	err = h.notificationService.PublishNotification(c, uint(id), userID)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -168,7 +164,6 @@ func (h *NotificationHandler) PublishNotification(c *gin.Context) {
 // PublishNotificationAdmin 管理员直接发布通知（跳过审核流程）
 func (h *NotificationHandler) PublishNotificationAdmin(c *gin.Context) {
 	userID := helper.GetUserID(c)
-	userRole := helper.GetUserRole(c)
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -177,7 +172,7 @@ func (h *NotificationHandler) PublishNotificationAdmin(c *gin.Context) {
 		return
 	}
 
-	err = h.notificationService.PublishNotificationAdmin(c, uint(id), userID, models.UserRole(userRole))
+	err = h.notificationService.PublishNotificationAdmin(c, uint(id), userID)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -214,7 +209,6 @@ func (h *NotificationHandler) ConvertToSchedule(c *gin.Context) {
 // DeleteNotification 删除通知
 func (h *NotificationHandler) DeleteNotification(c *gin.Context) {
 	userID := helper.GetUserID(c)
-	userRole := helper.GetUserRole(c)
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -223,7 +217,7 @@ func (h *NotificationHandler) DeleteNotification(c *gin.Context) {
 		return
 	}
 
-	err = h.notificationService.DeleteNotification(c, uint(id), userID, models.UserRole(userRole))
+	err = h.notificationService.DeleteNotification(c, uint(id), userID)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -287,7 +281,6 @@ func (h *NotificationHandler) UpdateCategory(c *gin.Context) {
 // ApproveNotification 审核通知（管理员专用）
 func (h *NotificationHandler) ApproveNotification(c *gin.Context) {
 	userID := helper.GetUserID(c)
-	userRole := helper.GetUserRole(c)
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -302,7 +295,7 @@ func (h *NotificationHandler) ApproveNotification(c *gin.Context) {
 		return
 	}
 
-	err = h.notificationService.ApproveNotification(c, uint(id), userID, models.UserRole(userRole), &req)
+	err = h.notificationService.ApproveNotification(c, uint(id), userID, &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -324,8 +317,6 @@ func (h *NotificationHandler) GetNotificationStats(c *gin.Context) {
 
 // GetAdminNotifications 获取管理员通知列表（包括待审核的）
 func (h *NotificationHandler) GetAdminNotifications(c *gin.Context) {
-	userRole := helper.GetUserRole(c)
-
 	var req request.GetNotificationsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
 		helper.ValidateResponse(c, "参数验证失败")
@@ -346,7 +337,7 @@ func (h *NotificationHandler) GetAdminNotifications(c *gin.Context) {
 		req.Categories = nil
 	}
 
-	result, err := h.notificationService.GetAdminNotifications(c, models.UserRole(userRole), &req)
+	result, err := h.notificationService.GetAdminNotifications(c, &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
@@ -357,7 +348,6 @@ func (h *NotificationHandler) GetAdminNotifications(c *gin.Context) {
 
 // PinNotification 置顶通知（管理员专用）
 func (h *NotificationHandler) PinNotification(c *gin.Context) {
-	userRole := helper.GetUserRole(c)
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -366,7 +356,7 @@ func (h *NotificationHandler) PinNotification(c *gin.Context) {
 		return
 	}
 
-	err = h.notificationService.PinNotification(c, uint(id), models.UserRole(userRole))
+	err = h.notificationService.PinNotification(c, uint(id))
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -377,8 +367,6 @@ func (h *NotificationHandler) PinNotification(c *gin.Context) {
 
 // UnpinNotification 取消置顶通知（管理员专用）
 func (h *NotificationHandler) UnpinNotification(c *gin.Context) {
-	userRole := helper.GetUserRole(c)
-
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
@@ -386,7 +374,7 @@ func (h *NotificationHandler) UnpinNotification(c *gin.Context) {
 		return
 	}
 
-	err = h.notificationService.UnpinNotification(c, uint(id), models.UserRole(userRole))
+	err = h.notificationService.UnpinNotification(c, uint(id))
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return

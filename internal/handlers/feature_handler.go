@@ -157,11 +157,11 @@ func (h *FeatureHandler) UpdateFeature(c *gin.Context) {
 
 	// 构建更新字段
 	updates := make(map[string]interface{})
-	if req.FeatureName != "" {
-		updates["feature_name"] = req.FeatureName
+	if req.FeatureName != nil {
+		updates["feature_name"] = *req.FeatureName
 	}
-	if req.Description != "" {
-		updates["description"] = req.Description
+	if req.Description != nil {
+		updates["description"] = *req.Description
 	}
 	if req.IsEnabled != nil {
 		updates["is_enabled"] = *req.IsEnabled

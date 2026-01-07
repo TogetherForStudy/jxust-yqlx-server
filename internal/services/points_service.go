@@ -7,6 +7,7 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
 	"gorm.io/gorm"
 )
@@ -43,7 +44,7 @@ func (s *PointsService) GetUserPoints(ctx context.Context, userID uint) (*respon
 }
 
 // GetPointsTransactions 获取积分交易记录
-func (s *PointsService) GetPointsTransactions(ctx context.Context, userID uint, userRole models.UserRole, req *request.GetPointsTransactionsRequest) (*response.PageResponse, error) {
+func (s *PointsService) GetPointsTransactions(ctx context.Context, userID uint, req *request.GetPointsTransactionsRequest) (*response.PageResponse, error) {
 	var transactions []models.PointsTransaction
 	var total int64
 
@@ -51,13 +52,15 @@ func (s *PointsService) GetPointsTransactions(ctx context.Context, userID uint, 
 	query := s.db.WithContext(ctx).Model(&models.PointsTransaction{})
 
 	// 普通用户只能看自己的记录
-	if userRole != models.UserRoleAdmin {
+	if utils.IsAdmin(ctx) {
+		if req.UserID != nil {
+			query = query.Where("user_id = ?", *req.UserID)
+		} else {
+			query = query.Where("user_id = ?", userID)
+		}
+	} else {
 		query = query.Where("user_id = ?", userID)
-	} else if req.UserID != nil {
-		// 管理员可以按用户ID过滤
-		query = query.Where("user_id = ?", *req.UserID)
 	}
-
 	// 类型过滤
 	if req.Type != nil {
 		query = query.Where("type = ?", *req.Type)
@@ -82,19 +85,36 @@ func (s *PointsService) GetPointsTransactions(ctx context.Context, userID uint, 
 		return nil, err
 	}
 
+	// 批量获取用户信息（管理员查看时）
+	isAdmin := utils.IsAdmin(ctx)
+	userMap := make(map[uint]*response.UserSimpleResponse)
+	if isAdmin {
+
+		if len(transactions) > 0 {
+			var userIDs []uint
+			for _, transaction := range transactions {
+				userIDs = append(userIDs, transaction.UserID)
+			}
+
+			var users []models.User
+			if err := s.db.Select("id, nickname").Where("id IN ?", userIDs).Find(&users).Error; err == nil {
+				for _, user := range users {
+					userMap[user.ID] = &response.UserSimpleResponse{
+						ID:       user.ID,
+						Nickname: user.Nickname,
+					}
+				}
+			}
+		}
+	}
+
 	// 转换为响应格式
 	var transactionResponses []response.PointsTransactionResponse
 	for _, transaction := range transactions {
-		// 获取用户信息（管理员查看时）
+		// 使用预查询的用户信息
 		var user *response.UserSimpleResponse
-		if userRole == models.UserRoleAdmin {
-			var userData models.User
-			if err := s.db.Select("id, nickname, avatar").First(&userData, transaction.UserID).Error; err == nil {
-				user = &response.UserSimpleResponse{
-					ID:       userData.ID,
-					Nickname: userData.Nickname,
-				}
-			}
+		if isAdmin && len(userMap) > 0 {
+			user = userMap[transaction.UserID]
 		}
 
 		transactionResponses = append(transactionResponses, response.PointsTransactionResponse{
@@ -152,7 +172,7 @@ func (s *PointsService) SpendPoints(ctx context.Context, userID uint, req *reque
 }
 
 // AddPoints 增加积分（内部方法，用于其他服务调用）
-func (s *PointsService) AddPoints(ctx context.Context, tx *gorm.DB, userID uint, points int, source models.PointsTransactionSource, description string, relatedID *uint) error {
+func (s *PointsService) AddPoints(ctx context.Context, tx *gorm.DB, userID uint, points int, source string, description string, relatedID *uint) error {
 	// 获取用户信息
 	var user models.User
 	if err := tx.WithContext(ctx).First(&user, userID).Error; err != nil {
@@ -198,27 +218,87 @@ func (s *PointsService) GetUserPointsStats(ctx context.Context, userID uint) (ma
 	}
 	stats["rank"] = rank + 1
 
-	// 投稿获得积分总数
-	var contributionPoints int64
+	// 按 source 分组统计各类来源的积分汇总
+	// 统计获得的积分（按 source 分组）
+	var earnedStats []struct {
+		Source string `gorm:"column:source"`
+		Points int64  `gorm:"column:points"`
+	}
 	if err := s.db.WithContext(ctx).Model(&models.PointsTransaction{}).
-		Where("user_id = ? AND type = ? AND source = ?",
-			userID, models.PointsTransactionTypeEarn, models.PointsTransactionSourceContribution).
-		Select("COALESCE(SUM(points), 0)").
-		Scan(&contributionPoints).Error; err != nil {
+		Where("user_id = ? AND type = ?", userID, models.PointsTransactionTypeEarn).
+		Select("source, COALESCE(SUM(points), 0) as points").
+		Group("source").
+		Find(&earnedStats).Error; err != nil {
 		return nil, err
 	}
-	stats["contribution_points"] = contributionPoints
 
-	// 兑换使用积分总数
-	var redeemPoints int64
+	// 统计消耗的积分（按 source 分组）
+	var spentStats []struct {
+		Source string `gorm:"column:source"`
+		Points int64  `gorm:"column:points"`
+	}
 	if err := s.db.WithContext(ctx).Model(&models.PointsTransaction{}).
-		Where("user_id = ? AND type = ? AND source = ?",
-			userID, models.PointsTransactionTypeSpend, models.PointsTransactionSourceRedeem).
-		Select("COALESCE(SUM(ABS(points)), 0)").
-		Scan(&redeemPoints).Error; err != nil {
+		Where("user_id = ? AND type = ?", userID, models.PointsTransactionTypeSpend).
+		Select("source, COALESCE(SUM(ABS(points)), 0) as points").
+		Group("source").
+		Find(&spentStats).Error; err != nil {
 		return nil, err
 	}
-	stats["redeem_points"] = redeemPoints
+
+	// 合并统计结果
+	sourceMap := make(map[string]map[string]int64)
+	for _, stat := range earnedStats {
+		if sourceMap[stat.Source] == nil {
+			sourceMap[stat.Source] = make(map[string]int64)
+		}
+		sourceMap[stat.Source]["earned"] = stat.Points
+	}
+	for _, stat := range spentStats {
+		if sourceMap[stat.Source] == nil {
+			sourceMap[stat.Source] = make(map[string]int64)
+		}
+		sourceMap[stat.Source]["spent"] = stat.Points
+	}
+
+	stats["source_stats"] = sourceMap
 
 	return stats, nil
+}
+
+// GrantPoints 管理员手动赋予积分
+func (s *PointsService) GrantPoints(ctx context.Context, userID uint, points int, description string) error {
+	// 获取用户信息
+	var user models.User
+	if err := s.db.WithContext(ctx).First(&user, userID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return errors.New("用户不存在")
+		}
+		return err
+	}
+
+	// 开启事务
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 更新积分（支持正数和负数）
+		newPoints := int(user.Points) + points
+		if newPoints < 0 {
+			return errors.New("积分不足，无法扣除")
+		}
+
+		if err := tx.Model(&user).Update("points", newPoints).Error; err != nil {
+			return err
+		}
+
+		// 记录交易
+		transactionType := models.PointsTransactionTypeEarn
+
+		transaction := models.PointsTransaction{
+			UserID:      userID,
+			Type:        transactionType,
+			Source:      models.PointsTransactionSourceAdminGrant,
+			Points:      points,
+			Description: description,
+		}
+
+		return tx.Create(&transaction).Error
+	})
 }

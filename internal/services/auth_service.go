@@ -17,14 +17,16 @@ import (
 )
 
 type AuthService struct {
-	db  *gorm.DB
-	cfg *config.Config
+	db   *gorm.DB
+	cfg  *config.Config
+	rbac *RBACService // 仅用于 EnsureUserHasRoleByTag
 }
 
-func NewAuthService(db *gorm.DB, cfg *config.Config) *AuthService {
+func NewAuthService(db *gorm.DB, cfg *config.Config, rbac *RBACService) *AuthService {
 	return &AuthService{
-		db:  db,
-		cfg: cfg,
+		db:   db,
+		cfg:  cfg,
+		rbac: rbac,
 	}
 }
 
@@ -49,7 +51,6 @@ func (s *AuthService) WechatLogin(ctx context.Context, code string) (*response.W
 			user = models.User{
 				OpenID:    session.OpenID,
 				UnionID:   session.UnionID,
-				Role:      models.UserRoleNormal,
 				Status:    models.UserStatusNormal,
 				CreatedAt: time.Now(),
 				UpdatedAt: time.Now(),
@@ -62,20 +63,64 @@ func (s *AuthService) WechatLogin(ctx context.Context, code string) (*response.W
 		}
 	}
 
+	// 确保默认角色
+	if s.rbac != nil {
+		if err := s.rbac.EnsureUserHasRoleByTag(ctx, user.ID, models.RoleTagUserBasic); err != nil {
+			return nil, fmt.Errorf("同步用户角色失败: %w", err)
+		}
+	}
+
 	// 检查用户状态
 	if user.Status == models.UserStatusDisabled {
 		return nil, fmt.Errorf("用户账号已被禁用")
 	}
 
-	// 生成JWT token
-	token, err := utils.GenerateJWT(user.ID, user.OpenID, uint8(user.Role), s.cfg.JWTSecret)
+	// 获取用户角色并映射到旧的role字段（向前兼容）
+	role := s.mapRoleTagToLegacyRole(ctx, user.ID)
+
+	// 更新User模型中的role字段
+	if user.Role != role {
+		if err := s.db.WithContext(ctx).Model(&user).Update("role", role).Error; err != nil {
+			return nil, fmt.Errorf("更新用户角色失败: %w", err)
+		}
+		user.Role = role
+	}
+
+	// 生成JWT token（带角色信息）
+	token, err := utils.GenerateJWT(user.ID, s.cfg.JWTSecret, role)
 	if err != nil {
-		return nil, fmt.Errorf("生成token失败: %w", err)
+		return nil, fmt.Errorf("生成 Token 失败: %w", err)
+	}
+
+	// 获取角色标签（RBAC新逻辑）
+	var roleTags []string
+	if s.rbac != nil {
+		if snap, err := s.rbac.GetUserPermissionSnapshot(ctx, user.ID); err == nil {
+			roleTags = snap.RoleTags
+		}
+	}
+
+	// 转换为 UserProfileResponse
+	userProfile := response.UserProfileResponse{
+		ID:        user.ID,
+		Nickname:  user.Nickname,
+		Avatar:    user.Avatar,
+		Phone:     user.Phone,
+		StudentID: user.StudentID,
+		RealName:  user.RealName,
+		College:   user.College,
+		Major:     user.Major,
+		ClassID:   user.ClassID,
+		Role:      user.Role, // 向前兼容字段
+		RoleTags:  roleTags,
+		Status:    user.Status,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
 	}
 
 	return &response.WechatLoginResponse{
 		Token:    token,
-		UserInfo: user,
+		UserInfo: userProfile,
 	}, nil
 }
 
@@ -119,25 +164,25 @@ func (s *AuthService) GetUserByID(ctx context.Context, userID uint) (*models.Use
 }
 
 // UpdateUserProfile 更新用户资料
-func (s *AuthService) UpdateUserProfile(ctx context.Context, userID uint, profile *models.User) error {
-	return s.db.WithContext(ctx).Model(&models.User{}).Where("id = ?", userID).Updates(map[string]any{
-		"nickname":   profile.Nickname,
-		"avatar":     profile.Avatar,
-		"phone":      profile.Phone,
-		"student_id": profile.StudentID,
-		"real_name":  profile.RealName,
-		"college":    profile.College,
-		"major":      profile.Major,
-		"class_id":   profile.ClassID,
-		"updated_at": time.Now(),
-	}).Error
+// updates map 中的字段：
+// - 如果 key 不存在：表示前端未传递该字段，不更新
+// - 如果 key 存在且值为 nil：表示前端传递了 null，不更新（或可根据需求处理）
+// - 如果 key 存在且值不为 nil：表示前端传递了该字段，需要更新（即使值为空字符串）
+func (s *AuthService) UpdateUserProfile(ctx context.Context, userID uint, updates map[string]any) error {
+	if len(updates) == 0 {
+		return nil
+	}
+
+	// 总是更新 updated_at
+	updates["updated_at"] = time.Now()
+
+	return s.db.WithContext(ctx).Model(&models.User{}).Where("id = ?", userID).Updates(updates).Error
 }
 
 // MockWechatLogin 模拟微信小程序登录 - 仅用于测试
 func (s *AuthService) MockWechatLogin(ctx context.Context, testUser string) (*response.WechatLoginResponse, error) {
 	// 根据测试用户类型生成不同的模拟数据
 	var mockOpenID, mockUnionID, nickname, avatar string
-	var role models.UserRole
 
 	switch testUser {
 	case "admin":
@@ -145,25 +190,26 @@ func (s *AuthService) MockWechatLogin(ctx context.Context, testUser string) (*re
 		mockUnionID = "mock_admin_unionid_123456"
 		nickname = "测试管理员"
 		avatar = "https://thirdwx.qlogo.cn/mmopen/vi_32/admin_avatar.png"
-		role = models.UserRoleAdmin
-	case "normal":
-		mockOpenID = "mock_normal_openid_789012"
-		mockUnionID = "mock_normal_unionid_789012"
-		nickname = "测试用户"
+	case "basic":
+		mockOpenID = "mock_basic_openid_789012"
+		mockUnionID = "mock_basic_unionid_789012"
+		nickname = "测试基本用户"
 		avatar = "https://thirdwx.qlogo.cn/mmopen/vi_32/normal_avatar.png"
-		role = models.UserRoleNormal
-	case "new_user":
-		mockOpenID = "mock_new_openid_345678"
-		mockUnionID = "mock_new_unionid_345678"
-		nickname = "新用户"
-		avatar = "https://thirdwx.qlogo.cn/mmopen/vi_32/new_avatar.png"
-		role = models.UserRoleNormal
+	case "active":
+		mockOpenID = "mock_active_openid_345678"
+		mockUnionID = "mock_active_unionid_345678"
+		nickname = "测试活跃用户"
+		avatar = "https://thirdwx.qlogo.cn/mmopen/vi_32/active_avatar.png"
+	case "verified":
+		mockOpenID = "mock_verified_openid_123456"
+		mockUnionID = "mock_verified_unionid_123456"
+		nickname = "测试认证用户"
+		avatar = "https://thirdwx.qlogo.cn/mmopen/vi_32/verified_avatar.png"
 	case "operator":
 		mockOpenID = "mock_operator_openid_123456"
 		mockUnionID = "mock_operator_unionid_123456"
 		nickname = "测试运营"
 		avatar = "https://thirdwx.qlogo.cn/mmopen/vi_32/operator_avatar.png"
-		role = models.UserRoleOperator
 	default:
 		return nil, fmt.Errorf("不支持的测试用户类型: %s", testUser)
 	}
@@ -184,7 +230,6 @@ func (s *AuthService) MockWechatLogin(ctx context.Context, testUser string) (*re
 				College:   "计算机学院",
 				Major:     "软件工程",
 				ClassID:   "2023级1班",
-				Role:      role,
 				Status:    models.UserStatusNormal,
 				CreatedAt: time.Now(),
 				UpdatedAt: time.Now(),
@@ -197,19 +242,115 @@ func (s *AuthService) MockWechatLogin(ctx context.Context, testUser string) (*re
 		}
 	}
 
+	// 同步角色绑定，所有用户都分配 UserBasic，admin 不需多角色，active/verified/operator 再额外分配具体角色
+	if s.rbac != nil {
+		// 必须绑定 UserBasic 角色
+		if err := s.rbac.EnsureUserHasRoleByTag(ctx, user.ID, models.RoleTagUserBasic); err != nil {
+			return nil, fmt.Errorf("同步测试用户基础角色失败: %w", err)
+		}
+
+		switch testUser {
+		case "active":
+			if err := s.rbac.EnsureUserHasRoleByTag(ctx, user.ID, models.RoleTagUserActive); err != nil {
+				return nil, fmt.Errorf("同步测试用户 active 角色失败: %w", err)
+			}
+		case "verified":
+			if err := s.rbac.EnsureUserHasRoleByTag(ctx, user.ID, models.RoleTagUserVerified); err != nil {
+				return nil, fmt.Errorf("同步测试用户 verified 角色失败: %w", err)
+			}
+		case "operator":
+			if err := s.rbac.EnsureUserHasRoleByTag(ctx, user.ID, models.RoleTagOperator); err != nil {
+				return nil, fmt.Errorf("同步测试用户 operator 角色失败: %w", err)
+			}
+		}
+	}
+
 	// 检查用户状态
 	if user.Status == models.UserStatusDisabled {
 		return nil, fmt.Errorf("用户账号已被禁用")
 	}
 
-	// 生成JWT token
-	token, err := utils.GenerateJWT(user.ID, user.OpenID, uint8(user.Role), s.cfg.JWTSecret)
+	// 获取用户角色并映射到旧的role字段（向前兼容）
+	role := s.mapRoleTagToLegacyRole(ctx, user.ID)
+
+	// 更新User模型中的role字段
+	if user.Role != role {
+		if err := s.db.WithContext(ctx).Model(&user).Update("role", role).Error; err != nil {
+			return nil, fmt.Errorf("更新用户角色失败: %w", err)
+		}
+		user.Role = role
+	}
+
+	// 生成JWT token（带角色信息）
+	token, err := utils.GenerateJWT(user.ID, s.cfg.JWTSecret, role)
 	if err != nil {
 		return nil, fmt.Errorf("生成token失败: %w", err)
 	}
 
+	// 获取角色标签（RBAC新逻辑）
+	var roleTags []string
+	if s.rbac != nil {
+		if snap, err := s.rbac.GetUserPermissionSnapshot(ctx, user.ID); err == nil {
+			roleTags = snap.RoleTags
+		}
+	}
+
+	// 转换为 UserProfileResponse
+	userProfile := response.UserProfileResponse{
+		ID:        user.ID,
+		Nickname:  user.Nickname,
+		Avatar:    user.Avatar,
+		Phone:     user.Phone,
+		StudentID: user.StudentID,
+		RealName:  user.RealName,
+		College:   user.College,
+		Major:     user.Major,
+		ClassID:   user.ClassID,
+		Role:      user.Role, // 向前兼容字段
+		RoleTags:  roleTags,
+		Status:    user.Status,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+	}
+
 	return &response.WechatLoginResponse{
 		Token:    token,
-		UserInfo: user,
+		UserInfo: userProfile,
 	}, nil
+}
+
+// mapRoleTagToLegacyRole 将RBAC角色标签映射到旧的role字段（向前兼容）
+// 返回：1=普通用户，2=管理员，3=运营
+func (s *AuthService) mapRoleTagToLegacyRole(ctx context.Context, userID uint) int8 {
+	if s.rbac == nil {
+		return 1 // 默认普通用户
+	}
+
+	snap, err := s.rbac.GetUserPermissionSnapshot(ctx, userID)
+	if err != nil {
+		return 1 // 默认普通用户
+	}
+
+	// 检查角色优先级：admin > operator > user
+	hasAdmin := false
+	hasOperator := false
+
+	for _, tag := range snap.RoleTags {
+		if tag == models.RoleTagAdmin {
+			hasAdmin = true
+			break // admin优先级最高，找到就返回
+		}
+		if tag == models.RoleTagOperator {
+			hasOperator = true
+		}
+	}
+
+	if hasAdmin {
+		return 2 // 管理员
+	}
+	if hasOperator {
+		return 3 // 运营
+	}
+
+	return 1 // 普通用户
 }

@@ -10,8 +10,8 @@ type CreateHeroRequest struct {
 // UpdateHeroRequest 更新 Hero 请求
 type UpdateHeroRequest struct {
 	Name   string `json:"name" binding:"required"`
-	Sort   int    `json:"sort"`
-	IsShow bool   `json:"is_show"`
+	Sort   *int   `json:"sort"`
+	IsShow *bool  `json:"is_show"`
 }
 
 // SearchHeroRequest 搜索英雄请求

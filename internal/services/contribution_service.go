@@ -3,27 +3,27 @@ package services
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
 	json "github.com/bytedance/sonic"
 	"gorm.io/gorm"
 )
 
 type ContributionService struct {
-	db                  *gorm.DB
-	pointsService       *PointsService
-	notificationService *NotificationService
+	db            *gorm.DB
+	pointsService *PointsService
 }
 
-func NewContributionService(db *gorm.DB) *ContributionService {
+func NewContributionService(db *gorm.DB, pointsService *PointsService) *ContributionService {
 	return &ContributionService{
-		db:                  db,
-		pointsService:       NewPointsService(db),
-		notificationService: NewNotificationService(db),
+		db:            db,
+		pointsService: pointsService,
 	}
 }
 
@@ -53,7 +53,7 @@ func (s *ContributionService) CreateContribution(ctx context.Context, userID uin
 }
 
 // GetContributions 获取投稿列表
-func (s *ContributionService) GetContributions(ctx context.Context, userID uint, userRole models.UserRole, req *request.GetContributionsRequest) (*response.PageResponse, error) {
+func (s *ContributionService) GetContributions(ctx context.Context, userID uint, req *request.GetContributionsRequest) (*response.PageResponse, error) {
 	var contributions []models.UserContribution
 	var total int64
 
@@ -61,7 +61,8 @@ func (s *ContributionService) GetContributions(ctx context.Context, userID uint,
 	query := s.db.WithContext(ctx).Model(&models.UserContribution{})
 
 	// 普通用户只能看自己的投稿
-	if userRole == models.UserRoleNormal {
+	userRoleTags := utils.GetUserRoles(ctx)
+	if !slices.Contains(userRoleTags, models.RoleTagOperator) && !slices.Contains(userRoleTags, models.RoleTagAdmin) {
 		query = query.Where("user_id = ?", userID)
 	} else if req.UserID != nil {
 		// 管理员可以按用户ID过滤
@@ -78,11 +79,18 @@ func (s *ContributionService) GetContributions(ctx context.Context, userID uint,
 		return nil, err
 	}
 
-	// 分页查询
+	// 分页查询并预加载关联关系
 	offset := (req.Page - 1) * req.Size
 	if err := query.Order("created_at DESC").
 		Offset(offset).
 		Limit(req.Size).
+		Preload("User", func(db *gorm.DB) *gorm.DB {
+			return db.Select("id, nickname")
+		}).
+		Preload("Reviewer", func(db *gorm.DB) *gorm.DB {
+			return db.Select("id, nickname")
+		}).
+		Preload("Notification").
 		Find(&contributions).Error; err != nil {
 		return nil, err
 	}
@@ -105,17 +113,22 @@ func (s *ContributionService) GetContributions(ctx context.Context, userID uint,
 }
 
 // GetContributionByID 根据ID获取投稿详情
-func (s *ContributionService) GetContributionByID(ctx context.Context, contributionID uint, userID uint, userRole models.UserRole) (*response.ContributionResponse, error) {
+func (s *ContributionService) GetContributionByID(ctx context.Context, contributionID uint, userID uint) (*response.ContributionResponse, error) {
 	var contribution models.UserContribution
-	if err := s.db.WithContext(ctx).First(&contribution, contributionID).Error; err != nil {
+	if err := s.db.Preload("User", func(db *gorm.DB) *gorm.DB {
+		return db.Select("id, nickname")
+	}).Preload("Reviewer", func(db *gorm.DB) *gorm.DB {
+		return db.Select("id, nickname")
+	}).Preload("Notification").WithContext(ctx).First(&contribution, contributionID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, errors.New("投稿不存在")
 		}
 		return nil, err
 	}
 
-	// 权限检查：普通用户只能查看自己的投稿
-	if contribution.UserID != userID && userRole == models.UserRoleNormal {
+	// 普通用户试图请求其他ID时候禁止
+	userRoleTags := utils.GetUserRoles(ctx)
+	if !slices.Contains(userRoleTags, models.RoleTagOperator) && !slices.Contains(userRoleTags, models.RoleTagAdmin) && contribution.UserID != userID {
 		return nil, errors.New("无权限")
 	}
 
@@ -123,7 +136,7 @@ func (s *ContributionService) GetContributionByID(ctx context.Context, contribut
 }
 
 // ReviewContribution 审核投稿
-func (s *ContributionService) ReviewContribution(ctx context.Context, contributionID uint, reviewerID uint, reviewerRole models.UserRole, req *request.ReviewContributionRequest) error {
+func (s *ContributionService) ReviewContribution(ctx context.Context, contributionID uint, reviewerID uint, req *request.ReviewContributionRequest) error {
 
 	// 查找投稿
 	var contribution models.UserContribution
@@ -147,20 +160,40 @@ func (s *ContributionService) ReviewContribution(ctx context.Context, contributi
 		updates := map[string]interface{}{
 			"status":      models.UserContributionStatus(req.Status),
 			"reviewer_id": reviewerID,
-			"review_note": req.ReviewNote,
 			"reviewed_at": &now,
 		}
 
+		// 如果提供了审核备注，则更新
+		if req.ReviewNote != nil {
+			updates["review_note"] = *req.ReviewNote
+		}
+
 		if req.Status == 2 { // 采纳
-			updates["points_awarded"] = req.Points
+			// 如果提供了积分，则更新
+			if req.Points != nil {
+				updates["points_awarded"] = *req.Points
+			}
 
 			// 创建通知
-			notificationReq := &request.CreateNotificationRequest{
-				Title:   req.Title,
-				Content: req.Content,
+			var title, content string
+			if req.Title != nil {
+				title = *req.Title
+			} else {
+				title = contribution.Title
 			}
-			if len(req.Categories) > 0 {
-				notificationReq.Categories = req.Categories
+			if req.Content != nil {
+				content = *req.Content
+			} else {
+				content = contribution.Content
+			}
+
+			notificationReq := &request.CreateNotificationRequest{
+				Title:   title,
+				Content: content,
+			}
+
+			if req.Categories != nil && len(*req.Categories) > 0 {
+				notificationReq.Categories = *req.Categories
 			} else {
 				// 使用原分类
 				var originalCategories []int
@@ -194,8 +227,8 @@ func (s *ContributionService) ReviewContribution(ctx context.Context, contributi
 			updates["notification_id"] = notification.ID
 
 			// 奖励积分
-			if req.Points > 0 {
-				if err := s.pointsService.AddPoints(ctx, tx, contribution.UserID, int(req.Points),
+			if req.Points != nil && *req.Points > 0 {
+				if err := s.pointsService.AddPoints(ctx, tx, contribution.UserID, int(*req.Points),
 					models.PointsTransactionSourceContribution, "投稿被采纳", &contributionID); err != nil {
 					return err
 				}
@@ -313,52 +346,46 @@ func (s *ContributionService) convertToResponse(ctx context.Context, contributio
 		return nil, err
 	}
 
-	// 获取用户信息
+	// 使用预加载的用户信息
 	var user *response.UserSimpleResponse
-	var userData models.User
-	if err := s.db.WithContext(ctx).Select("id, nickname").Where("id = ?", contribution.UserID).First(&userData).Error; err == nil {
+	if contribution.User != nil {
 		user = &response.UserSimpleResponse{
-			ID:       userData.ID,
-			Nickname: userData.Nickname,
+			ID:       contribution.User.ID,
+			Nickname: contribution.User.Nickname,
 		}
 	}
 
-	// 获取审核者信息
+	// 使用预加载的审核者信息
 	var reviewer *response.UserSimpleResponse
-	if contribution.ReviewerID != nil {
-		var reviewerData models.User
-		if err := s.db.WithContext(ctx).Select("id, nickname").Where("id = ?", *contribution.ReviewerID).First(&reviewerData).Error; err == nil {
-			reviewer = &response.UserSimpleResponse{
-				ID:       reviewerData.ID,
-				Nickname: reviewerData.Nickname,
-			}
+	if contribution.Reviewer != nil {
+		reviewer = &response.UserSimpleResponse{
+			ID:       contribution.Reviewer.ID,
+			Nickname: contribution.Reviewer.Nickname,
 		}
 	}
 
-	// 获取关联通知信息
+	// 使用预加载的通知信息
 	var notification *response.NotificationSimpleResponse
-	if contribution.NotificationID != nil {
-		var notificationData models.Notification
-		if err := s.db.WithContext(ctx).Where("id = ?", *contribution.NotificationID).First(&notificationData).Error; err == nil {
-			// 解析日程数据
-			var scheduleData *models.ScheduleData
-			if notificationData.Schedule != nil {
-				var schedule models.ScheduleData
-				if err := json.Unmarshal(notificationData.Schedule, &schedule); err == nil {
-					scheduleData = &schedule
-				}
+	if contribution.Notification != nil {
+		// 解析日程数据
+		var scheduleData *models.ScheduleData
+		if contribution.Notification.Schedule != nil {
+			var schedule models.ScheduleData
+			if err := json.Unmarshal(contribution.Notification.Schedule, &schedule); err == nil {
+				scheduleData = &schedule
 			}
+		}
 
-			notification = &response.NotificationSimpleResponse{
-				ID:          notificationData.ID,
-				Title:       notificationData.Title,
-				Categories:  categories,
-				Schedule:    scheduleData,
-				Status:      notificationData.Status,
-				ViewCount:   notificationData.ViewCount,
-				PublishedAt: notificationData.PublishedAt,
-				CreatedAt:   notificationData.CreatedAt,
-			}
+		notification = &response.NotificationSimpleResponse{
+			ID:          contribution.Notification.ID,
+			Title:       contribution.Notification.Title,
+			Categories:  categories,
+			PublisherID: contribution.Notification.PublisherID,
+			Schedule:    scheduleData,
+			Status:      contribution.Notification.Status,
+			ViewCount:   contribution.Notification.ViewCount,
+			PublishedAt: contribution.Notification.PublishedAt,
+			CreatedAt:   contribution.Notification.CreatedAt,
 		}
 	}
 

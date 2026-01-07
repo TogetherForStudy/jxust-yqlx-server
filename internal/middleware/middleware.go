@@ -64,7 +64,7 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 		// 检查Bearer前缀
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		if tokenString == authHeader {
-			helper.ErrorResponse(c, http.StatusUnauthorized, "无效的Authorization头")
+			helper.ErrorResponse(c, http.StatusUnauthorized, "无效的 Authorization 头")
 			c.Abort()
 			return
 		}
@@ -78,7 +78,7 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 		})
 
 		if err != nil || !token.Valid {
-			helper.ErrorResponse(c, http.StatusUnauthorized, "无效的token")
+			helper.ErrorResponse(c, http.StatusUnauthorized, "无效的 Token")
 			c.Abort()
 			return
 		}
@@ -86,48 +86,15 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 		// 获取用户信息
 		if claims, ok := token.Claims.(jwt.MapClaims); ok {
 			userID := uint(claims["user_id"].(float64))
-			openID := claims["open_id"].(string)
-			role := uint8(claims["role"].(float64))
 
 			c.Set("user_id", userID)
-			c.Set("open_id", openID)
-			c.Set("role", role)
 		} else {
-			helper.ErrorResponse(c, http.StatusUnauthorized, "无效的token Claims")
+			helper.ErrorResponse(c, http.StatusUnauthorized, "无效的 Token Claims")
 			c.Abort()
 			return
 		}
 
 		c.Next()
-	}
-}
-
-// RequireRole 通用角色权限中间件
-// 接受一个或多个允许的角色，只要用户角色匹配其中之一即可通过
-// 示例: RequireRole(2) - 仅管理员
-//
-//	RequireRole(2, 3) - 管理员或运营
-func RequireRole(allowedRoles ...uint8) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		role, exists := c.Get("role")
-		if !exists {
-			helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户角色")
-			c.Abort()
-			return
-		}
-
-		userRole := role.(uint8)
-
-		// 检查用户角色是否在允许的角色列表中
-		for _, allowedRole := range allowedRoles {
-			if userRole == allowedRole {
-				c.Next()
-				return
-			}
-		}
-
-		helper.ErrorResponse(c, http.StatusForbidden, "权限不足")
-		c.Abort()
 	}
 }
 

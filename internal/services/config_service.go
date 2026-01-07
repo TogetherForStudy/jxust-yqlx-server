@@ -47,15 +47,17 @@ func (s *ConfigService) Create(ctx context.Context, key, value, valueType, descr
 }
 
 // Update 根据key更新配置项
-func (s *ConfigService) Update(ctx context.Context, key, value, valueType, description string) error {
+func (s *ConfigService) Update(ctx context.Context, key, value, valueType string, description *string) error {
 	if valueType == "" {
 		valueType = "string"
 	}
 	updates := map[string]any{
-		"value":       value,
-		"value_type":  valueType,
-		"description": description,
-		"updated_at":  time.Now(),
+		"value":      value,
+		"value_type": valueType,
+		"updated_at": time.Now(),
+	}
+	if description != nil {
+		updates["description"] = *description
 	}
 	tx := s.db.WithContext(ctx).Model(&models.SystemConfig{}).Where("`key` = ?", key).Updates(updates)
 	if tx.Error != nil {

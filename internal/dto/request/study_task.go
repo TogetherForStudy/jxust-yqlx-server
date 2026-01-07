@@ -10,11 +10,11 @@ type CreateStudyTaskRequest struct {
 
 // UpdateStudyTaskRequest 更新学习任务请求
 type UpdateStudyTaskRequest struct {
-	Title       string `json:"title" binding:"omitempty,max=200"`        // 任务标题
-	Description string `json:"description"`                              // 任务描述
-	DueDate     string `json:"due_date"`                                 // 截止日期 YYYY-MM-DD HH:MM
-	Priority    *uint8 `json:"priority" binding:"omitempty,oneof=1 2 3"` // 优先级：1=高，2=中，3=低
-	Status      *uint8 `json:"status" binding:"omitempty,oneof=1 2"`     // 状态：1=待完成，2=已完成
+	Title       *string `json:"title" binding:"omitempty,max=200"`        // 任务标题
+	Description *string `json:"description"`                              // 任务描述
+	DueDate     *string `json:"due_date"`                                 // 截止日期 YYYY-MM-DD HH:MM
+	Priority    *uint8  `json:"priority" binding:"omitempty,oneof=1 2 3"` // 优先级：1=高，2=中，3=低
+	Status      *uint8  `json:"status" binding:"omitempty,oneof=1 2"`     // 状态：1=待完成，2=已完成
 }
 
 // GetStudyTasksRequest 获取学习任务列表请求

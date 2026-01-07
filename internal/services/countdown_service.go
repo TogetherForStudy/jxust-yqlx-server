@@ -54,7 +54,7 @@ func (s *CountdownService) CreateCountdown(ctx context.Context, userID uint, req
 }
 
 // GetCountdowns 获取用户倒数日列表
-func (s *CountdownService) GetCountdowns(ctx context.Context, userID uint, userRole models.UserRole) ([]response.CountdownResponse, error) {
+func (s *CountdownService) GetCountdowns(ctx context.Context, userID uint) ([]response.CountdownResponse, error) {
 	var countdowns []models.Countdown
 
 	// 构建查询
@@ -117,14 +117,14 @@ func (s *CountdownService) UpdateCountdown(ctx context.Context, countdownID uint
 	// 更新字段
 	updates := make(map[string]interface{})
 
-	if req.Title != "" {
-		updates["title"] = req.Title
+	if req.Title != nil {
+		updates["title"] = *req.Title
 	}
-	if req.Description != "" {
-		updates["description"] = req.Description
+	if req.Description != nil {
+		updates["description"] = *req.Description
 	}
-	if req.TargetDate != "" {
-		targetDate, err := time.Parse("2006-01-02", req.TargetDate)
+	if req.TargetDate != nil && *req.TargetDate != "" {
+		targetDate, err := time.Parse("2006-01-02", *req.TargetDate)
 		if err != nil {
 			return nil, errors.New("目标日期格式错误")
 		}

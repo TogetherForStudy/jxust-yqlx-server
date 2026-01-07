@@ -48,6 +48,7 @@ type NotificationSimpleResponse struct {
 	ID              uint                           `json:"id"`
 	Title           string                         `json:"title"`
 	Categories      []NotificationCategoryResponse `json:"categories"`
+	PublisherID     uint                           `json:"publisher_id"`
 	Status          models.NotificationStatus      `json:"status"`             // 添加状态字段
 	Schedule        *models.ScheduleData           `json:"schedule,omitempty"` // 日程信息
 	ViewCount       uint                           `json:"view_count"`

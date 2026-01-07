@@ -9,9 +9,9 @@ type CreateNotificationRequest struct {
 
 // UpdateNotificationRequest 更新通知请求
 type UpdateNotificationRequest struct {
-	Title      string `json:"title" binding:"max=200"`   // 通知标题
-	Content    string `json:"content"`                   // 详细内容
-	Categories []int  `json:"categories" binding:"dive"` // 分类ID数组
+	Title      *string `json:"title" binding:"omitempty,max=200"`   // 通知标题
+	Content    *string `json:"content"`                             // 详细内容
+	Categories *[]int  `json:"categories" binding:"omitempty,dive"` // 分类ID数组
 }
 
 // GetNotificationsRequest 获取通知列表请求
@@ -62,7 +62,7 @@ type CreateCategoryRequest struct {
 
 // UpdateCategoryRequest 更新分类请求
 type UpdateCategoryRequest struct {
-	Name     string `json:"name" binding:"max=20"` // 分类名称
-	Sort     int    `json:"sort"`                  // 排序值
-	IsActive *bool  `json:"is_active"`             // 是否启用
+	Name     *string `json:"name" binding:"omitempty,max=20"` // 分类名称
+	Sort     *int    `json:"sort"`                            // 排序值
+	IsActive *bool   `json:"is_active"`                       // 是否启用
 }

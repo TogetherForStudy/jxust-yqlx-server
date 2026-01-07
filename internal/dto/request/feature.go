@@ -12,9 +12,9 @@ type CreateFeatureRequest struct {
 
 // UpdateFeatureRequest 更新功能请求
 type UpdateFeatureRequest struct {
-	FeatureName string `json:"feature_name" binding:"max=100"`
-	Description string `json:"description" binding:"max=500"`
-	IsEnabled   *bool  `json:"is_enabled"`
+	FeatureName *string `json:"feature_name" binding:"omitempty,max=100"`
+	Description *string `json:"description" binding:"omitempty,max=500"`
+	IsEnabled   *bool   `json:"is_enabled"`
 }
 
 // GrantFeatureRequest 授予功能权限请求
