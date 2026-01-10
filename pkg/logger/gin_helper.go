@@ -27,24 +27,10 @@ func GinContextToContext(c *gin.Context) context.Context {
 		}
 	}
 
-	// Extract IsAdmin
-	if isAdmin, exists := c.Get("is_admin"); exists {
-		if admin, ok := isAdmin.(bool); ok {
-			ctx = context.WithValue(ctx, ctxKeyIsAdmin, admin)
-		}
-	}
-
 	// Extract UserRoles
 	if userRoles, exists := c.Get("user_roles"); exists {
 		if roles, ok := userRoles.([]string); ok {
 			ctx = context.WithValue(ctx, ctxKeyUserRoles, roles)
-		}
-	}
-
-	// Extract UserPermissions
-	if userPermissions, exists := c.Get("user_permissions"); exists {
-		if perms, ok := userPermissions.([]string); ok {
-			ctx = context.WithValue(ctx, ctxKeyUserPermissions, perms)
 		}
 	}
 

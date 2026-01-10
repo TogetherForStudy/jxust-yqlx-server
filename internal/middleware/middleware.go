@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -33,6 +35,17 @@ func CORS() gin.HandlerFunc {
 
 		c.Next()
 	})
+}
+
+// bodyLogWriter 包装gin.ResponseWriter以捕获响应体
+type bodyLogWriter struct {
+	gin.ResponseWriter
+	body *bytes.Buffer
+}
+
+func (w bodyLogWriter) Write(b []byte) (int, error) {
+	w.body.Write(b)
+	return w.ResponseWriter.Write(b)
 }
 
 // Logger 结构化日志中间件
@@ -67,6 +80,42 @@ func Logger() gin.HandlerFunc {
 		// 添加错误信息（如果存在）
 		if len(c.Errors) > 0 {
 			logFields["errors"] = c.Errors.String()
+		}
+
+		// 如果状态码不是200，记录请求体和响应体
+		if statusCode != http.StatusOK {
+			// 读取请求体
+			var requestBody []byte
+			if c.Request.Body != nil {
+				var err error
+				requestBody, err = io.ReadAll(c.Request.Body)
+				if err == nil {
+					// 重置请求体，以便后续处理程序可以使用
+					c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
+				}
+			}
+
+			// 包装ResponseWriter以捕获响应体
+			blw := &bodyLogWriter{body: bytes.NewBufferString(""), ResponseWriter: c.Writer}
+			c.Writer = blw
+
+			if len(requestBody) > 0 {
+				// 截断过长的请求体
+				if len(requestBody) > 1024 {
+					logFields["request_body"] = string(requestBody[:1024]) + "...(truncated)"
+				} else {
+					logFields["request_body"] = string(requestBody)
+				}
+			}
+			if blw.body.Len() > 0 {
+				// 截断过长的响应体
+				respBody := blw.body.String()
+				if len(respBody) > 1024 {
+					logFields["response_body"] = respBody[:1024] + "...(truncated)"
+				} else {
+					logFields["response_body"] = respBody
+				}
+			}
 		}
 
 		// 根据状态码选择日志级别

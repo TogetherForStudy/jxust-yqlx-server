@@ -186,7 +186,8 @@ func initProjectRedisData(db *gorm.DB) {
 					Select("COALESCE(SUM(study_count + practice_count), 0)").
 					Scan(&usageCount).Error; err == nil {
 					// 设置Redis中的刷题次数
-					if err := cache.GlobalCache.Set(ctx, usageKey, strconv.FormatInt(usageCount, 10), nil); err != nil {
+					noExpiration := time.Duration(0)
+					if err := cache.GlobalCache.Set(ctx, usageKey, strconv.FormatInt(usageCount, 10), &noExpiration); err != nil {
 						logger.Warnf("Failed to initialize usage count for project %d: %v", projectID, err)
 					}
 				} else {
