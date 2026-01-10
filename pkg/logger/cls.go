@@ -10,6 +10,7 @@ import (
 
 var (
 	logChannel       = make(chan *tencentcloudclssdkgo.Log, 1000)
+	callBack         = &Callback{}
 	producerInstance *tencentcloudclssdkgo.AsyncProducerClient
 	producerMu       sync.Mutex
 	shutdownOnce     sync.Once
@@ -56,10 +57,9 @@ func TencentClsLoggerInit(ctx context.Context, enable bool,
 		for {
 			select {
 			case log := <-logChannel:
-				callBack := &Callback{}
 				err = producerInstance.SendLog(topicId, log, callBack)
 				if err != nil {
-					println(err) // to stderr
+					Errorln(err.Error())
 					continue
 				}
 			case <-ctx.Done():
@@ -122,10 +122,11 @@ func (callback *Callback) Success(result *tencentcloudclssdkgo.Result) {
 }
 
 func (callback *Callback) Fail(result *tencentcloudclssdkgo.Result) {
-	//fmt.Println(result.IsSuccessful())
-	//fmt.Println(result.GetErrorCode())
-	//fmt.Println(result.GetErrorMessage())
-	//fmt.Println(result.GetReservedAttempts())
-	//fmt.Println(result.GetRequestId())
-	//fmt.Println(result.GetTimeStampMs())
+	Errorln(result.IsSuccessful(),
+		result.GetErrorCode(),
+		result.GetErrorMessage(),
+		result.GetReservedAttempts(),
+		result.GetRequestId(),
+		result.GetTimeStampMs(),
+	)
 }
