@@ -22,6 +22,13 @@ type Config struct {
 	UpyunTokenSecret string `yaml:"upyun_token_secret" env:"UPYUN_TOKEN_SECRET" envDefault:""`
 	CdnBaseURL       string `yaml:"cdn_base_url" env:"CDN_BASE_URL" envDefault:""`
 
+	// Tencent CLS 配置
+	ClsEnable    bool   `yaml:"cls_enable" env:"CLS_ENABLE" envDefault:"false"`
+	ClsSecretID  string `yaml:"cls_secret_id" env:"CLS_SECRET_ID"`
+	ClsSecretKey string `yaml:"cls_secret_key" env:"CLS_SECRET_KEY"`
+	ClsEndpoint  string `yaml:"cls_endpoint" env:"CLS_ENDPOINT" envDefault:"ap-guangzhou.cls.tencentcs.com"`
+	ClsTopicID   string `yaml:"cls_topic_id" env:"CLS_TOPIC_ID"`
+
 	// For minio signature and correct reverse proxy configuration
 	Host   string `yaml:"host" env:"HOST" envDefault:"localhost:8085"`
 	Scheme string `yaml:"scheme" env:"SCHEME" envDefault:"http"`

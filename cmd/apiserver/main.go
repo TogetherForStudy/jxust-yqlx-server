@@ -38,6 +38,10 @@ func main() {
 	if err != nil {
 		logger.Fatalf("Failed to initialize database: %v", err)
 	}
+	err = logger.TencentClsLoggerInit(context.TODO(), cfg.ClsEnable, cfg.ClsEndpoint, cfg.ClsTopicID, cfg.ClsSecretID, cfg.ClsSecretKey)
+	if err != nil {
+		logger.Fatalf("Failed to initialize Tencent CLS logger: %v", err)
+	}
 
 	// 自动迁移数据库表
 	if err := database.AutoMigrate(db); err != nil {
