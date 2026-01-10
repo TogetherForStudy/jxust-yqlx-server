@@ -100,9 +100,7 @@ func EnrichContext(ctx context.Context, fields map[string]any) context.Context {
 	if userID, ok := fields["user_id"].(uint); ok {
 		ctx = context.WithValue(ctx, ctxKeyUserID, userID)
 	}
-	if isAdmin, ok := fields["is_admin"].(bool); ok {
-		ctx = context.WithValue(ctx, ctxKeyIsAdmin, isAdmin)
-	}
+
 	if userRoles, ok := fields["user_roles"].([]string); ok {
 		ctx = context.WithValue(ctx, ctxKeyUserRoles, userRoles)
 	}
