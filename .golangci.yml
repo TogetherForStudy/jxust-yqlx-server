@@ -5,6 +5,7 @@ linters:
   settings:
     errcheck:
       exclude-functions:
+        - (*github.com/tencentcloud/tencentcloud-cls-sdk-go.AsyncProducerClient).Close
         - (io.ReadCloser).Close
         - (io.Closer).Close
         - (*os.File).Close

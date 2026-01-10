@@ -100,7 +100,7 @@ func ShutdownLogger(timeout time.Duration) {
 		// Close the producer instance
 		producerMu.Lock()
 		if producerInstance != nil {
-			producerInstance.Close(int64(timeout.Milliseconds()))
+			producerInstance.Close(timeout.Milliseconds())
 		}
 		producerMu.Unlock()
 
