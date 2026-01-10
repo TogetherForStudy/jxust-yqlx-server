@@ -71,6 +71,7 @@ func TencentClsLoggerInit(ctx context.Context, enable bool,
 			}
 		}
 	}()
+	Infoln("Success init Tencent Cls Logger")
 	return nil
 }
 
