@@ -51,9 +51,14 @@ make test
 
 **Run E2E tests:**
 
-E2E tests are written in Python using httpx. Before running, ensure the API server is running in non-release mode (to enable mock login endpoint).
+E2E tests are written in Python using httpx. Before running, ensure:
+1. The API server is running in non-release mode (to enable mock login endpoint)
+2. RBAC roles and permissions are initialized in the database
 
 ```shell
+# Initialize RBAC data (first time only)
+mysql -u your_username -p your_database < scripts/init_rbac.sql
+
 # Install dependencies
 pip install httpx
 
@@ -68,6 +73,13 @@ The E2E test script (`scripts/e2e_test.py`) covers:
 - Public endpoints: health check, reviews, config, heroes, notifications, categories
 - Authenticated endpoints: user profile, reviews CRUD, course table, fail rate, points, contributions, countdowns, study tasks
 - Admin endpoints: reviews management, notifications management, heroes management, config management
+
+**Supported test user types for mock login:**
+- `basic`: Basic user with standard permissions
+- `active`: Active user with additional permissions
+- `verified`: Verified user
+- `operator`: Operator with content management permissions
+- `admin`: Administrator with full permissions
 
 **Build a Docker image:**
 

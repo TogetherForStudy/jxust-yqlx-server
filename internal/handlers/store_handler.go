@@ -43,14 +43,23 @@ func NewStoreHandler(s3Service services.S3ServiceInterface) *StoreHandler {
 func (h *StoreHandler) UploadFile(c *gin.Context) {
 	file, err := c.FormFile("file")
 	if err != nil {
-		logger.Errorf("file upload error at http read file: %+v, RequestID: %s", err, helper.GetRequestID(c))
+		logger.ErrorGin(c, map[string]any{
+			"action":  "upload_file",
+			"message": "读取上传文件失败",
+			"error":   err.Error(),
+		})
 		helper.ErrorResponse(c, http.StatusBadRequest, "file upload failed")
 		return
 	}
 
 	src, err := file.Open()
 	if err != nil {
-		logger.Errorf("file upload error at open upload file: %+v, RequestID: %s", err, helper.GetRequestID(c))
+		logger.ErrorGin(c, map[string]any{
+			"action":    "upload_file",
+			"message":   "打开上传文件失败",
+			"error":     err.Error(),
+			"file_name": file.Filename,
+		})
 		helper.ErrorResponse(c, http.StatusInternalServerError, "failed to open file")
 		return
 	}
@@ -60,7 +69,12 @@ func (h *StoreHandler) UploadFile(c *gin.Context) {
 	var tags map[string]string
 	if tagsStr != "" {
 		if err := sonic.UnmarshalString(tagsStr, &tags); err != nil {
-			logger.Errorf("file upload error at unmarshal tags: %+v, RequestID: %s", err, helper.GetRequestID(c))
+			logger.ErrorGin(c, map[string]any{
+				"action":  "upload_file",
+				"message": "解析标签格式失败",
+				"error":   err.Error(),
+				"tags":    tagsStr,
+			})
 			helper.ErrorResponse(c, http.StatusBadRequest, "invalid tags format")
 			return
 		}
@@ -72,7 +86,13 @@ func (h *StoreHandler) UploadFile(c *gin.Context) {
 
 	resourceID, err := h.s3Service.AddObject(c.Request.Context(), src, file.Filename, mimeType, true, nil, tags)
 	if err != nil {
-		logger.Errorf("file upload error at minio add object: %+v, RequestID: %s", err, helper.GetRequestID(c))
+		logger.ErrorGin(c, map[string]any{
+			"action":    "upload_file",
+			"message":   "存储文件失败",
+			"error":     err.Error(),
+			"file_name": file.Filename,
+			"mime_type": mimeType,
+		})
 		helper.ErrorResponse(c, http.StatusInternalServerError, "failed to store file")
 		return
 	}
@@ -94,7 +114,12 @@ func (h *StoreHandler) UploadFile(c *gin.Context) {
 func (h *StoreHandler) DeleteFile(c *gin.Context) {
 	resourceID := c.Param("resource_id")
 	if err := h.s3Service.DeleteObject(c.Request.Context(), resourceID); err != nil {
-		logger.Errorf("file delete error: %+v, RequestID: %s", err, helper.GetRequestID(c))
+		logger.ErrorGin(c, map[string]any{
+			"action":      "delete_file",
+			"message":     "删除文件失败",
+			"error":       err.Error(),
+			"resource_id": resourceID,
+		})
 		helper.ErrorResponse(c, http.StatusInternalServerError, "failed to delete file")
 		return
 	}
@@ -114,7 +139,11 @@ func (h *StoreHandler) DeleteFile(c *gin.Context) {
 func (h *StoreHandler) ListFiles(c *gin.Context) {
 	files, err := h.s3Service.ListObjects(c.Request.Context())
 	if err != nil {
-		logger.Errorf("file list error: %+v, RequestID: %s", err, helper.GetRequestID(c))
+		logger.ErrorGin(c, map[string]any{
+			"action":  "list_files",
+			"message": "获取文件列表失败",
+			"error":   err.Error(),
+		})
 		helper.ErrorResponse(c, http.StatusInternalServerError, "failed to list files")
 		return
 	}
@@ -134,7 +163,11 @@ func (h *StoreHandler) ListFiles(c *gin.Context) {
 func (h *StoreHandler) ListExpiredFiles(c *gin.Context) {
 	files, err := h.s3Service.ListExpiredObjects(c.Request.Context())
 	if err != nil {
-		logger.Errorf("expired file list error: %+v, RequestID: %s", err, helper.GetRequestID(c))
+		logger.ErrorGin(c, map[string]any{
+			"action":  "list_expired_files",
+			"message": "获取过期文件列表失败",
+			"error":   err.Error(),
+		})
 		helper.ErrorResponse(c, http.StatusInternalServerError, "failed to list expired files")
 		return
 	}
@@ -157,7 +190,11 @@ func (h *StoreHandler) ListExpiredFiles(c *gin.Context) {
 func (h *StoreHandler) GetFileURL(c *gin.Context) {
 	var req request.GetFileURLRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		logger.Errorf("get file url error at bind arg: %+v, RequestID: %s", err, helper.GetRequestID(c))
+		logger.ErrorGin(c, map[string]any{
+			"action":  "get_file_url",
+			"message": "请求参数绑定失败",
+			"error":   err.Error(),
+		})
 		helper.ValidateResponse(c, "invalid request parameters")
 		return
 	}
@@ -175,7 +212,13 @@ func (h *StoreHandler) GetFileURL(c *gin.Context) {
 
 	url, err := h.s3Service.ShareObject(c, openid, resourceID, &expires, req.Download)
 	if err != nil {
-		logger.Errorf("get file url error at minio share object: %+v, RequestID: %s", err, helper.GetRequestID(c))
+		logger.ErrorGin(c, map[string]any{
+			"action":      "get_file_url",
+			"message":     "生成文件URL失败",
+			"error":       err.Error(),
+			"resource_id": resourceID,
+			"expires":     expires.String(),
+		})
 		helper.ErrorResponse(c, http.StatusInternalServerError, "failed to get file url")
 		return
 	}
@@ -199,7 +242,12 @@ func (h *StoreHandler) GetFileStream(c *gin.Context) {
 	resourceID := c.Param("resource_id")
 	obj, s3Data, err := h.s3Service.GetObject(c.Request.Context(), resourceID)
 	if err != nil {
-		logger.Errorf("file stream error at minio get object: %+v, RequestID: %s", err, helper.GetRequestID(c))
+		logger.ErrorGin(c, map[string]any{
+			"action":      "get_file_stream",
+			"message":     "获取文件对象失败",
+			"error":       err.Error(),
+			"resource_id": resourceID,
+		})
 		helper.ErrorResponse(c, http.StatusNotFound, "file not found")
 		return
 	}
@@ -211,7 +259,13 @@ func (h *StoreHandler) GetFileStream(c *gin.Context) {
 
 	_, err = io.Copy(c.Writer, obj)
 	if err != nil {
-		logger.Errorf("file stream error at io copy: %+v, RequestID: %s", err, helper.GetRequestID(c))
+		logger.ErrorGin(c, map[string]any{
+			"action":      "get_file_stream",
+			"message":     "传输文件流失败",
+			"error":       err.Error(),
+			"resource_id": resourceID,
+			"file_name":   s3Data.FileName,
+		})
 		helper.ErrorResponse(c, http.StatusInternalServerError, "failed to stream file")
 		return
 	}

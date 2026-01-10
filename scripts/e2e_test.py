@@ -98,7 +98,7 @@ class E2ETestClient:
 
     def setup_auth(self) -> bool:
         """设置认证 token"""
-        self.token = self.test_mock_wechat_login("normal")
+        self.token = self.test_mock_wechat_login("basic")
         self.admin_token = self.test_mock_wechat_login("admin")
         return self.token is not None
 

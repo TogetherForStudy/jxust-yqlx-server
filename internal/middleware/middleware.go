@@ -9,6 +9,7 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -34,21 +35,52 @@ func CORS() gin.HandlerFunc {
 	})
 }
 
-// Logger 日志中间件
+// Logger 结构化日志中间件
 func Logger() gin.HandlerFunc {
-	return gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
-		return fmt.Sprintf("%s - [%s] \"%s %s %s %d %s \"%s\" %s\"\n",
-			param.ClientIP,
-			param.TimeStamp.Format(time.RFC1123),
-			param.Method,
-			param.Path,
-			param.Request.Proto,
-			param.StatusCode,
-			param.Latency,
-			param.Request.UserAgent(),
-			param.ErrorMessage,
-		)
-	})
+	return func(c *gin.Context) {
+		// 记录请求开始时间
+		start := time.Now()
+		query := c.Request.URL.RawQuery
+
+		// 处理请求
+		c.Next()
+
+		// 计算请求处理时长
+		latency := time.Since(start)
+		statusCode := c.Writer.Status()
+
+		// 构建结构化日志字段
+		logFields := map[string]any{
+			"action":      "http_request",
+			"message":     "HTTP request processed",
+			"status_code": statusCode,
+			"latency_ms":  latency.Milliseconds(),
+			"latency":     latency.String(),
+			"body_size":   c.Writer.Size(),
+		}
+
+		// 添加查询参数（如果存在）
+		if query != "" {
+			logFields["query"] = query
+		}
+
+		// 添加错误信息（如果存在）
+		if len(c.Errors) > 0 {
+			logFields["errors"] = c.Errors.String()
+		}
+
+		// 根据状态码选择日志级别
+		switch {
+		case statusCode >= 500:
+			logger.ErrorGin(c, logFields)
+		case statusCode >= 400:
+			logger.WarnGin(c, logFields)
+		case statusCode >= 300:
+			logger.InfoGin(c, logFields)
+		default:
+			logger.InfoGin(c, logFields)
+		}
+	}
 }
 
 // AuthMiddleware JWT认证中间件

@@ -595,7 +595,13 @@ func (s *RBACService) invalidateUserCache(userID uint) {
 	if s.cache == nil {
 		return
 	}
-	if err := s.cache.Delete(context.Background(), s.cacheKey(userID)); err != nil {
-		logger.Warnf("清理用户权限缓存失败: %v", err)
+	ctx := context.Background()
+	if err := s.cache.Delete(ctx, s.cacheKey(userID)); err != nil {
+		logger.ErrorCtx(ctx, map[string]any{
+			"action":         "invalidate_user_cache",
+			"message":        "清理用户权限缓存失败",
+			"error":          err.Error(),
+			"target_user_id": userID,
+		})
 	}
 }

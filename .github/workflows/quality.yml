@@ -185,6 +185,11 @@ jobs:
             exit 1
           fi
 
+          # Initialize RBAC data after ORM creates tables
+          echo "Initializing RBAC roles and permissions..."
+          mysql -h 127.0.0.1 -u root -p123456 yqlx < scripts/init_rbac.sql
+          echo "RBAC initialization completed"
+
           # Run E2E tests
           echo "Running E2E tests..."
           python scripts/e2e_test.py --base-url http://localhost:8080
