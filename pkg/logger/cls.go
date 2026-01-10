@@ -56,7 +56,11 @@ func TencentClsLoggerInit(ctx context.Context, enable bool,
 		defer producerInstance.Close(60000)
 		for {
 			select {
-			case log := <-logChannel:
+			case log, ok := <-logChannel:
+				if !ok {
+					// Channel is closed, exit goroutine.
+					return
+				}
 				err = producerInstance.SendLog(topicId, log, callBack)
 				if err != nil {
 					Errorln(err.Error())
