@@ -120,12 +120,6 @@ jobs:
             sleep 2
           done
 
-      - name: Initialize RBAC Database
-        run: |
-          echo "Initializing RBAC roles and permissions..."
-          mysql -h 127.0.0.1 -u root -p123456 yqlx < scripts/init_rbac.sql
-          echo "RBAC initialization completed"
-
       - name: Install Redis CLI
         run: sudo apt-get update && sudo apt-get install -y redis-tools
 
@@ -190,6 +184,11 @@ jobs:
             cat server.log
             exit 1
           fi
+
+          # Initialize RBAC data after ORM creates tables
+          echo "Initializing RBAC roles and permissions..."
+          mysql -h 127.0.0.1 -u root -p123456 yqlx < scripts/init_rbac.sql
+          echo "RBAC initialization completed"
 
           # Run E2E tests
           echo "Running E2E tests..."
