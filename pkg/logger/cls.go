@@ -2,11 +2,19 @@ package logger
 
 import (
 	"context"
+	"sync"
+	"time"
 
 	tencentcloudclssdkgo "github.com/tencentcloud/tencentcloud-cls-sdk-go"
 )
 
-var logChannel = make(chan *tencentcloudclssdkgo.Log, 1000)
+var (
+	logChannel       = make(chan *tencentcloudclssdkgo.Log, 1000)
+	producerInstance *tencentcloudclssdkgo.AsyncProducerClient
+	producerMu       sync.Mutex
+	shutdownOnce     sync.Once
+	clsEnabled       bool
+)
 
 // TencentClsLoggerInit 腾讯云日志服务初始化
 //
@@ -17,17 +25,8 @@ var logChannel = make(chan *tencentcloudclssdkgo.Log, 1000)
 //	secretKey: 腾讯云API密钥Key
 func TencentClsLoggerInit(ctx context.Context, enable bool,
 	endpoint, topicId, secretId, secretKey string) error {
-	if !enable {
-		go func() {
-			for {
-				select {
-				case <-logChannel:
-					// 丢弃日志
-				case <-ctx.Done():
-					return
-				}
-			}
-		}()
+	clsEnabled = enable
+	if !clsEnabled {
 		return nil
 	}
 
@@ -41,10 +40,14 @@ func TencentClsLoggerInit(ctx context.Context, enable bool,
 	producerConfig.AccessKeySecret = secretKey
 
 	// 创建异步生产者客户端实例
-	producerInstance, err := tencentcloudclssdkgo.NewAsyncProducerClient(producerConfig)
+	instance, err := tencentcloudclssdkgo.NewAsyncProducerClient(producerConfig)
 	if err != nil {
 		return err
 	}
+
+	producerMu.Lock()
+	producerInstance = instance
+	producerMu.Unlock()
 
 	go func() {
 		// 启动异步发送程序
@@ -65,6 +68,47 @@ func TencentClsLoggerInit(ctx context.Context, enable bool,
 		}
 	}()
 	return nil
+}
+
+// ShutdownLogger gracefully shuts down the logger, ensuring all logs are flushed
+// timeout: maximum time to wait for logs to be flushed
+func ShutdownLogger(timeout time.Duration) {
+	shutdownOnce.Do(func() {
+		// Create a deadline context
+		deadline := time.Now().Add(timeout)
+
+		// Close the log channel to prevent new logs
+		close(logChannel)
+
+		// Wait for the channel to be drained or timeout
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+
+		for {
+			if time.Now().After(deadline) {
+				Warnf("Logger shutdown timeout reached, %d logs may be lost", len(logChannel))
+				break
+			}
+
+			if len(logChannel) == 0 {
+				break
+			}
+
+			<-ticker.C
+		}
+
+		// Close the producer instance
+		producerMu.Lock()
+		if producerInstance != nil {
+			producerInstance.Close(int64(timeout.Milliseconds()))
+		}
+		producerMu.Unlock()
+
+		// Sync zap logger
+		if zlog != nil {
+			_ = zlog.Sync()
+		}
+	})
 }
 
 type Callback struct {

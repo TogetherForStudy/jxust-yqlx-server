@@ -38,7 +38,7 @@ func main() {
 	if err != nil {
 		logger.Fatalf("Failed to initialize database: %v", err)
 	}
-	err = logger.TencentClsLoggerInit(context.TODO(), cfg.ClsEnable, cfg.ClsEndpoint, cfg.ClsTopicID, cfg.ClsSecretID, cfg.ClsSecretKey)
+	err = logger.TencentClsLoggerInit(context.Background(), cfg.ClsEnable, cfg.ClsEndpoint, cfg.ClsTopicID, cfg.ClsSecretID, cfg.ClsSecretKey)
 	if err != nil {
 		logger.Fatalf("Failed to initialize Tencent CLS logger: %v", err)
 	}
@@ -89,6 +89,10 @@ func main() {
 	// 等待关闭信号
 	<-quit
 	logger.Info("Server is shutting down...")
+
+	// 优雅关闭日志系统（确保所有日志上报完成）
+	logger.Info("Flushing remaining logs...")
+	logger.ShutdownLogger(10 * time.Second)
 
 	// 停止定时任务调度器
 	taskScheduler.Stop()
