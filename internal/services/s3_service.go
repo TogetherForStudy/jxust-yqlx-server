@@ -12,7 +12,6 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/minio"
-	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 	"github.com/bytedance/sonic"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -145,7 +144,12 @@ func (s *S3Service) ShareObject(ctx context.Context, openid, resourceID string, 
 	if err != nil {
 		return "", err
 	}
-	logger.Debugf("Presigned URL generated: %s, RequestID: %s", presignedURL.String(), utils.GetRequestID(ctx))
+	logger.DebugCtx(ctx, map[string]any{
+		"action":      "generate_presigned_url",
+		"message":     "生成预签名URL成功",
+		"resource_id": resourceID,
+		"url":         presignedURL.String(),
+	})
 
 	// Replace the host and scheme with the public-facing ones without parsing and rebuilding the URL.
 	// This avoids any potential re-encoding issues that would invalidate the signature.

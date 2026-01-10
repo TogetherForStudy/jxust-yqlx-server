@@ -25,7 +25,10 @@ func NewUserActivityService(db *gorm.DB, rbacService *RBACService) *UserActivity
 // UpdateActiveUserRoles 更新活跃用户角色
 // 规则：100天内有25天访问次数，授予活跃角色；不满足条件则取消活跃角色
 func (s *UserActivityService) UpdateActiveUserRoles(ctx context.Context) error {
-	logger.Infof("开始执行活跃用户角色更新任务...")
+	logger.InfoCtx(ctx, map[string]any{
+		"action":  "update_active_user_roles",
+		"message": "开始执行活跃用户角色更新任务",
+	})
 
 	// 计算100天前的日期
 	now := time.Now()
@@ -50,7 +53,11 @@ func (s *UserActivityService) UpdateActiveUserRoles(ctx context.Context) error {
 		return err
 	}
 
-	logger.Infof("找到 %d 个满足活跃条件的用户", len(activeUsers))
+	logger.InfoCtx(ctx, map[string]any{
+		"action":             "update_active_user_roles",
+		"message":            "找到满足活跃条件的用户",
+		"active_users_count": len(activeUsers),
+	})
 
 	// 获取活跃角色ID
 	var activeRole models.Role
@@ -58,7 +65,10 @@ func (s *UserActivityService) UpdateActiveUserRoles(ctx context.Context) error {
 		Where("role_tag = ?", models.RoleTagUserActive).
 		First(&activeRole).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			logger.Warnf("活跃角色不存在，跳过角色授予")
+			logger.WarnCtx(ctx, map[string]any{
+				"action":  "update_active_user_roles",
+				"message": "活跃角色不存在，跳过角色授予",
+			})
 			return nil
 		}
 		return err
@@ -104,7 +114,13 @@ func (s *UserActivityService) UpdateActiveUserRoles(ctx context.Context) error {
 	grantCount := 0
 	for userID := range usersToGrant {
 		if err := s.rbacService.GrantRole(ctx, userID, activeRole.ID); err != nil {
-			logger.Warnf("授予用户 %d 活跃角色失败: %v", userID, err)
+			logger.WarnCtx(ctx, map[string]any{
+				"action":         "grant_active_role",
+				"message":        "授予用户活跃角色失败",
+				"error":          err.Error(),
+				"target_user_id": userID,
+				"role_id":        activeRole.ID,
+			})
 			continue
 		}
 		grantCount++
@@ -114,12 +130,23 @@ func (s *UserActivityService) UpdateActiveUserRoles(ctx context.Context) error {
 	revokeCount := 0
 	for userID := range usersToRevoke {
 		if err := s.rbacService.RevokeRole(ctx, userID, activeRole.ID); err != nil {
-			logger.Warnf("撤销用户 %d 活跃角色失败: %v", userID, err)
+			logger.WarnCtx(ctx, map[string]any{
+				"action":         "revoke_active_role",
+				"message":        "撤销用户活跃角色失败",
+				"error":          err.Error(),
+				"target_user_id": userID,
+				"role_id":        activeRole.ID,
+			})
 			continue
 		}
 		revokeCount++
 	}
 
-	logger.Infof("活跃用户角色更新完成: 授予 %d 个用户，撤销 %d 个用户", grantCount, revokeCount)
+	logger.InfoCtx(ctx, map[string]any{
+		"action":       "update_active_user_roles",
+		"message":      "活跃用户角色更新完成",
+		"grant_count":  grantCount,
+		"revoke_count": revokeCount,
+	})
 	return nil
 }

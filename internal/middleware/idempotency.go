@@ -119,15 +119,22 @@ func idempotencyMiddlewareWithTTL(c *gin.Context, ca cache.Cache, strict bool, t
 			return
 		}
 		// 宽松模式：仅打印警告日志，不阻止请求
-		logger.Warnf("[Idempotency] 请求缺少幂等性Key, path=%s, method=%s, ip=%s, user_id=%d",
-			c.Request.URL.Path, c.Request.Method, c.ClientIP(), helper.GetUserID(c))
+		logger.WarnGin(c, map[string]any{
+			"action":  "idempotency_check",
+			"message": "请求缺少幂等性Key",
+			"status":  "missing_key",
+		})
 		c.Next()
 		return
 	}
 
 	// 检查缓存是否可用
 	if ca == nil {
-		logger.Warnf("[Idempotency] 缓存服务不可用，跳过幂等性检查, key=%s", idempotencyKey)
+		logger.WarnGin(c, map[string]any{
+			"action":          "idempotency_check",
+			"message":         "缓存服务不可用，跳过幂等性检查",
+			"idempotency_key": idempotencyKey,
+		})
 		c.Next()
 		return
 	}
@@ -147,7 +154,13 @@ func idempotencyMiddlewareWithTTL(c *gin.Context, ca cache.Cache, strict bool, t
 	lockKey := cacheKey + ":lock"
 	locked, err := ca.Lock(ctx, lockKey, constant.IdempotencyLockTimeout)
 	if err != nil {
-		logger.Errorf("[Idempotency] 获取分布式锁失败: %v, key=%s", err, cacheKey)
+		logger.ErrorGin(c, map[string]any{
+			"action":          "idempotency_lock",
+			"message":         "获取分布式锁失败",
+			"error":           err.Error(),
+			"cache_key":       cacheKey,
+			"idempotency_key": idempotencyKey,
+		})
 		c.Next()
 		return
 	}
@@ -166,7 +179,13 @@ func idempotencyMiddlewareWithTTL(c *gin.Context, ca cache.Cache, strict bool, t
 	// 确保释放锁
 	defer func() {
 		if err := ca.Unlock(ctx, lockKey); err != nil {
-			logger.Errorf("[Idempotency] 释放分布式锁失败: %v, key=%s", err, cacheKey)
+			logger.ErrorGin(c, map[string]any{
+				"action":          "idempotency_unlock",
+				"message":         "释放分布式锁失败",
+				"error":           err.Error(),
+				"cache_key":       cacheKey,
+				"idempotency_key": idempotencyKey,
+			})
 		}
 	}()
 
@@ -176,12 +195,22 @@ func idempotencyMiddlewareWithTTL(c *gin.Context, ca cache.Cache, strict bool, t
 		// 已有缓存，直接返回
 		var resp IdempotencyResponse
 		if err := json.Unmarshal([]byte(cachedResponse), &resp); err != nil {
-			logger.Errorf("[Idempotency] 解析缓存响应失败: %v, key=%s", err, cacheKey)
+			logger.ErrorGin(c, map[string]any{
+				"action":          "idempotency_unmarshal",
+				"message":         "解析缓存响应失败",
+				"error":           err.Error(),
+				"cache_key":       cacheKey,
+				"idempotency_key": idempotencyKey,
+			})
 			c.Next()
 			return
 		}
 
-		logger.Infof("[Idempotency] 命中缓存，返回已缓存的响应, key=%s", idempotencyKey)
+		logger.InfoGin(c, map[string]any{
+			"action":          "idempotency_cache_hit",
+			"message":         "命中缓存，返回已缓存的响应",
+			"idempotency_key": idempotencyKey,
+		})
 
 		// 设置缓存的响应头
 		for key, values := range resp.Headers {
@@ -198,7 +227,13 @@ func idempotencyMiddlewareWithTTL(c *gin.Context, ca cache.Cache, strict bool, t
 
 	// 标记请求正在处理
 	if _, err := ca.SetNX(ctx, cacheKey, constant.IdempotencyStatusPending, ttl); err != nil {
-		logger.Errorf("[Idempotency] 设置处理状态失败: %v, key=%s", err, cacheKey)
+		logger.ErrorGin(c, map[string]any{
+			"action":          "idempotency_set_pending",
+			"message":         "设置处理状态失败",
+			"error":           err.Error(),
+			"cache_key":       cacheKey,
+			"idempotency_key": idempotencyKey,
+		})
 	}
 
 	// 保存幂等性Key到上下文
@@ -225,19 +260,42 @@ func idempotencyMiddlewareWithTTL(c *gin.Context, ca cache.Cache, strict bool, t
 
 		respJSON, err := json.Marshal(resp)
 		if err != nil {
-			logger.Errorf("[Idempotency] 序列化响应失败: %v, key=%s", err, cacheKey)
+			logger.ErrorGin(c, map[string]any{
+				"action":          "idempotency_marshal",
+				"message":         "序列化响应失败",
+				"error":           err.Error(),
+				"cache_key":       cacheKey,
+				"idempotency_key": idempotencyKey,
+			})
 			return
 		}
 
 		if err := ca.Set(ctx, cacheKey, string(respJSON), &ttl); err != nil {
-			logger.Errorf("[Idempotency] 缓存响应失败: %v, key=%s", err, cacheKey)
+			logger.ErrorGin(c, map[string]any{
+				"action":          "idempotency_cache_set",
+				"message":         "缓存响应失败",
+				"error":           err.Error(),
+				"cache_key":       cacheKey,
+				"idempotency_key": idempotencyKey,
+			})
 		} else {
-			logger.Infof("[Idempotency] 响应已缓存, key=%s, expiration=%v", idempotencyKey, ttl)
+			logger.InfoGin(c, map[string]any{
+				"action":          "idempotency_cache_success",
+				"message":         "响应已缓存",
+				"idempotency_key": idempotencyKey,
+				"expiration":      ttl.String(),
+			})
 		}
 	} else {
 		// 请求失败，删除pending状态，允许重试
 		if err := ca.Delete(ctx, cacheKey); err != nil {
-			logger.Errorf("[Idempotency] 删除失败状态失败: %v, key=%s", err, cacheKey)
+			logger.ErrorGin(c, map[string]any{
+				"action":          "idempotency_delete_pending",
+				"message":         "删除失败状态失败",
+				"error":           err.Error(),
+				"cache_key":       cacheKey,
+				"idempotency_key": idempotencyKey,
+			})
 		}
 	}
 }

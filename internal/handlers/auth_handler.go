@@ -103,7 +103,12 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 	var roleTags []string
 	if h.rbacService != nil {
 		if snap, err := h.rbacService.GetUserPermissionSnapshot(c, user.ID); err != nil {
-			logger.Warnf("获取用户角色失败 user_id=%d err=%v", user.ID, err)
+			logger.WarnGin(c, map[string]any{
+				"action":         "get_user_roles",
+				"message":        "获取用户角色失败",
+				"target_user_id": user.ID,
+				"error":          err.Error(),
+			})
 		} else {
 			roleTags = snap.RoleTags
 		}
