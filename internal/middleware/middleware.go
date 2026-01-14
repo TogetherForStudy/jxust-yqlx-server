@@ -3,7 +3,6 @@ package middleware
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -62,6 +61,15 @@ func Logger() gin.HandlerFunc {
 		latency := time.Since(start)
 		statusCode := c.Writer.Status()
 
+		// 检查是否有错误标记（由ErrorResponse/ValidateResponse设置）
+		hasError, _ := c.Get("response_has_error")
+		bodyStatusCode := 0
+		if val, exists := c.Get("response_status_code"); exists {
+			if code, ok := val.(int); ok {
+				bodyStatusCode = code
+			}
+		}
+
 		// 构建结构化日志字段
 		logFields := map[string]any{
 			"action":      "http_request",
@@ -82,49 +90,30 @@ func Logger() gin.HandlerFunc {
 			logFields["errors"] = c.Errors.String()
 		}
 
-		// 如果状态码不是200，记录请求体和响应体
-		if statusCode != http.StatusOK {
-			// 读取请求体
-			var requestBody []byte
-			if c.Request.Body != nil {
-				var err error
-				requestBody, err = io.ReadAll(c.Request.Body)
-				if err == nil {
-					// 重置请求体，以便后续处理程序可以使用
-					c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
-				}
-			}
-
-			// 包装ResponseWriter以捕获响应体
-			blw := &bodyLogWriter{body: bytes.NewBufferString(""), ResponseWriter: c.Writer}
-			c.Writer = blw
-
-			if len(requestBody) > 0 {
-				// 截断过长的请求体
-				if len(requestBody) > 1024 {
-					logFields["request_body"] = string(requestBody[:1024]) + "...(truncated)"
-				} else {
-					logFields["request_body"] = string(requestBody)
-				}
-			}
-			if blw.body.Len() > 0 {
-				// 截断过长的响应体
-				respBody := blw.body.String()
-				if len(respBody) > 1024 {
-					logFields["response_body"] = respBody[:1024] + "...(truncated)"
-				} else {
-					logFields["response_body"] = respBody
-				}
-			}
+		// 添加body中的StatusCode（如果存在且不为0）
+		if bodyStatusCode != 0 {
+			logFields["body_status_code"] = bodyStatusCode
 		}
 
-		// 根据状态码选择日志级别
+		// 如果HTTP状态码不是200，或者有错误标记，记录详细信息
+		shouldLogDetails := statusCode != http.StatusOK || hasError == true
+		if shouldLogDetails {
+			logFields["body_message"], _ = c.Get("body_message")
+		}
+
+		// 根据HTTP状态码和body中的StatusCode选择日志级别
+		// 优先检查bodyStatusCode，如果它表示错误则按它的级别记录
+		effectiveStatusCode := statusCode
+		if bodyStatusCode >= 400 {
+			effectiveStatusCode = bodyStatusCode
+		}
+
 		switch {
-		case statusCode >= 500:
+		case effectiveStatusCode >= 500:
 			logger.ErrorGin(c, logFields)
-		case statusCode >= 400:
+		case effectiveStatusCode >= 400:
 			logger.WarnGin(c, logFields)
-		case statusCode >= 300:
+		case effectiveStatusCode >= 300:
 			logger.InfoGin(c, logFields)
 		default:
 			logger.InfoGin(c, logFields)

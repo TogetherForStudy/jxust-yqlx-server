@@ -51,7 +51,7 @@ func (s *QuestionService) GetProjects(userID uint) ([]response.QuestionProjectRe
 		// 获取项目下所有启用题目的 ID（用于统计数量和刷题次数）
 		var questionIDs []uint
 		if err := s.db.Model(&models.Question{}).
-			Where("project_id = ? AND is_active = ?", project.ID, true).
+			Where("project_id = ? AND is_active = ? AND parent_id IS NOT NULL", project.ID, true).
 			Pluck("id", &questionIDs).Error; err != nil {
 			return nil, err
 		}
