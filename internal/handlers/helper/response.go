@@ -1,7 +1,6 @@
 package helper
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto"
@@ -68,10 +67,4 @@ func PageSuccessResponse(c *gin.Context, data any, total int64, page, size int) 
 		Page:  page,
 		Size:  size,
 	})
-}
-
-// formatResponseBody 格式化响应体为字符串
-func formatResponseBody(response dto.Response) string {
-	return fmt.Sprintf(`{"StatusCode":%d,"StatusMessage":"%s","RequestId":"%s"}`,
-		response.StatusCode, response.StatusMessage, response.RequestId)
 }

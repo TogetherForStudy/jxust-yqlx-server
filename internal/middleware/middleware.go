@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"bytes"
 	"fmt"
 	"net/http"
 	"strings"
@@ -34,17 +33,6 @@ func CORS() gin.HandlerFunc {
 
 		c.Next()
 	})
-}
-
-// bodyLogWriter 包装gin.ResponseWriter以捕获响应体
-type bodyLogWriter struct {
-	gin.ResponseWriter
-	body *bytes.Buffer
-}
-
-func (w bodyLogWriter) Write(b []byte) (int, error) {
-	w.body.Write(b)
-	return w.ResponseWriter.Write(b)
 }
 
 // Logger 结构化日志中间件
