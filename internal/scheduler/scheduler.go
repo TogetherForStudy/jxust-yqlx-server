@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
@@ -14,6 +15,7 @@ import (
 // Scheduler 定时任务调度器
 type Scheduler struct {
 	cron                *cron.Cron
+	db                  *gorm.DB
 	materialService     *services.MaterialService
 	userActivityService *services.UserActivityService
 }
@@ -29,6 +31,7 @@ func NewScheduler(db *gorm.DB) *Scheduler {
 
 	return &Scheduler{
 		cron:                c,
+		db:                  db,
 		materialService:     services.NewMaterialService(db),
 		userActivityService: userActivityService,
 	}
@@ -93,7 +96,7 @@ func (s *Scheduler) Start() error {
 	_, err = s.cron.AddFunc("0 * * * *", func() {
 		ctx := context.Background()
 		logger.Info("任务开始：在线用户数据清理")
-		if err := cleanupOnlineUserData(ctx); err != nil {
+		if err := s.cleanupOnlineUserData(ctx); err != nil {
 			logger.Error("任务失败：在线用户数据清理")
 		} else {
 			logger.Info("任务成功：在线用户数据清理")
@@ -111,7 +114,7 @@ func (s *Scheduler) Start() error {
 
 // cleanupOnlineUserData 清理过期的在线用户数据
 // 清理1小时前（超过1分钟过期时间很久）的过期数据，保持Redis数据整洁
-func cleanupOnlineUserData(ctx context.Context) error {
+func (s *Scheduler) cleanupOnlineUserData(ctx context.Context) error {
 	if cache.GlobalCache == nil {
 		return nil
 	}
@@ -120,15 +123,26 @@ func cleanupOnlineUserData(ctx context.Context) error {
 	// 清理1小时前的过期数据（1分钟过期时间 + 1小时缓冲）
 	expiredTime := now - 3600 // 1小时前
 
-	// 清理系统在线用户数据
+	// 1. 清理系统在线用户数据
 	systemOnlineKey := "online:system"
 	if _, err := cache.GlobalCache.ZRemRangeByScore(ctx, systemOnlineKey, 0, expiredTime); err != nil {
 		logger.Errorf("清理系统在线用户数据失败: %v", err)
 	}
 
-	// 注意：项目在线用户数据的key是动态的（online:project:{project_id}）
-	// 由于无法预先知道所有项目ID，这里只清理系统级别的数据
-	// 项目级别的数据会在查询时自动过滤，不会影响统计结果
+	// 2. 清理所有项目的在线用户数据
+	// 查询所有激活的项目ID
+	var projectIDs []uint
+	if err := s.db.Table("question_projects").Where("deleted_at IS NULL").Pluck("id", &projectIDs).Error; err != nil {
+		logger.Errorf("获取项目ID列表失败: %v", err)
+		return err
+	}
+
+	for _, pid := range projectIDs {
+		projectOnlineKey := fmt.Sprintf("online:project:%d", pid)
+		if _, err := cache.GlobalCache.ZRemRangeByScore(ctx, projectOnlineKey, 0, expiredTime); err != nil {
+			logger.Errorf("清理项目[%d]在线用户数据失败: %v", pid, err)
+		}
+	}
 
 	return nil
 }

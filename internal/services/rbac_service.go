@@ -75,6 +75,8 @@ func (s *RBACService) SeedDefaults(ctx context.Context) error {
 		{PermissionTag: models.PermissionMaterialDownload, Name: "资料下载", Description: ""},
 		{PermissionTag: models.PermissionMaterialCategoryGet, Name: "资料分类查看", Description: ""},
 		{PermissionTag: models.PermissionQuestion, Name: "刷题访问", Description: ""},
+		{PermissionTag: models.PermissionPomodoro, Name: "番茄钟", Description: ""},
+		{PermissionTag: models.PermissionDictionary, Name: "每日一词", Description: ""},
 
 		{PermissionTag: models.PermissionReviewManage, Name: "点评管理", Description: ""},
 		{PermissionTag: models.PermissionCourseTableManage, Name: "课表管理", Description: ""},
@@ -120,6 +122,8 @@ func (s *RBACService) SeedDefaults(ctx context.Context) error {
 			models.PermissionMaterialDownload,
 			models.PermissionMaterialCategoryGet,
 			models.PermissionQuestion,
+			models.PermissionPomodoro,
+			models.PermissionDictionary,
 		},
 		models.RoleTagUserActive: {
 			models.PermissionCourseTableClassUpdateAll,

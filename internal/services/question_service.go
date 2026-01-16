@@ -11,6 +11,7 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 
 	"gorm.io/gorm"
 )
@@ -33,7 +34,8 @@ const (
 	SyncTaskPractice SyncTaskType = "practice"
 	SyncTaskUsage    SyncTaskType = "usage"
 
-	SyncQueueKey = "sync:question:usage"
+	SyncQueueKey   = "sync:question:usage"
+	MaxSyncRetries = 3
 )
 
 // SyncTask 同步任务结构
@@ -43,6 +45,7 @@ type SyncTask struct {
 	QuestionID uint         `json:"question_id,omitempty"`
 	ProjectID  uint         `json:"project_id,omitempty"`
 	Time       time.Time    `json:"time"`
+	RetryCount int          `json:"retry_count,omitempty"`
 }
 
 // ===================== 项目查询 =====================
@@ -419,9 +422,29 @@ func (s *QuestionService) processSyncQueue(ctx context.Context) {
 
 		// 执行数据库同步
 		if err := s.syncTaskToDB(task); err != nil {
-			// 如果同步失败，可以将任务重新推回队列或记录日志
-			// 这里简单记录日志
-			fmt.Printf("Sync task failed: %v\n", err)
+			// 如果未达到重试上限，推回队列重试
+			if task.RetryCount < MaxSyncRetries {
+				task.RetryCount++
+				retryData, _ := json.Marshal(task)
+				_, _ = cache.GlobalCache.LPush(ctx, SyncQueueKey, string(retryData))
+
+				logger.WarnCtx(ctx, map[string]any{
+					"action":      "sync_task_retry_pushed",
+					"task_type":   task.Type,
+					"user_id":     task.UserID,
+					"retry_count": task.RetryCount,
+					"error":       err.Error(),
+				})
+			} else {
+				// 达到重试上限，记录错误并放弃
+				logger.ErrorCtx(ctx, map[string]any{
+					"action":    "sync_task_to_db_failed_final",
+					"task_type": task.Type,
+					"user_id":   task.UserID,
+					"error":     err.Error(),
+					"task_data": taskData,
+				})
+			}
 		}
 	}
 }
