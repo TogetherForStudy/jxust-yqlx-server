@@ -2,11 +2,11 @@ package scheduler
 
 import (
 	"context"
-	"log"
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 	"github.com/robfig/cron/v3"
 	"gorm.io/gorm"
 )
@@ -21,7 +21,8 @@ type Scheduler struct {
 // NewScheduler 创建新的调度器实例
 func NewScheduler(db *gorm.DB) *Scheduler {
 	// 使用中国时区
-	c := cron.New(cron.WithLogger(cron.VerbosePrintfLogger(log.New(log.Writer(), "cron: ", log.LstdFlags))))
+	// 使用内置日志
+	c := cron.New()
 
 	rbacService := services.NewRBACService(db)
 	userActivityService := services.NewUserActivityService(db, rbacService)
@@ -38,11 +39,22 @@ func (s *Scheduler) Start() error {
 	// 添加每天凌晨2点执行热度计算的任务
 	// cron表达式: "0 2 * * *" 表示每天凌晨2点0分执行
 	_, err := s.cron.AddFunc("0 2 * * *", func() {
-		log.Println("开始执行热度计算定时任务...")
+		ctx := context.Background()
+		logger.DebugCtx(ctx, map[string]any{
+			"task":   "material_hotness_calculation",
+			"status": "started",
+		})
 		if err := s.materialService.CalculateHotness(); err != nil {
-			log.Printf("热度计算任务执行失败: %v", err)
+			logger.ErrorCtx(ctx, map[string]any{
+				"task":   "material_hotness_calculation",
+				"status": "failed",
+				"error":  err.Error(),
+			})
 		} else {
-			log.Println("热度计算任务执行成功")
+			logger.DebugCtx(ctx, map[string]any{
+				"task":   "material_hotness_calculation",
+				"status": "success",
+			})
 		}
 	})
 
@@ -53,12 +65,22 @@ func (s *Scheduler) Start() error {
 	// 添加每天凌晨3点执行活跃用户角色更新任务
 	// cron表达式: "0 3 * * *" 表示每天凌晨3点0分执行
 	_, err = s.cron.AddFunc("0 3 * * *", func() {
-		log.Println("开始执行活跃用户角色更新任务...")
 		ctx := context.Background()
+		logger.DebugCtx(ctx, map[string]any{
+			"task":   "active_user_role_update",
+			"status": "started",
+		})
 		if err := s.userActivityService.UpdateActiveUserRoles(ctx); err != nil {
-			log.Printf("活跃用户角色更新任务执行失败: %v", err)
+			logger.ErrorCtx(ctx, map[string]any{
+				"task":   "active_user_role_update",
+				"status": "failed",
+				"error":  err.Error(),
+			})
 		} else {
-			log.Println("活跃用户角色更新任务执行成功")
+			logger.DebugCtx(ctx, map[string]any{
+				"task":   "active_user_role_update",
+				"status": "success",
+			})
 		}
 	})
 
@@ -69,12 +91,12 @@ func (s *Scheduler) Start() error {
 	// 添加每小时执行在线用户数据清理任务
 	// cron表达式: "0 * * * *" 表示每小时0分执行
 	_, err = s.cron.AddFunc("0 * * * *", func() {
-		log.Println("开始执行在线用户数据清理任务...")
 		ctx := context.Background()
+		logger.Info("任务开始：在线用户数据清理")
 		if err := cleanupOnlineUserData(ctx); err != nil {
-			log.Printf("在线用户数据清理任务执行失败: %v", err)
+			logger.Error("任务失败：在线用户数据清理")
 		} else {
-			log.Println("在线用户数据清理任务执行成功")
+			logger.Info("任务成功：在线用户数据清理")
 		}
 	})
 
@@ -82,7 +104,7 @@ func (s *Scheduler) Start() error {
 		return err
 	}
 
-	log.Println("定时任务调度器已启动，热度计算任务将在每天凌晨2点执行，活跃用户角色更新任务将在每天凌晨3点执行，在线用户数据清理任务将每小时执行")
+	logger.Info("定时任务调度器已启动，热度计算任务将在每天凌晨2点执行，活跃用户角色更新任务将在每天凌晨3点执行，在线用户数据清理任务将每小时执行")
 	s.cron.Start()
 	return nil
 }
@@ -101,7 +123,7 @@ func cleanupOnlineUserData(ctx context.Context) error {
 	// 清理系统在线用户数据
 	systemOnlineKey := "online:system"
 	if _, err := cache.GlobalCache.ZRemRangeByScore(ctx, systemOnlineKey, 0, expiredTime); err != nil {
-		log.Printf("清理系统在线用户数据失败: %v", err)
+		logger.Errorf("清理系统在线用户数据失败: %v", err)
 	}
 
 	// 注意：项目在线用户数据的key是动态的（online:project:{project_id}）
@@ -113,9 +135,9 @@ func cleanupOnlineUserData(ctx context.Context) error {
 
 // Stop 停止定时任务调度器
 func (s *Scheduler) Stop() {
-	log.Println("正在停止定时任务调度器...")
+	logger.Info("正在停止定时任务调度器...")
 	s.cron.Stop()
-	log.Println("定时任务调度器已停止")
+	logger.Info("定时任务调度器已停止")
 }
 
 // GetScheduler 获取cron实例（用于添加其他定时任务）

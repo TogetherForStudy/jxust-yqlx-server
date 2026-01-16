@@ -416,6 +416,7 @@ type QuestionProject struct {
 	ID          uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:项目ID"`
 	Name        string         `json:"name" gorm:"type:varchar(100);not null;comment:项目名称"`
 	Description string         `json:"description" gorm:"type:text;comment:项目描述"`
+	Version     int            `json:"version" gorm:"type:int;default:1;comment:版本号"`
 	Sort        int            `json:"sort" gorm:"type:int;default:0;comment:排序"`
 	IsActive    bool           `json:"is_active" gorm:"type:tinyint(1);default:1;comment:是否启用"`
 	CreatedAt   time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`

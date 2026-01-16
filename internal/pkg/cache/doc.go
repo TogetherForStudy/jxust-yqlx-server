@@ -44,6 +44,14 @@ type Cache interface {
 	// ZRemRangeByScore 移除有序集合中 score 在指定范围内的成员
 	ZRemRangeByScore(ctx context.Context, key string, min, max float64) (int64, error)
 
+	// List 操作
+	// LPush 向列表左侧添加成员
+	LPush(ctx context.Context, key string, values ...interface{}) (int64, error)
+	// RPop 从列表右侧弹出一个成员
+	RPop(ctx context.Context, key string) (string, error)
+	// LLen 获取列表长度
+	LLen(ctx context.Context, key string) (int64, error)
+
 	Close() error
 }
 

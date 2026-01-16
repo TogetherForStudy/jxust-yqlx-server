@@ -11,6 +11,7 @@ type QuestionProjectResponse struct {
 	ID            uint      `json:"id"`
 	Name          string    `json:"name"`
 	Description   string    `json:"description"`
+	Version       int       `json:"version"`
 	Sort          int       `json:"sort"`
 	IsActive      bool      `json:"is_active"`
 	QuestionCount int64     `json:"question_count"` // 题目总数
@@ -46,6 +47,7 @@ func ToQuestionProjectResponse(project *models.QuestionProject, questionCount in
 		ID:            project.ID,
 		Name:          project.Name,
 		Description:   project.Description,
+		Version:       project.Version,
 		Sort:          project.Sort,
 		IsActive:      project.IsActive,
 		QuestionCount: questionCount,

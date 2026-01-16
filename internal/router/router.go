@@ -21,7 +21,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
+func NewRouter(ctx context.Context, db *gorm.DB, cfg *config.Config) *gin.Engine {
 	r := gin.Default()
 	ca := cache.GlobalCache
 
@@ -54,6 +54,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	featureService := services.NewFeatureService(db)
 	materialService := services.NewMaterialService(db)
 	questionService := services.NewQuestionService(db)
+	go questionService.StartSyncWorker(ctx)
 	statService := services.NewStatService()
 
 	// 初始化处理器
