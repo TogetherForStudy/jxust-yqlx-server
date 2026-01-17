@@ -33,7 +33,7 @@ func NewQuestionHandler(questionService *services.QuestionService) *QuestionHand
 // @Failure 401 {object} utils.Response
 // @Router /api/v0/questions/projects [get]
 func (h *QuestionHandler) GetProjects(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userID, exists := helper.GetUserID(c)
 	if !exists {
 		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
 		return
@@ -61,7 +61,7 @@ func (h *QuestionHandler) GetProjects(c *gin.Context) {
 // @Failure 400 {object} utils.Response
 // @Router /api/v0/questions/list [get]
 func (h *QuestionHandler) GetQuestions(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userID, exists := helper.GetUserID(c)
 	if !exists {
 		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
 		return
@@ -95,7 +95,7 @@ func (h *QuestionHandler) GetQuestions(c *gin.Context) {
 // @Failure 404 {object} utils.Response
 // @Router /api/v0/questions/:id [get]
 func (h *QuestionHandler) GetQuestionByID(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userID, exists := helper.GetUserID(c)
 	if !exists {
 		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
 		return
@@ -130,7 +130,7 @@ func (h *QuestionHandler) GetQuestionByID(c *gin.Context) {
 // @Failure 400 {object} utils.Response
 // @Router /api/v0/questions/study [post]
 func (h *QuestionHandler) RecordStudy(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userID, exists := helper.GetUserID(c)
 	if !exists {
 		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
 		return
@@ -162,7 +162,7 @@ func (h *QuestionHandler) RecordStudy(c *gin.Context) {
 // @Failure 400 {object} utils.Response
 // @Router /api/v0/questions/practice [post]
 func (h *QuestionHandler) SubmitPractice(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userID, exists := helper.GetUserID(c)
 	if !exists {
 		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
 		return

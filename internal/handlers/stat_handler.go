@@ -69,7 +69,7 @@ func (h *StatHandler) GetProjectOnlineCount(c *gin.Context) {
 
 	// 获取当前用户ID（如果已登录）
 	var userID uint
-	if uid, exists := c.Get("user_id"); exists {
+	if uid, exists := helper.GetUserID(c); exists {
 		if id, ok := uid.(uint); ok {
 			userID = id
 		}

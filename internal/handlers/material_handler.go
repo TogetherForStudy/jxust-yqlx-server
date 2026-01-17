@@ -81,7 +81,7 @@ func (h *MaterialHandler) GetMaterialDetail(c *gin.Context) {
 
 	// 获取用户ID（可选，未登录用户也可以查看）
 	var userIDPtr *uint
-	if userID, exists := c.Get("user_id"); exists {
+	if userID, exists := helper.GetUserID(c); exists {
 		uid := userID.(uint)
 		userIDPtr = &uid
 	}
@@ -168,7 +168,7 @@ func (h *MaterialHandler) SearchMaterials(c *gin.Context) {
 	}
 
 	// 记录搜索日志
-	if userID, exists := c.Get("user_id"); exists {
+	if userID, exists := helper.GetUserID(c); exists {
 		logReq := &request.MaterialLogCreateRequest{
 			Type:     1, // 搜索
 			Keywords: req.Keywords,
@@ -226,7 +226,7 @@ func (h *MaterialHandler) GetTopMaterials(c *gin.Context) {
 // @Failure 400 {object} helper.Response
 // @Router /api/materials/{md5}/rating [post]
 func (h *MaterialHandler) RateMaterial(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userID, exists := helper.GetUserID(c)
 	if !exists {
 		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
 		return
@@ -359,7 +359,7 @@ func (h *MaterialHandler) GetHotWords(c *gin.Context) {
 // @Failure 400 {object} helper.Response
 // @Router /api/materials/{md5}/download [post]
 func (h *MaterialHandler) DownloadMaterial(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userID, exists := helper.GetUserID(c)
 	if !exists {
 		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
 		return
