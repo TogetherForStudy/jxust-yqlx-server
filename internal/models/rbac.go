@@ -41,6 +41,8 @@ const (
 	PermissionMaterialDownload    = "material.download"     // basic_user
 	PermissionMaterialCategoryGet = "material.category.get" // basic_user
 	PermissionQuestion            = "question"              // basic_user
+	PermissionPomodoro            = "pomodoro"              // basic_user
+	PermissionDictionary          = "dictionary"            // basic_user
 
 	PermissionReviewManage               = "review.manage"
 	PermissionCourseTableManage          = "coursetable.manage"

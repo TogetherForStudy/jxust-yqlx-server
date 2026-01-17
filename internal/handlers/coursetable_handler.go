@@ -36,7 +36,7 @@ func NewCourseTableHandler(courseTableService *services.CourseTableService) *Cou
 // @Router /api/v0/coursetable [get]
 func (h *CourseTableHandler) GetCourseTable(c *gin.Context) {
 	// 从上下文中获取用户ID（通过认证中间件设置）
-	userID, exists := c.Get("user_id")
+	userID, exists := helper.GetUserID(c)
 	if !exists {
 		helper.ErrorResponse(c, http.StatusUnauthorized, "用户未认证")
 		return
@@ -107,7 +107,7 @@ func (h *CourseTableHandler) SearchClasses(c *gin.Context) {
 // @Router /api/v0/coursetable/class [put]
 func (h *CourseTableHandler) UpdateUserClass(c *gin.Context) {
 	// 从上下文中获取用户ID（通过认证中间件设置）
-	userID, exists := c.Get("user_id")
+	userID, exists := helper.GetUserID(c)
 	if !exists {
 		helper.ErrorResponse(c, http.StatusUnauthorized, "用户未认证")
 		return
@@ -141,7 +141,7 @@ func (h *CourseTableHandler) UpdateUserClass(c *gin.Context) {
 // @Router /api/v0/coursetable [put]
 func (h *CourseTableHandler) EditCourseCell(c *gin.Context) {
 	// 从上下文中获取用户ID（通过认证中间件设置）
-	userID, exists := c.Get("user_id")
+	userID, exists := helper.GetUserID(c)
 	if !exists {
 		helper.ErrorResponse(c, http.StatusUnauthorized, "用户未认证")
 		return

@@ -16,8 +16,7 @@ type contextKey string
 const (
 	ctxKeyUserID          contextKey = "user_id"
 	ctxKeyUserRoles       contextKey = "user_roles"
-	ctxKeyUserPermissions contextKey = "user_permissions"
-	ctxKeyIsAdmin         contextKey = "is_admin"
+
 	ctxKeyClientIP        contextKey = "client_ip"
 	ctxKeyMethod          contextKey = "method"
 	ctxKeyPath            contextKey = "path"
@@ -54,19 +53,9 @@ func parserCtxToMapStringString(ctx context.Context) map[string]string {
 		result["user_id"] = fmt.Sprintf("%d", userID)
 	}
 
-	// Extract IsAdmin
-	if isAdmin, ok := ctx.Value(ctxKeyIsAdmin).(bool); ok {
-		result["is_admin"] = fmt.Sprintf("%t", isAdmin)
-	}
-
 	// Extract UserRoles
 	if userRoles, ok := ctx.Value(ctxKeyUserRoles).([]string); ok && len(userRoles) > 0 {
 		result["user_roles"] = strings.Join(userRoles, ",")
-	}
-
-	// Extract UserPermissions
-	if userPermissions, ok := ctx.Value(ctxKeyUserPermissions).([]string); ok && len(userPermissions) > 0 {
-		result["user_permissions"] = strings.Join(userPermissions, ",")
 	}
 
 	// Extract ClientIP
@@ -111,15 +100,11 @@ func EnrichContext(ctx context.Context, fields map[string]any) context.Context {
 	if userID, ok := fields["user_id"].(uint); ok {
 		ctx = context.WithValue(ctx, ctxKeyUserID, userID)
 	}
-	if isAdmin, ok := fields["is_admin"].(bool); ok {
-		ctx = context.WithValue(ctx, ctxKeyIsAdmin, isAdmin)
-	}
+
 	if userRoles, ok := fields["user_roles"].([]string); ok {
 		ctx = context.WithValue(ctx, ctxKeyUserRoles, userRoles)
 	}
-	if userPermissions, ok := fields["user_permissions"].([]string); ok {
-		ctx = context.WithValue(ctx, ctxKeyUserPermissions, userPermissions)
-	}
+
 	if clientIP, ok := fields["client_ip"].(string); ok {
 		ctx = context.WithValue(ctx, ctxKeyClientIP, clientIP)
 	}

@@ -34,7 +34,7 @@ func NewReviewHandler(reviewService *services.ReviewService) *ReviewHandler {
 // @Failure 400 {object} utils.Response
 // @Router /api/reviews [post]
 func (h *ReviewHandler) CreateReview(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userID, exists := helper.GetUserID(c)
 	if !exists {
 		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
 		return
@@ -98,7 +98,7 @@ func (h *ReviewHandler) GetReviewsByTeacher(c *gin.Context) {
 // @Failure 401 {object} utils.Response
 // @Router /api/reviews/user [get]
 func (h *ReviewHandler) GetUserReviews(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userID, exists := helper.GetUserID(c)
 	if !exists {
 		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
 		return

@@ -9,24 +9,25 @@ import (
 
 // User 用户模型
 type User struct {
-	ID        uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:用户ID"`
-	OpenID    string         `json:"open_id" gorm:"type:varchar(256);uniqueIndex:idx_openid;not null;comment:微信OpenID"`
-	UnionID   string         `json:"union_id" gorm:"type:varchar(256);index:idx_unionid;comment:微信UnionID"`
-	Nickname  string         `json:"nickname" gorm:"type:varchar(256);comment:用户昵称"`
-	Avatar    string         `json:"avatar" gorm:"type:varchar(500);comment:头像URL"`
-	Phone     string         `json:"phone" gorm:"type:varchar(20);comment:手机号"`
-	Password  string         `json:"-" gorm:"type:varchar(100);comment:密码哈希"`
-	StudentID string         `json:"student_id" gorm:"type:varchar(20);index:idx_student_id;comment:学号"`
-	RealName  string         `json:"real_name" gorm:"type:varchar(20);comment:真实姓名"`
-	College   string         `json:"college" gorm:"type:varchar(50);comment:学院"`
-	Major     string         `json:"major" gorm:"type:varchar(50);comment:专业"`
-	ClassID   string         `json:"class_id" gorm:"type:varchar(256);comment:班级标识"`
-	Role      int8           `json:"role" gorm:"type:tinyint;default:1;comment:用户角色：1=普通用户，2=管理员，3=运营（向前兼容字段）"`
-	Status    UserStatus     `json:"status" gorm:"type:tinyint;default:1;comment:用户状态：1=正常，2=禁用"`
-	Points    uint           `json:"points" gorm:"type:int unsigned;default:0;comment:积分"`
-	CreatedAt time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
-	UpdatedAt time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
-	DeletedAt gorm.DeletedAt `json:"-" gorm:"comment:软删除时间"`
+	ID            uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:用户ID"`
+	OpenID        string         `json:"open_id" gorm:"type:varchar(256);uniqueIndex:idx_openid;not null;comment:微信OpenID"`
+	UnionID       string         `json:"union_id" gorm:"type:varchar(256);index:idx_unionid;comment:微信UnionID"`
+	Nickname      string         `json:"nickname" gorm:"type:varchar(256);comment:用户昵称"`
+	Avatar        string         `json:"avatar" gorm:"type:varchar(500);comment:头像URL"`
+	Phone         string         `json:"phone" gorm:"type:varchar(20);comment:手机号"`
+	Password      string         `json:"-" gorm:"type:varchar(100);comment:密码哈希"`
+	StudentID     string         `json:"student_id" gorm:"type:varchar(20);index:idx_student_id;comment:学号"`
+	RealName      string         `json:"real_name" gorm:"type:varchar(20);comment:真实姓名"`
+	College       string         `json:"college" gorm:"type:varchar(50);comment:学院"`
+	Major         string         `json:"major" gorm:"type:varchar(50);comment:专业"`
+	ClassID       string         `json:"class_id" gorm:"type:varchar(256);comment:班级标识"`
+	Role          int8           `json:"role" gorm:"type:tinyint;default:1;comment:用户角色：1=普通用户，2=管理员，3=运营（向前兼容字段）"`
+	Status        UserStatus     `json:"status" gorm:"type:tinyint;default:1;comment:用户状态：1=正常，2=禁用"`
+	Points        uint           `json:"points" gorm:"type:int unsigned;default:0;comment:积分"`
+	PomodoroCount uint           `json:"pomodoro_count" gorm:"type:int unsigned;default:0;comment:番茄钟次数"`
+	CreatedAt     time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
+	UpdatedAt     time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
+	DeletedAt     gorm.DeletedAt `json:"-" gorm:"comment:软删除时间"`
 }
 
 type UserStatus int8
@@ -416,6 +417,7 @@ type QuestionProject struct {
 	ID          uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:项目ID"`
 	Name        string         `json:"name" gorm:"type:varchar(100);not null;comment:项目名称"`
 	Description string         `json:"description" gorm:"type:text;comment:项目描述"`
+	Version     int            `json:"version" gorm:"type:int;default:1;comment:版本号"`
 	Sort        int            `json:"sort" gorm:"type:int;default:0;comment:排序"`
 	IsActive    bool           `json:"is_active" gorm:"type:tinyint(1);default:1;comment:是否启用"`
 	CreatedAt   time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
@@ -479,4 +481,24 @@ type UserQuestionUsage struct {
 	// 关联
 	User     *User     `json:"user,omitempty" gorm:"foreignKey:UserID;references:ID;constraint:-"`
 	Question *Question `json:"question,omitempty" gorm:"foreignKey:QuestionID;references:ID;constraint:-"`
+}
+
+// =============== 词典功能相关模型 ===============
+
+// Dictionary 词典模型
+type Dictionary struct {
+	ID         uint           `json:"id" gorm:"type:int;primaryKey;autoIncrement;comment:记录ID"`
+	Word       string         `json:"word" gorm:"type:varchar(100);comment:单词"`
+	PhoneticUK string         `json:"phonetic_uk" gorm:"type:text;comment:英标"`
+	PhoneticUS string         `json:"phonetic_us" gorm:"type:text;comment:美标"`
+	Trans      datatypes.JSON `json:"trans" gorm:"type:json;comment:翻译"`
+	Sentences  datatypes.JSON `json:"sentences" gorm:"type:json;comment:例句"`
+	Phrases    datatypes.JSON `json:"phrases" gorm:"type:json;comment:短语"`
+	Synos      datatypes.JSON `json:"synos" gorm:"type:json;comment:同义词"`
+	RelWords   datatypes.JSON `json:"rel_words" gorm:"type:json;comment:派生词"`
+	Source     string         `json:"source" gorm:"type:varchar(20);comment:来源"`
+}
+
+func (Dictionary) TableName() string {
+	return "dictionary"
 }

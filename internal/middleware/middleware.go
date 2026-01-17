@@ -49,6 +49,15 @@ func Logger() gin.HandlerFunc {
 		latency := time.Since(start)
 		statusCode := c.Writer.Status()
 
+		// 检查是否有错误标记（由ErrorResponse/ValidateResponse设置）
+		hasError, _ := c.Get("response_has_error")
+		bodyStatusCode := 0
+		if val, exists := c.Get("response_status_code"); exists {
+			if code, ok := val.(int); ok {
+				bodyStatusCode = code
+			}
+		}
+
 		// 构建结构化日志字段
 		logFields := map[string]any{
 			"action":      "http_request",
@@ -69,13 +78,30 @@ func Logger() gin.HandlerFunc {
 			logFields["errors"] = c.Errors.String()
 		}
 
-		// 根据状态码选择日志级别
+		// 添加body中的StatusCode（如果存在且不为0）
+		if bodyStatusCode != 0 {
+			logFields["body_status_code"] = bodyStatusCode
+		}
+
+		// 如果HTTP状态码不是200，或者有错误标记，记录详细信息
+		shouldLogDetails := statusCode != http.StatusOK || hasError == true
+		if shouldLogDetails {
+			logFields["body_message"], _ = c.Get("body_message")
+		}
+
+		// 根据HTTP状态码和body中的StatusCode选择日志级别
+		// 优先检查bodyStatusCode，如果它表示错误则按它的级别记录
+		effectiveStatusCode := statusCode
+		if bodyStatusCode >= 400 {
+			effectiveStatusCode = bodyStatusCode
+		}
+
 		switch {
-		case statusCode >= 500:
+		case effectiveStatusCode >= 500:
 			logger.ErrorGin(c, logFields)
-		case statusCode >= 400:
+		case effectiveStatusCode >= 400:
 			logger.WarnGin(c, logFields)
-		case statusCode >= 300:
+		case effectiveStatusCode >= 300:
 			logger.InfoGin(c, logFields)
 		default:
 			logger.InfoGin(c, logFields)

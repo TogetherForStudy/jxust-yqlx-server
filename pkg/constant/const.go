@@ -12,7 +12,7 @@ const (
 	IdempotencyKey           = "X-Idempotency-Key"
 	IdempotencyKeyCtx        = "idempotency_key"
 	IdempotencyCachePrefix   = "idempotent:"
-	IdempotencyExpiration    = 24 * time.Hour
+	IdempotencyExpiration    = 10 * time.Minute
 	IdempotencyLockTimeout   = 30 * time.Second
 	IdempotencyStatusPending = "pending"
 )

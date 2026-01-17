@@ -242,7 +242,7 @@ func (s *NotificationService) GetNotificationByID(ctx context.Context, notificat
 
 	// 如果是已发布的通知，增加查看次数
 	if notification.Status == models.NotificationStatusPublished {
-		s.db.Model(&notification).UpdateColumn("view_count", gorm.Expr("view_count + ?", 1))
+		s.db.WithContext(ctx).Model(&notification).UpdateColumn("view_count", gorm.Expr("view_count + ?", 1))
 	}
 
 	// 解析分类
@@ -534,7 +534,7 @@ func (s *NotificationService) DeleteNotification(ctx context.Context, notificati
 	}
 
 	// 软删除
-	return s.db.Delete(&notification).Error
+	return s.db.WithContext(ctx).Delete(&notification).Error
 }
 
 // ApproveNotification 审核通知
@@ -689,7 +689,7 @@ func (s *NotificationService) generateApprovalSummary(ctx context.Context, notif
 	var reviewers []models.User
 	userMap := make(map[uint]models.User)
 	if len(reviewerIDs) > 0 {
-		if err := s.db.Select("id, nickname").Where("id IN ?", reviewerIDs).Find(&reviewers).Error; err == nil {
+		if err := s.db.WithContext(ctx).Select("id, nickname").Where("id IN ?", reviewerIDs).Find(&reviewers).Error; err == nil {
 			for _, user := range reviewers {
 				userMap[user.ID] = user
 			}

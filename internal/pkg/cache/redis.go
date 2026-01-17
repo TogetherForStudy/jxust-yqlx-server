@@ -111,6 +111,18 @@ func (r *redisCache) ZRemRangeByScore(ctx context.Context, key string, min, max 
 	return r.cli.GetRedisCli().ZRemRangeByScore(ctx, key, fmt.Sprintf("%.0f", min), fmt.Sprintf("%.0f", max)).Result()
 }
 
+func (r *redisCache) LPush(ctx context.Context, key string, values ...interface{}) (int64, error) {
+	return r.cli.GetRedisCli().LPush(ctx, key, values...).Result()
+}
+
+func (r *redisCache) RPop(ctx context.Context, key string) (string, error) {
+	return r.cli.GetRedisCli().RPop(ctx, key).Result()
+}
+
+func (r *redisCache) LLen(ctx context.Context, key string) (int64, error) {
+	return r.cli.GetRedisCli().LLen(ctx, key).Result()
+}
+
 func (r *redisCache) Close() error {
 	return r.cli.GetRedisCli().Close()
 }

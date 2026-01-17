@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -23,11 +24,11 @@ func NewMaterialService(db *gorm.DB) *MaterialService {
 // ==================== 资料管理 ====================
 
 // GetMaterialList 获取资料列表（按热度排序）
-func (s *MaterialService) GetMaterialList(req *request.MaterialListRequest) ([]response.MaterialListResponse, int64, error) {
+func (s *MaterialService) GetMaterialList(ctx context.Context, req *request.MaterialListRequest) ([]response.MaterialListResponse, int64, error) {
 	var materials []models.Material
 	var total int64
 
-	query := s.db.Model(&models.Material{}).
+	query := s.db.WithContext(ctx).Model(&models.Material{}).
 		Joins("LEFT JOIN material_descs ON materials.md5 = material_descs.md5").
 		Joins("LEFT JOIN material_categories ON materials.category_id = material_categories.id")
 
@@ -85,9 +86,9 @@ func (s *MaterialService) GetMaterialList(req *request.MaterialListRequest) ([]r
 }
 
 // GetMaterialByMD5 根据MD5获取资料详情
-func (s *MaterialService) GetMaterialByMD5(md5 string, userID *uint) (*response.MaterialDetailResponse, error) {
+func (s *MaterialService) GetMaterialByMD5(ctx context.Context, md5 string, userID *uint) (*response.MaterialDetailResponse, error) {
 	var material models.Material
-	if err := s.db.Where("md5 = ?", md5).Preload("Category").Preload("Desc").First(&material).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("md5 = ?", md5).Preload("Category").Preload("Desc").First(&material).Error; err != nil {
 		return nil, fmt.Errorf("资料不存在: %w", err)
 	}
 
@@ -101,7 +102,7 @@ func (s *MaterialService) GetMaterialByMD5(md5 string, userID *uint) (*response.
 	var userRating *int
 	if userID != nil {
 		var log models.MaterialLog
-		err := s.db.Model(&models.MaterialLog{}).Where("user_id = ? AND material_md5 = ? AND type = ?",
+		err := s.db.WithContext(ctx).Model(&models.MaterialLog{}).Where("user_id = ? AND material_md5 = ? AND type = ?",
 			*userID, md5, models.MaterialLogTypeRating).First(&log).Error
 		if err == nil && log.Rating != nil {
 			userRating = log.Rating
@@ -116,7 +117,7 @@ func (s *MaterialService) GetMaterialByMD5(md5 string, userID *uint) (*response.
 		FileSize:      material.FileSize,
 		CategoryID:    material.CategoryID,
 		CategoryName:  material.Category.Name,
-		CategoryPath:  s.buildCategoryPath(material.CategoryID),
+		CategoryPath:  s.buildCategoryPath(ctx, material.CategoryID),
 		Tags:          desc.Tags,
 		Description:   desc.Description,
 		ExternalLink:  desc.ExternalLink,
@@ -132,8 +133,8 @@ func (s *MaterialService) GetMaterialByMD5(md5 string, userID *uint) (*response.
 }
 
 // DeleteMaterial 删除资料（管理员）
-func (s *MaterialService) DeleteMaterial(md5 string) error {
-	return s.db.Transaction(func(tx *gorm.DB) error {
+func (s *MaterialService) DeleteMaterial(ctx context.Context, md5 string) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// 删除资料
 		if err := tx.Where("md5 = ?", md5).Delete(&models.Material{}).Error; err != nil {
 			return fmt.Errorf("删除资料失败: %w", err)
@@ -153,13 +154,13 @@ func (s *MaterialService) DeleteMaterial(md5 string) error {
 }
 
 // SearchMaterials 搜索资料
-func (s *MaterialService) SearchMaterials(req *request.MaterialSearchRequest) (*response.MaterialSearchResponse, error) {
+func (s *MaterialService) SearchMaterials(ctx context.Context, req *request.MaterialSearchRequest) (*response.MaterialSearchResponse, error) {
 	var materials []models.Material
 	var total int64
 
 	// 构建搜索查询
 	searchPattern := "%" + req.Keywords + "%"
-	query := s.db.Model(&models.Material{}).
+	query := s.db.WithContext(ctx).Model(&models.Material{}).
 		Joins("LEFT JOIN material_descs ON materials.md5 = material_descs.md5").
 		Joins("LEFT JOIN material_categories ON materials.category_id = material_categories.id").
 		Where("materials.file_name LIKE ? OR material_descs.tags LIKE ? OR material_descs.description LIKE ? OR material_categories.name LIKE ?",
@@ -212,7 +213,7 @@ func (s *MaterialService) SearchMaterials(req *request.MaterialSearchRequest) (*
 }
 
 // GetTopMaterials 获取TOP热门资料
-func (s *MaterialService) GetTopMaterials(req *request.TopMaterialsRequest) ([]response.MaterialListResponse, error) {
+func (s *MaterialService) GetTopMaterials(ctx context.Context, req *request.TopMaterialsRequest) ([]response.MaterialListResponse, error) {
 	var materials []models.Material
 
 	// 根据type参数选择排序字段和过滤条件
@@ -223,7 +224,7 @@ func (s *MaterialService) GetTopMaterials(req *request.TopMaterialsRequest) ([]r
 		orderBy = "material_descs.period_hotness DESC"
 	}
 
-	query := s.db.Joins("LEFT JOIN material_descs ON materials.md5 = material_descs.md5")
+	query := s.db.WithContext(ctx).Joins("LEFT JOIN material_descs ON materials.md5 = material_descs.md5")
 
 	// 过滤零热度的资料
 	if req.Type == 7 {
@@ -268,10 +269,10 @@ func (s *MaterialService) GetTopMaterials(req *request.TopMaterialsRequest) ([]r
 // ==================== 资料描述管理 ====================
 
 // UpdateMaterialDesc 更新资料描述（管理员，不存在时自动创建）
-func (s *MaterialService) UpdateMaterialDesc(md5 string, req *request.MaterialDescUpdateRequest) error {
+func (s *MaterialService) UpdateMaterialDesc(ctx context.Context, md5 string, req *request.MaterialDescUpdateRequest) error {
 	// 检查记录是否存在
 	var existing models.MaterialDesc
-	err := s.db.Model(&models.MaterialDesc{}).Where("md5 = ?", md5).First(&existing).Error
+	err := s.db.WithContext(ctx).Model(&models.MaterialDesc{}).Where("md5 = ?", md5).First(&existing).Error
 
 	if err == gorm.ErrRecordNotFound {
 		// 记录不存在，创建新记录
@@ -294,7 +295,7 @@ func (s *MaterialService) UpdateMaterialDesc(md5 string, req *request.MaterialDe
 			desc.IsRecommended = *req.IsRecommended
 		}
 
-		if err := s.db.Create(&desc).Error; err != nil {
+		if err := s.db.WithContext(ctx).Create(&desc).Error; err != nil {
 			return fmt.Errorf("创建资料描述失败: %w", err)
 		}
 		return nil
@@ -319,7 +320,7 @@ func (s *MaterialService) UpdateMaterialDesc(md5 string, req *request.MaterialDe
 	}
 	updates["updated_at"] = time.Now()
 
-	if err := s.db.Model(&models.MaterialDesc{}).Where("md5 = ?", md5).Updates(updates).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&models.MaterialDesc{}).Where("md5 = ?", md5).Updates(updates).Error; err != nil {
 		return fmt.Errorf("更新资料描述失败: %w", err)
 	}
 
@@ -327,9 +328,9 @@ func (s *MaterialService) UpdateMaterialDesc(md5 string, req *request.MaterialDe
 }
 
 // GetMaterialDesc 获取资料描述
-func (s *MaterialService) GetMaterialDesc(md5 string) (*response.MaterialDescResponse, error) {
+func (s *MaterialService) GetMaterialDesc(ctx context.Context, md5 string) (*response.MaterialDescResponse, error) {
 	var desc models.MaterialDesc
-	if err := s.db.Model(&models.MaterialDesc{}).Where("md5 = ?", md5).First(&desc).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&models.MaterialDesc{}).Where("md5 = ?", md5).First(&desc).Error; err != nil {
 		return nil, fmt.Errorf("资料描述不存在: %w", err)
 	}
 
@@ -352,10 +353,10 @@ func (s *MaterialService) GetMaterialDesc(md5 string) (*response.MaterialDescRes
 // ==================== 分类管理 ====================
 
 // GetCategoriesByParent 通过上级分类ID获取分类（只获取第一层子分类）
-func (s *MaterialService) GetCategoriesByParent(parentID *uint) ([]response.MaterialCategoryResponse, error) {
+func (s *MaterialService) GetCategoriesByParent(ctx context.Context, parentID *uint) ([]response.MaterialCategoryResponse, error) {
 	var categories []models.MaterialCategory
 
-	query := s.db.Order("sort ASC, name ASC")
+	query := s.db.WithContext(ctx).Order("sort ASC, name ASC")
 	if parentID != nil {
 		query = query.Where("parent_id = ?", *parentID)
 	} else {
@@ -378,7 +379,7 @@ func (s *MaterialService) GetCategoriesByParent(parentID *uint) ([]response.Mate
 		MaterialCount int64 `gorm:"column:material_count"`
 	}
 	if len(categoryIDs) > 0 {
-		s.db.Model(&models.Material{}).
+		s.db.WithContext(ctx).Model(&models.Material{}).
 			Select("category_id, COUNT(*) as material_count").
 			Where("category_id IN ?", categoryIDs).
 			Group("category_id").
@@ -415,17 +416,17 @@ func (s *MaterialService) GetCategoriesByParent(parentID *uint) ([]response.Mate
 // ==================== 资料日志管理 ====================
 
 // CreateMaterialLog 创建资料日志
-func (s *MaterialService) CreateMaterialLog(userID uint, req *request.MaterialLogCreateRequest) error {
+func (s *MaterialService) CreateMaterialLog(ctx context.Context, userID uint, req *request.MaterialLogCreateRequest) error {
 	// 对于查看、下载和搜索行为，如果同一用户的相同记录已存在，则增加count
 	if req.Type == int(models.MaterialLogTypeView) || req.Type == int(models.MaterialLogTypeDownload) {
 		// 查看和下载：按用户ID + 资料MD5 + 类型查找
 		var existingLog models.MaterialLog
-		err := s.db.Where("user_id = ? AND material_md5 = ? AND type = ?",
+		err := s.db.WithContext(ctx).Where("user_id = ? AND material_md5 = ? AND type = ?",
 			userID, req.MaterialMD5, req.Type).First(&existingLog).Error
 
 		if err == nil {
 			// 记录已存在，增加count
-			if err := s.db.Model(&existingLog).UpdateColumn("count", gorm.Expr("count + 1")).Error; err != nil {
+			if err := s.db.WithContext(ctx).Model(&existingLog).UpdateColumn("count", gorm.Expr("count + 1")).Error; err != nil {
 				return fmt.Errorf("更新日志计数失败: %w", err)
 			}
 		} else if err == gorm.ErrRecordNotFound {
@@ -437,7 +438,7 @@ func (s *MaterialService) CreateMaterialLog(userID uint, req *request.MaterialLo
 				Count:       1,
 				CreatedAt:   time.Now(),
 			}
-			if err := s.db.Create(&log).Error; err != nil {
+			if err := s.db.WithContext(ctx).Create(&log).Error; err != nil {
 				return fmt.Errorf("创建日志失败: %w", err)
 			}
 		} else {
@@ -446,12 +447,12 @@ func (s *MaterialService) CreateMaterialLog(userID uint, req *request.MaterialLo
 	} else if req.Type == int(models.MaterialLogTypeSearch) {
 		// 搜索：按用户ID + 关键词 + 类型查找
 		var existingLog models.MaterialLog
-		err := s.db.Where("user_id = ? AND keywords = ? AND type = ?",
+		err := s.db.WithContext(ctx).Where("user_id = ? AND keywords = ? AND type = ?",
 			userID, req.Keywords, req.Type).First(&existingLog).Error
 
 		if err == nil {
 			// 记录已存在，增加count
-			if err := s.db.Model(&existingLog).UpdateColumn("count", gorm.Expr("count + 1")).Error; err != nil {
+			if err := s.db.WithContext(ctx).Model(&existingLog).UpdateColumn("count", gorm.Expr("count + 1")).Error; err != nil {
 				return fmt.Errorf("更新日志计数失败: %w", err)
 			}
 		} else if err == gorm.ErrRecordNotFound {
@@ -463,7 +464,7 @@ func (s *MaterialService) CreateMaterialLog(userID uint, req *request.MaterialLo
 				Count:     1,
 				CreatedAt: time.Now(),
 			}
-			if err := s.db.Create(&log).Error; err != nil {
+			if err := s.db.WithContext(ctx).Create(&log).Error; err != nil {
 				return fmt.Errorf("创建日志失败: %w", err)
 			}
 		} else {
@@ -480,14 +481,14 @@ func (s *MaterialService) CreateMaterialLog(userID uint, req *request.MaterialLo
 			CreatedAt:   time.Now(),
 		}
 
-		if err := s.db.Create(&log).Error; err != nil {
+		if err := s.db.WithContext(ctx).Create(&log).Error; err != nil {
 			return fmt.Errorf("创建日志失败: %w", err)
 		}
 	}
 
 	// 如果是评分，更新资料描述的评分统计
 	if req.Type == int(models.MaterialLogTypeRating) && req.Rating != nil && req.MaterialMD5 != "" {
-		if err := s.updateMaterialRating(req.MaterialMD5, *req.Rating); err != nil {
+		if err := s.updateMaterialRating(ctx, req.MaterialMD5, *req.Rating); err != nil {
 			// 评分统计更新失败不影响日志创建
 			fmt.Printf("更新评分统计失败: %v", err)
 		}
@@ -496,12 +497,12 @@ func (s *MaterialService) CreateMaterialLog(userID uint, req *request.MaterialLo
 	// 如果是查看或下载，增加相应计数（不存在则创建）
 	if req.MaterialMD5 != "" {
 		if req.Type == int(models.MaterialLogTypeView) {
-			s.ensureDescExists(req.MaterialMD5)
-			s.db.Model(&models.MaterialDesc{}).Where("md5 = ?", req.MaterialMD5).
+			s.ensureDescExists(ctx, req.MaterialMD5)
+			s.db.WithContext(ctx).Model(&models.MaterialDesc{}).Where("md5 = ?", req.MaterialMD5).
 				UpdateColumn("view_count", gorm.Expr("view_count + 1"))
 		} else if req.Type == int(models.MaterialLogTypeDownload) {
-			s.ensureDescExists(req.MaterialMD5)
-			s.db.Model(&models.MaterialDesc{}).Where("md5 = ?", req.MaterialMD5).
+			s.ensureDescExists(ctx, req.MaterialMD5)
+			s.db.WithContext(ctx).Model(&models.MaterialDesc{}).Where("md5 = ?", req.MaterialMD5).
 				UpdateColumn("download_count", gorm.Expr("download_count + 1"))
 		}
 	}
@@ -510,16 +511,16 @@ func (s *MaterialService) CreateMaterialLog(userID uint, req *request.MaterialLo
 }
 
 // RateMaterial 为资料评分
-func (s *MaterialService) RateMaterial(userID uint, md5 string, rating int) error {
+func (s *MaterialService) RateMaterial(ctx context.Context, userID uint, md5 string, rating int) error {
 	// 检查用户是否已经对该资料评过分
 	var existingLog models.MaterialLog
-	err := s.db.Model(&models.MaterialLog{}).Where("user_id = ? AND material_md5 = ? AND type = ?",
+	err := s.db.WithContext(ctx).Model(&models.MaterialLog{}).Where("user_id = ? AND material_md5 = ? AND type = ?",
 		userID, md5, models.MaterialLogTypeRating).First(&existingLog).Error
 
 	if err == nil {
 		// 已评分，更新评分
 		existingLog.Rating = &rating
-		if err := s.db.Save(&existingLog).Error; err != nil {
+		if err := s.db.WithContext(ctx).Save(&existingLog).Error; err != nil {
 			return fmt.Errorf("更新评分失败: %w", err)
 		}
 	} else if err == gorm.ErrRecordNotFound {
@@ -529,17 +530,17 @@ func (s *MaterialService) RateMaterial(userID uint, md5 string, rating int) erro
 			MaterialMD5: md5,
 			Rating:      &rating,
 		}
-		return s.CreateMaterialLog(userID, req)
+		return s.CreateMaterialLog(ctx, userID, req)
 	} else {
 		return fmt.Errorf("查询评分记录失败: %w", err)
 	}
 
 	// 重新计算平均评分
-	return s.updateMaterialRating(md5, rating)
+	return s.updateMaterialRating(ctx, md5, rating)
 }
 
 // GetHotWords 获取搜索热词
-func (s *MaterialService) GetHotWords(limit int) ([]response.HotWordsResponse, error) {
+func (s *MaterialService) GetHotWords(ctx context.Context, limit int) ([]response.HotWordsResponse, error) {
 	var results []struct {
 		Keywords  string
 		UserCount int
@@ -548,7 +549,7 @@ func (s *MaterialService) GetHotWords(limit int) ([]response.HotWordsResponse, e
 
 	// 统计搜索关键词，只返回超过50人搜索的词
 	minUserCount := 50
-	if err := s.db.Model(&models.MaterialLog{}).
+	if err := s.db.WithContext(ctx).Model(&models.MaterialLog{}).
 		Select("keywords, COUNT(DISTINCT user_id) as user_count, SUM(count) as count").
 		Where("type = ? AND keywords != ''", models.MaterialLogTypeSearch).
 		Group("keywords").
@@ -573,7 +574,7 @@ func (s *MaterialService) GetHotWords(limit int) ([]response.HotWordsResponse, e
 // ==================== 定时任务相关 ====================
 
 // CalculateHotness 计算热度（定时任务调用）
-func (s *MaterialService) CalculateHotness() error {
+func (s *MaterialService) CalculateHotness(ctx context.Context) error {
 	// 计算最近7天的热度
 	sevenDaysAgo := time.Now().AddDate(0, 0, -7)
 
@@ -585,7 +586,7 @@ func (s *MaterialService) CalculateHotness() error {
 	}
 
 	// 统计最近7天的活动，使用count字段累加行为次数
-	if err := s.db.Model(&models.MaterialLog{}).
+	if err := s.db.WithContext(ctx).Model(&models.MaterialLog{}).
 		Select("material_md5, "+
 			"SUM(CASE WHEN type = ? THEN count ELSE 0 END) as view_count, "+
 			"SUM(CASE WHEN type = ? THEN count ELSE 0 END) as download_count, "+
@@ -605,7 +606,7 @@ func (s *MaterialService) CalculateHotness() error {
 		RatingCount   int
 	}
 
-	if err := s.db.Model(&models.MaterialLog{}).
+	if err := s.db.WithContext(ctx).Model(&models.MaterialLog{}).
 		Select("material_md5, "+
 			"SUM(CASE WHEN type = ? THEN count ELSE 0 END) as view_count, "+
 			"SUM(CASE WHEN type = ? THEN count ELSE 0 END) as download_count, "+
@@ -634,7 +635,7 @@ func (s *MaterialService) CalculateHotness() error {
 		periodHotness := periodHotnessMap[result.MaterialMD5]
 
 		// 更新热度数据
-		if err := s.db.Model(&models.MaterialDesc{}).Where("md5 = ?", result.MaterialMD5).
+		if err := s.db.WithContext(ctx).Model(&models.MaterialDesc{}).Where("md5 = ?", result.MaterialMD5).
 			Updates(map[string]interface{}{
 				"period_hotness": periodHotness,
 				"total_hotness":  totalHotness,
@@ -650,8 +651,8 @@ func (s *MaterialService) CalculateHotness() error {
 // ==================== 私有辅助方法 ====================
 
 // buildCategoryPath 构建分类路径字符串
-func (s *MaterialService) buildCategoryPath(categoryID uint) string {
-	path := s.getCategoryPath(categoryID)
+func (s *MaterialService) buildCategoryPath(ctx context.Context, categoryID uint) string {
+	path := s.getCategoryPath(ctx, categoryID)
 	var names []string
 	for _, category := range path {
 		names = append(names, category.Name)
@@ -660,13 +661,13 @@ func (s *MaterialService) buildCategoryPath(categoryID uint) string {
 }
 
 // getCategoryPath 获取分类路径数组
-func (s *MaterialService) getCategoryPath(categoryID uint) []response.MaterialCategoryResponse {
+func (s *MaterialService) getCategoryPath(ctx context.Context, categoryID uint) []response.MaterialCategoryResponse {
 	var path []response.MaterialCategoryResponse
 	var currentID uint = categoryID
 
 	for currentID > 0 {
 		var category models.MaterialCategory
-		if err := s.db.First(&category, currentID).Error; err != nil {
+		if err := s.db.WithContext(ctx).First(&category, currentID).Error; err != nil {
 			break
 		}
 
@@ -687,9 +688,9 @@ func (s *MaterialService) getCategoryPath(categoryID uint) []response.MaterialCa
 }
 
 // updateMaterialRating 更新资料评分统计
-func (s *MaterialService) updateMaterialRating(md5 string, newRating int) error {
+func (s *MaterialService) updateMaterialRating(ctx context.Context, md5 string, newRating int) error {
 	// 确保描述记录存在
-	s.ensureDescExists(md5)
+	s.ensureDescExists(ctx, md5)
 
 	// 计算平均评分
 	var result struct {
@@ -697,7 +698,7 @@ func (s *MaterialService) updateMaterialRating(md5 string, newRating int) error 
 		Count     int64
 	}
 
-	if err := s.db.Model(&models.MaterialLog{}).
+	if err := s.db.WithContext(ctx).Model(&models.MaterialLog{}).
 		Select("AVG(CAST(rating AS DECIMAL(3,2))) as avg_rating, COUNT(*) as count").
 		Where("material_md5 = ? AND type = ? AND rating IS NOT NULL", md5, models.MaterialLogTypeRating).
 		Scan(&result).Error; err != nil {
@@ -705,7 +706,7 @@ func (s *MaterialService) updateMaterialRating(md5 string, newRating int) error 
 	}
 
 	// 更新资料描述的评分信息
-	return s.db.Model(&models.MaterialDesc{}).Where("md5 = ?", md5).Updates(map[string]interface{}{
+	return s.db.WithContext(ctx).Model(&models.MaterialDesc{}).Where("md5 = ?", md5).Updates(map[string]interface{}{
 		"rating":       result.AvgRating,
 		"rating_count": result.Count,
 		"updated_at":   time.Now(),
@@ -713,9 +714,9 @@ func (s *MaterialService) updateMaterialRating(md5 string, newRating int) error 
 }
 
 // ensureDescExists 确保资料描述记录存在，不存在则创建
-func (s *MaterialService) ensureDescExists(md5 string) {
+func (s *MaterialService) ensureDescExists(ctx context.Context, md5 string) {
 	var existing models.MaterialDesc
-	err := s.db.Model(&models.MaterialDesc{}).Where("md5 = ?", md5).First(&existing).Error
+	err := s.db.WithContext(ctx).Model(&models.MaterialDesc{}).Where("md5 = ?", md5).First(&existing).Error
 
 	if err == gorm.ErrRecordNotFound {
 		// 记录不存在，创建默认记录
@@ -723,6 +724,6 @@ func (s *MaterialService) ensureDescExists(md5 string) {
 			MD5:       md5,
 			UpdatedAt: time.Now(),
 		}
-		s.db.Create(&desc)
+		s.db.WithContext(ctx).Create(&desc)
 	}
 }

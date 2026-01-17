@@ -21,7 +21,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
+func NewRouter(ctx context.Context, db *gorm.DB, cfg *config.Config) *gin.Engine {
 	r := gin.Default()
 	ca := cache.GlobalCache
 
@@ -54,7 +54,10 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	featureService := services.NewFeatureService(db)
 	materialService := services.NewMaterialService(db)
 	questionService := services.NewQuestionService(db)
+	go questionService.StartSyncWorker(ctx)
+	pomodoroService := services.NewPomodoroService(db)
 	statService := services.NewStatService()
+	dictionaryService := services.NewDictionaryService(db)
 
 	// 初始化处理器
 	rbacHandler := handlers.NewRBACHandler(rbacService)
@@ -74,7 +77,9 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	featureHandler := handlers.NewFeatureHandler(featureService)
 	materialHandler := handlers.NewMaterialHandler(materialService)
 	questionHandler := handlers.NewQuestionHandler(questionService)
+	pomodoroHandler := handlers.NewPomodoroHandler(pomodoroService)
 	statHandler := handlers.NewStatHandler(statService)
+	dictionaryHandler := handlers.NewDictionaryHandler(dictionaryService)
 
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
@@ -330,11 +335,24 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				questions.POST("/practice", middleware.RequirePermission(rbacService, models.PermissionQuestion), questionHandler.SubmitPractice) // 记录做题次数
 			}
 
+			// 番茄钟（需认证）
+			pomodoro := authorized.Group("/pomodoro")
+			{
+				pomodoro.POST("/increment", middleware.RequirePermission(rbacService, models.PermissionPomodoro), pomodoroHandler.Increment) // 增加次数
+				pomodoro.GET("/ranking", middleware.RequirePermission(rbacService, models.PermissionPomodoro), pomodoroHandler.GetRanking)   // 获取排名
+			}
+
 			// 统计（需认证）
 			stat := authorized.Group("/stat")
 			{
 				stat.GET("/system/online", middleware.RequirePermission(rbacService, models.PermissionStatisticGet), statHandler.GetSystemOnlineCount)               // 获取系统在线人数
 				stat.GET("/project/:project_id/online", middleware.RequirePermission(rbacService, models.PermissionStatisticGet), statHandler.GetProjectOnlineCount) // 获取项目在线人数
+			}
+
+			// 词典（需认证）
+			dictionary := authorized.Group("/dictionary")
+			{
+				dictionary.GET("/word", middleware.RequirePermission(rbacService, models.PermissionDictionary), dictionaryHandler.GetRandomWord)
 			}
 
 			// 通知管理（管理员）

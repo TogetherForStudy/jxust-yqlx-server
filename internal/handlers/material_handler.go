@@ -53,7 +53,7 @@ func (h *MaterialHandler) GetMaterialList(c *gin.Context) {
 		req.SortBy = "hotness"
 	}
 
-	materials, total, err := h.materialService.GetMaterialList(&req)
+	materials, total, err := h.materialService.GetMaterialList(c.Request.Context(), &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
@@ -81,12 +81,12 @@ func (h *MaterialHandler) GetMaterialDetail(c *gin.Context) {
 
 	// 获取用户ID（可选，未登录用户也可以查看）
 	var userIDPtr *uint
-	if userID, exists := c.Get("user_id"); exists {
+	if userID, exists := helper.GetUserID(c); exists {
 		uid := userID.(uint)
 		userIDPtr = &uid
 	}
 
-	detail, err := h.materialService.GetMaterialByMD5(md5, userIDPtr)
+	detail, err := h.materialService.GetMaterialByMD5(c.Request.Context(), md5, userIDPtr)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusNotFound, err.Error())
 		return
@@ -98,7 +98,7 @@ func (h *MaterialHandler) GetMaterialDetail(c *gin.Context) {
 			Type:        2, // 查看
 			MaterialMD5: md5,
 		}
-		if err := h.materialService.CreateMaterialLog(*userIDPtr, logReq); err != nil {
+		if err := h.materialService.CreateMaterialLog(c.Request.Context(), *userIDPtr, logReq); err != nil {
 			helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -125,7 +125,7 @@ func (h *MaterialHandler) DeleteMaterial(c *gin.Context) {
 		return
 	}
 
-	if err := h.materialService.DeleteMaterial(md5); err != nil {
+	if err := h.materialService.DeleteMaterial(c.Request.Context(), md5); err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -161,19 +161,19 @@ func (h *MaterialHandler) SearchMaterials(c *gin.Context) {
 		req.PageSize = 20
 	}
 
-	result, err := h.materialService.SearchMaterials(&req)
+	result, err := h.materialService.SearchMaterials(c.Request.Context(), &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	// 记录搜索日志
-	if userID, exists := c.Get("user_id"); exists {
+	if userID, exists := helper.GetUserID(c); exists {
 		logReq := &request.MaterialLogCreateRequest{
 			Type:     1, // 搜索
 			Keywords: req.Keywords,
 		}
-		if err := h.materialService.CreateMaterialLog(userID.(uint), logReq); err != nil {
+		if err := h.materialService.CreateMaterialLog(c.Request.Context(), userID.(uint), logReq); err != nil {
 			helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -204,7 +204,7 @@ func (h *MaterialHandler) GetTopMaterials(c *gin.Context) {
 		req.Limit = 10
 	}
 
-	materials, err := h.materialService.GetTopMaterials(&req)
+	materials, err := h.materialService.GetTopMaterials(c.Request.Context(), &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
@@ -226,7 +226,7 @@ func (h *MaterialHandler) GetTopMaterials(c *gin.Context) {
 // @Failure 400 {object} helper.Response
 // @Router /api/materials/{md5}/rating [post]
 func (h *MaterialHandler) RateMaterial(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userID, exists := helper.GetUserID(c)
 	if !exists {
 		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
 		return
@@ -244,7 +244,7 @@ func (h *MaterialHandler) RateMaterial(c *gin.Context) {
 		return
 	}
 
-	if err := h.materialService.RateMaterial(userID.(uint), md5, req.Rating); err != nil {
+	if err := h.materialService.RateMaterial(c.Request.Context(), userID.(uint), md5, req.Rating); err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -279,7 +279,7 @@ func (h *MaterialHandler) UpdateMaterialDesc(c *gin.Context) {
 		return
 	}
 
-	if err := h.materialService.UpdateMaterialDesc(md5, &req); err != nil {
+	if err := h.materialService.UpdateMaterialDesc(c.Request.Context(), md5, &req); err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -306,7 +306,7 @@ func (h *MaterialHandler) GetCategories(c *gin.Context) {
 		return
 	}
 
-	categories, err := h.materialService.GetCategoriesByParent(req.ParentID)
+	categories, err := h.materialService.GetCategoriesByParent(c.Request.Context(), req.ParentID)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
@@ -338,7 +338,7 @@ func (h *MaterialHandler) GetHotWords(c *gin.Context) {
 		req.Limit = 20
 	}
 
-	hotWords, err := h.materialService.GetHotWords(req.Limit)
+	hotWords, err := h.materialService.GetHotWords(c.Request.Context(), req.Limit)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
@@ -359,7 +359,7 @@ func (h *MaterialHandler) GetHotWords(c *gin.Context) {
 // @Failure 400 {object} helper.Response
 // @Router /api/materials/{md5}/download [post]
 func (h *MaterialHandler) DownloadMaterial(c *gin.Context) {
-	userID, exists := c.Get("user_id")
+	userID, exists := helper.GetUserID(c)
 	if !exists {
 		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
 		return
@@ -377,7 +377,7 @@ func (h *MaterialHandler) DownloadMaterial(c *gin.Context) {
 		MaterialMD5: md5,
 	}
 
-	if err := h.materialService.CreateMaterialLog(userID.(uint), logReq); err != nil {
+	if err := h.materialService.CreateMaterialLog(c.Request.Context(), userID.(uint), logReq); err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}

@@ -27,24 +27,10 @@ func GinContextToContext(c *gin.Context) context.Context {
 		}
 	}
 
-	// Extract IsAdmin
-	if isAdmin, exists := c.Get("is_admin"); exists {
-		if admin, ok := isAdmin.(bool); ok {
-			ctx = context.WithValue(ctx, ctxKeyIsAdmin, admin)
-		}
-	}
-
 	// Extract UserRoles
 	if userRoles, exists := c.Get("user_roles"); exists {
 		if roles, ok := userRoles.([]string); ok {
 			ctx = context.WithValue(ctx, ctxKeyUserRoles, roles)
-		}
-	}
-
-	// Extract UserPermissions
-	if userPermissions, exists := c.Get("user_permissions"); exists {
-		if perms, ok := userPermissions.([]string); ok {
-			ctx = context.WithValue(ctx, ctxKeyUserPermissions, perms)
 		}
 	}
 
@@ -70,7 +56,7 @@ func GinContextToContext(c *gin.Context) context.Context {
 func InfoGin(c *gin.Context, msg map[string]any) {
 	ctx := GinContextToContext(c)
 	merged := mergeContextAndMessage(ctx, msg)
-	l := NewStructuredClsLogging(constant.DebugLevel, merged)
+	l := NewStructuredClsLogging(constant.InfoLevel, merged)
 	zlog.Infoln(l.String())
 	safeSendLog(l)
 }
@@ -88,7 +74,7 @@ func DebugGin(c *gin.Context, msg map[string]any) {
 func WarnGin(c *gin.Context, msg map[string]any) {
 	ctx := GinContextToContext(c)
 	merged := mergeContextAndMessage(ctx, msg)
-	l := NewStructuredClsLogging(constant.DebugLevel, merged)
+	l := NewStructuredClsLogging(constant.WarnLevel, merged)
 	zlog.Warnln(l.String())
 	safeSendLog(l)
 }
@@ -97,7 +83,7 @@ func WarnGin(c *gin.Context, msg map[string]any) {
 func ErrorGin(c *gin.Context, msg map[string]any) {
 	ctx := GinContextToContext(c)
 	merged := mergeContextAndMessage(ctx, msg)
-	l := NewStructuredClsLogging(constant.DebugLevel, merged)
+	l := NewStructuredClsLogging(constant.ErrorLevel, merged)
 	zlog.Errorln(l.String())
 	safeSendLog(l)
 }

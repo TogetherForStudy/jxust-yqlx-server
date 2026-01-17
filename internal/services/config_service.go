@@ -102,17 +102,17 @@ func (s *ConfigService) SearchConfigs(ctx context.Context, query string, page, s
 
 	if query != "" {
 		// 模糊搜索key或description
-		queryBuilder = queryBuilder.WithContext(ctx).Where("`key` LIKE ? OR description LIKE ?", "%"+query+"%", "%"+query+"%")
+		queryBuilder = queryBuilder.Where("`key` LIKE ? OR description LIKE ?", "%"+query+"%", "%"+query+"%")
 	}
 
 	// 先获取总数
-	if err := queryBuilder.WithContext(ctx).Count(&total).Error; err != nil {
+	if err := queryBuilder.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
 	// 分页查询
 	pagination := utils.GetPagination(page, size)
-	if err := queryBuilder.WithContext(ctx).Order("created_at DESC").
+	if err := queryBuilder.Order("created_at DESC").
 		Offset(pagination.Offset).
 		Limit(pagination.Size).
 		Find(&list).Error; err != nil {

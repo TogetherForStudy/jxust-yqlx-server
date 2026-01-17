@@ -60,13 +60,16 @@ func main() {
 		logger.Fatalf("Failed to start scheduler: %v", err)
 	}
 
+	// 创建一个可取消的上下文，用于同步 Worker 的优雅关闭
+	syncCtx, syncCancel := context.WithCancel(context.Background())
+
 	// 设置生产模式
 	if os.Getenv(constant.ENV_GIN_MODE) == "release" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
 	// 初始化路由
-	r := router.NewRouter(db, cfg)
+	r := router.NewRouter(syncCtx, db, cfg)
 
 	// 启动服务器
 	port := cfg.ServerPort
@@ -96,6 +99,9 @@ func main() {
 
 	// 停止定时任务调度器
 	taskScheduler.Stop()
+
+	// 停止异步同步 Worker
+	syncCancel()
 
 	logger.Info("Server shutdown complete")
 }
@@ -186,7 +192,8 @@ func initProjectRedisData(db *gorm.DB) {
 					Select("COALESCE(SUM(study_count + practice_count), 0)").
 					Scan(&usageCount).Error; err == nil {
 					// 设置Redis中的刷题次数
-					if err := cache.GlobalCache.Set(ctx, usageKey, strconv.FormatInt(usageCount, 10), nil); err != nil {
+					noExpiration := time.Duration(0)
+					if err := cache.GlobalCache.Set(ctx, usageKey, strconv.FormatInt(usageCount, 10), &noExpiration); err != nil {
 						logger.Warnf("Failed to initialize usage count for project %d: %v", projectID, err)
 					}
 				} else {
