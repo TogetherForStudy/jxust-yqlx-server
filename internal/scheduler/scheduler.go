@@ -47,7 +47,7 @@ func (s *Scheduler) Start() error {
 			"task":   "material_hotness_calculation",
 			"status": "started",
 		})
-		if err := s.materialService.CalculateHotness(); err != nil {
+		if err := s.materialService.CalculateHotness(ctx); err != nil {
 			logger.ErrorCtx(ctx, map[string]any{
 				"task":   "material_hotness_calculation",
 				"status": "failed",

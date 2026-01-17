@@ -45,7 +45,7 @@ func (s *CourseTableService) GetUserCourseTableWithVersion(ctx context.Context, 
 	}
 
 	// 获取最新的数据修改时间和数据
-	latestModified, courseData, classID, err := s.getLatestCourseData(userID, user.ClassID, semester)
+	latestModified, courseData, classID, err := s.getLatestCourseData(ctx, userID, user.ClassID, semester)
 	if err != nil {
 		return nil, err
 	}
@@ -71,10 +71,10 @@ func (s *CourseTableService) GetUserCourseTableWithVersion(ctx context.Context, 
 }
 
 // getLatestCourseData 获取最新课程数据和修改时间
-func (s *CourseTableService) getLatestCourseData(userID uint, classID, semester string) (int64, datatypes.JSON, string, error) {
+func (s *CourseTableService) getLatestCourseData(ctx context.Context, userID uint, classID, semester string) (int64, datatypes.JSON, string, error) {
 	// 优先检查用户个性化课表
 	var userSchedule models.ScheduleUser
-	if err := s.db.Where("user_id = ? AND class_id = ? AND semester = ?", userID, classID, semester).First(&userSchedule).Error; err == nil {
+	if err := s.db.WithContext(ctx).Where("user_id = ? AND class_id = ? AND semester = ?", userID, classID, semester).First(&userSchedule).Error; err == nil {
 		return userSchedule.UpdatedAt.Unix(), userSchedule.Schedule, userSchedule.ClassID, nil
 	} else if err != gorm.ErrRecordNotFound {
 		return 0, nil, "", fmt.Errorf("查询用户个性课表失败: %v", err)
@@ -82,7 +82,7 @@ func (s *CourseTableService) getLatestCourseData(userID uint, classID, semester 
 
 	// 查询班级默认课表
 	var courseTable models.CourseTable
-	if err := s.db.Where("class_id = ? AND semester = ?", classID, semester).First(&courseTable).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("class_id = ? AND semester = ?", classID, semester).First(&courseTable).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return 0, nil, "", fmt.Errorf("未找到该班级在指定学期的课程表")
 		}

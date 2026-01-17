@@ -39,7 +39,7 @@ func (h *QuestionHandler) GetProjects(c *gin.Context) {
 		return
 	}
 
-	projects, err := h.questionService.GetProjects(userID.(uint))
+	projects, err := h.questionService.GetProjects(c.Request.Context(), userID.(uint))
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, "获取项目列表失败")
 		return
@@ -73,7 +73,7 @@ func (h *QuestionHandler) GetQuestions(c *gin.Context) {
 		return
 	}
 
-	result, err := h.questionService.GetQuestions(userID.(uint), &req)
+	result, err := h.questionService.GetQuestions(c.Request.Context(), userID.(uint), &req)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -109,7 +109,7 @@ func (h *QuestionHandler) GetQuestionByID(c *gin.Context) {
 		return
 	}
 
-	question, err := h.questionService.GetQuestionByID(userID.(uint), req.ID)
+	question, err := h.questionService.GetQuestionByID(c.Request.Context(), userID.(uint), req.ID)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusNotFound, err.Error())
 		return
@@ -142,7 +142,7 @@ func (h *QuestionHandler) RecordStudy(c *gin.Context) {
 		return
 	}
 
-	if err := h.questionService.RecordStudy(userID.(uint), &req); err != nil {
+	if err := h.questionService.RecordStudy(c.Request.Context(), userID.(uint), &req); err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -174,7 +174,7 @@ func (h *QuestionHandler) SubmitPractice(c *gin.Context) {
 		return
 	}
 
-	if err := h.questionService.SubmitPractice(userID.(uint), &req); err != nil {
+	if err := h.questionService.SubmitPractice(c.Request.Context(), userID.(uint), &req); err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}

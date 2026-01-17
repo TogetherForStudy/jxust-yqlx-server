@@ -51,19 +51,19 @@ type SyncTask struct {
 // ===================== 项目查询 =====================
 
 // GetProjectByID 根据ID获取项目
-func (s *QuestionService) GetProjectByID(projectID uint) (*models.QuestionProject, error) {
+func (s *QuestionService) GetProjectByID(ctx context.Context, projectID uint) (*models.QuestionProject, error) {
 	var project models.QuestionProject
-	if err := s.db.First(&project, projectID).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&project, projectID).Error; err != nil {
 		return nil, err
 	}
 	return &project, nil
 }
 
 // GetProjects 获取项目列表
-func (s *QuestionService) GetProjects(userID uint) ([]response.QuestionProjectResponse, error) {
+func (s *QuestionService) GetProjects(ctx context.Context, userID uint) ([]response.QuestionProjectResponse, error) {
 	var projects []models.QuestionProject
 
-	if err := s.db.Where("is_active = ?", true).
+	if err := s.db.WithContext(ctx).Where("is_active = ?", true).
 		Order("sort ASC, created_at DESC").
 		Find(&projects).Error; err != nil {
 		return nil, err
@@ -73,7 +73,7 @@ func (s *QuestionService) GetProjects(userID uint) ([]response.QuestionProjectRe
 	for _, project := range projects {
 		// 获取项目下所有启用题目的 ID（用于统计数量和刷题次数）
 		var questionIDs []uint
-		if err := s.db.Model(&models.Question{}).
+		if err := s.db.WithContext(ctx).Model(&models.Question{}).
 			Where("project_id = ? AND is_active = ? AND parent_id IS NULL", project.ID, true).
 			Pluck("id", &questionIDs).Error; err != nil {
 			return nil, err
@@ -81,9 +81,6 @@ func (s *QuestionService) GetProjects(userID uint) ([]response.QuestionProjectRe
 
 		// 题目数量
 		questionCount := int64(len(questionIDs))
-
-		// 从 Redis 获取使用过该项目的用户数量
-		ctx := context.Background()
 		var userCount int64
 		userSetKey := fmt.Sprintf("project:users:%d", project.ID)
 		if cache.GlobalCache != nil {
@@ -91,13 +88,13 @@ func (s *QuestionService) GetProjects(userID uint) ([]response.QuestionProjectRe
 			userCount, err = cache.GlobalCache.SCard(ctx, userSetKey)
 			if err != nil {
 				// 如果 Redis 查询失败，回退到数据库查询
-				s.db.Model(&models.UserProjectUsage{}).
+				s.db.WithContext(ctx).Model(&models.UserProjectUsage{}).
 					Where("project_id = ?", project.ID).
 					Count(&userCount)
 
 				// 从数据库初始化Redis：查询所有使用过该项目的用户ID并添加到Redis集合
 				var userIDs []uint
-				if err := s.db.Model(&models.UserProjectUsage{}).
+				if err := s.db.WithContext(ctx).Model(&models.UserProjectUsage{}).
 					Where("project_id = ?", project.ID).
 					Pluck("user_id", &userIDs).Error; err == nil && len(userIDs) > 0 {
 					// 将用户ID转换为字符串并添加到Redis集合
@@ -110,7 +107,7 @@ func (s *QuestionService) GetProjects(userID uint) ([]response.QuestionProjectRe
 			}
 		} else {
 			// 如果 Redis 未初始化，使用数据库查询
-			s.db.Model(&models.UserProjectUsage{}).
+			s.db.WithContext(ctx).Model(&models.UserProjectUsage{}).
 				Where("project_id = ?", project.ID).
 				Count(&userCount)
 		}
@@ -124,7 +121,7 @@ func (s *QuestionService) GetProjects(userID uint) ([]response.QuestionProjectRe
 			if err != nil {
 				// 如果 Redis 查询失败，回退到数据库查询
 				if len(questionIDs) > 0 {
-					if err := s.db.Model(&models.UserQuestionUsage{}).
+					if err := s.db.WithContext(ctx).Model(&models.UserQuestionUsage{}).
 						Where("question_id IN ?", questionIDs).
 						Select("COALESCE(SUM(study_count + practice_count), 0)").
 						Scan(&usageCount).Error; err != nil {
@@ -140,7 +137,7 @@ func (s *QuestionService) GetProjects(userID uint) ([]response.QuestionProjectRe
 		} else {
 			// 如果 Redis 未初始化，使用数据库查询
 			if len(questionIDs) > 0 {
-				if err := s.db.Model(&models.UserQuestionUsage{}).
+				if err := s.db.WithContext(ctx).Model(&models.UserQuestionUsage{}).
 					Where("question_id IN ?", questionIDs).
 					Select("COALESCE(SUM(study_count + practice_count), 0)").
 					Scan(&usageCount).Error; err != nil {
@@ -158,15 +155,15 @@ func (s *QuestionService) GetProjects(userID uint) ([]response.QuestionProjectRe
 // ===================== 获取题目 =====================
 
 // GetQuestions 获取题目列表（只返回题目ID数组，支持顺序/乱序）
-func (s *QuestionService) GetQuestions(userID uint, req *request.GetQuestionRequest) (*response.QuestionListResponse, error) {
+func (s *QuestionService) GetQuestions(ctx context.Context, userID uint, req *request.GetQuestionRequest) (*response.QuestionListResponse, error) {
 	// 更新项目使用次数
-	if err := s.updateProjectUsage(userID, req.ProjectID); err != nil {
+	if err := s.updateProjectUsage(ctx, userID, req.ProjectID); err != nil {
 		return nil, fmt.Errorf("更新项目使用记录失败: %w", err)
 	}
 
 	// 获取项目下所有启用的主题目/独立题（parent_id 为 null）的ID
 	var questionIDs []uint
-	query := s.db.Model(&models.Question{}).
+	query := s.db.WithContext(ctx).Model(&models.Question{}).
 		Where("project_id = ? AND is_active = ? AND parent_id IS NULL", req.ProjectID, true).
 		Select("id")
 
@@ -226,18 +223,18 @@ func (s *QuestionService) toQuestionResponseWithUsage(question *models.Question,
 }
 
 // getQuestionByID 获取题目（内部使用）
-func (s *QuestionService) getQuestionByID(questionID uint) (*models.Question, error) {
+func (s *QuestionService) getQuestionByID(ctx context.Context, questionID uint) (*models.Question, error) {
 	var question models.Question
-	if err := s.db.Preload("SubQuestions", "is_active = ?", true).First(&question, questionID).Error; err != nil {
+	if err := s.db.WithContext(ctx).Preload("SubQuestions", "is_active = ?", true).First(&question, questionID).Error; err != nil {
 		return nil, err
 	}
 	return &question, nil
 }
 
 // GetQuestionByID 获取题目详情（公开方法）
-func (s *QuestionService) GetQuestionByID(userID, questionID uint) (*response.QuestionResponse, error) {
+func (s *QuestionService) GetQuestionByID(ctx context.Context, userID, questionID uint) (*response.QuestionResponse, error) {
 	// 获取题目
-	question, err := s.getQuestionByID(questionID)
+	question, err := s.getQuestionByID(ctx, questionID)
 	if err != nil {
 		return nil, fmt.Errorf("题目不存在")
 	}
@@ -249,7 +246,7 @@ func (s *QuestionService) GetQuestionByID(userID, questionID uint) (*response.Qu
 
 	// 获取用户使用记录
 	var usage models.UserQuestionUsage
-	s.db.Where("user_id = ? AND question_id = ?", userID, questionID).First(&usage)
+	s.db.WithContext(ctx).Where("user_id = ? AND question_id = ?", userID, questionID).First(&usage)
 
 	// 批量获取子题的使用记录
 	var subQuestionIDs []uint
@@ -259,7 +256,7 @@ func (s *QuestionService) GetQuestionByID(userID, questionID uint) (*response.Qu
 
 	var usages []models.UserQuestionUsage
 	if len(subQuestionIDs) > 0 {
-		s.db.Where("user_id = ? AND question_id IN ?", userID, subQuestionIDs).Find(&usages)
+		s.db.WithContext(ctx).Where("user_id = ? AND question_id IN ?", userID, subQuestionIDs).Find(&usages)
 	}
 
 	// 构建 usage map
@@ -279,9 +276,9 @@ func (s *QuestionService) GetQuestionByID(userID, questionID uint) (*response.Qu
 // ===================== 记录操作 =====================
 
 // RecordStudy 记录学习（仅记录学习次数）
-func (s *QuestionService) RecordStudy(userID uint, req *request.RecordStudyRequest) error {
+func (s *QuestionService) RecordStudy(ctx context.Context, userID uint, req *request.RecordStudyRequest) error {
 	// 验证题目存在
-	question, err := s.getQuestionByID(req.QuestionID)
+	question, err := s.getQuestionByID(ctx, req.QuestionID)
 	if err != nil {
 		return fmt.Errorf("题目不存在")
 	}
@@ -296,7 +293,6 @@ func (s *QuestionService) RecordStudy(userID uint, req *request.RecordStudyReque
 	}
 	taskData, _ := json.Marshal(task)
 
-	ctx := context.Background()
 	if cache.GlobalCache != nil {
 		_, _ = cache.GlobalCache.LPush(ctx, SyncQueueKey, string(taskData))
 	}
@@ -319,9 +315,9 @@ func (s *QuestionService) RecordStudy(userID uint, req *request.RecordStudyReque
 }
 
 // SubmitPractice 提交做题（仅记录做题次数）
-func (s *QuestionService) SubmitPractice(userID uint, req *request.SubmitPracticeRequest) error {
+func (s *QuestionService) SubmitPractice(ctx context.Context, userID uint, req *request.SubmitPracticeRequest) error {
 	// 验证题目存在
-	question, err := s.getQuestionByID(req.QuestionID)
+	question, err := s.getQuestionByID(ctx, req.QuestionID)
 	if err != nil {
 		return fmt.Errorf("题目不存在")
 	}
@@ -336,7 +332,6 @@ func (s *QuestionService) SubmitPractice(userID uint, req *request.SubmitPractic
 	}
 	taskData, _ := json.Marshal(task)
 
-	ctx := context.Background()
 	if cache.GlobalCache != nil {
 		_, _ = cache.GlobalCache.LPush(ctx, SyncQueueKey, string(taskData))
 	}
@@ -361,7 +356,7 @@ func (s *QuestionService) SubmitPractice(userID uint, req *request.SubmitPractic
 // ===================== 辅助函数 =====================
 
 // updateProjectUsage 更新项目使用次数
-func (s *QuestionService) updateProjectUsage(userID, projectID uint) error {
+func (s *QuestionService) updateProjectUsage(ctx context.Context, userID, projectID uint) error {
 	now := time.Now()
 
 	// 将任务推送到 Redis 队列
@@ -373,7 +368,6 @@ func (s *QuestionService) updateProjectUsage(userID, projectID uint) error {
 	}
 	taskData, _ := json.Marshal(task)
 
-	ctx := context.Background()
 	if cache.GlobalCache != nil {
 		_, _ = cache.GlobalCache.LPush(ctx, SyncQueueKey, string(taskData))
 	}
@@ -451,21 +445,22 @@ func (s *QuestionService) processSyncQueue(ctx context.Context) {
 
 // syncTaskToDB 将单个任务同步到数据库
 func (s *QuestionService) syncTaskToDB(task SyncTask) error {
+	ctx := context.Background()
 	switch task.Type {
 	case SyncTaskStudy:
-		return s.syncStudyToDB(task.UserID, task.QuestionID, task.Time)
+		return s.syncStudyToDB(ctx, task.UserID, task.QuestionID, task.Time)
 	case SyncTaskPractice:
-		return s.syncPracticeToDB(task.UserID, task.QuestionID, task.Time)
+		return s.syncPracticeToDB(ctx, task.UserID, task.QuestionID, task.Time)
 	case SyncTaskUsage:
-		return s.syncUsageToDB(task.UserID, task.ProjectID, task.Time)
+		return s.syncUsageToDB(ctx, task.UserID, task.ProjectID, task.Time)
 	default:
 		return fmt.Errorf("unknown task type: %s", task.Type)
 	}
 }
 
-func (s *QuestionService) syncStudyToDB(userID, questionID uint, t time.Time) error {
+func (s *QuestionService) syncStudyToDB(ctx context.Context, userID, questionID uint, t time.Time) error {
 	var existingUsage models.UserQuestionUsage
-	err := s.db.Where("user_id = ? AND question_id = ?", userID, questionID).First(&existingUsage).Error
+	err := s.db.WithContext(ctx).Where("user_id = ? AND question_id = ?", userID, questionID).First(&existingUsage).Error
 
 	if err == gorm.ErrRecordNotFound {
 		usage := models.UserQuestionUsage{
@@ -476,21 +471,21 @@ func (s *QuestionService) syncStudyToDB(userID, questionID uint, t time.Time) er
 			CreatedAt:     t,
 			UpdatedAt:     t,
 		}
-		return s.db.Create(&usage).Error
+		return s.db.WithContext(ctx).Create(&usage).Error
 	} else if err != nil {
 		return err
 	}
 
-	return s.db.Model(&existingUsage).Updates(map[string]interface{}{
+	return s.db.WithContext(ctx).Model(&existingUsage).Updates(map[string]interface{}{
 		"study_count":     gorm.Expr("study_count + ?", 1),
 		"last_studied_at": t,
 		"updated_at":      t,
 	}).Error
 }
 
-func (s *QuestionService) syncPracticeToDB(userID, questionID uint, t time.Time) error {
+func (s *QuestionService) syncPracticeToDB(ctx context.Context, userID, questionID uint, t time.Time) error {
 	var existingUsage models.UserQuestionUsage
-	err := s.db.Where("user_id = ? AND question_id = ?", userID, questionID).First(&existingUsage).Error
+	err := s.db.WithContext(ctx).Where("user_id = ? AND question_id = ?", userID, questionID).First(&existingUsage).Error
 
 	if err == gorm.ErrRecordNotFound {
 		usage := models.UserQuestionUsage{
@@ -501,21 +496,21 @@ func (s *QuestionService) syncPracticeToDB(userID, questionID uint, t time.Time)
 			CreatedAt:       t,
 			UpdatedAt:       t,
 		}
-		return s.db.Create(&usage).Error
+		return s.db.WithContext(ctx).Create(&usage).Error
 	} else if err != nil {
 		return err
 	}
 
-	return s.db.Model(&existingUsage).Updates(map[string]interface{}{
+	return s.db.WithContext(ctx).Model(&existingUsage).Updates(map[string]interface{}{
 		"practice_count":    gorm.Expr("practice_count + ?", 1),
 		"last_practiced_at": t,
 		"updated_at":        t,
 	}).Error
 }
 
-func (s *QuestionService) syncUsageToDB(userID, projectID uint, t time.Time) error {
+func (s *QuestionService) syncUsageToDB(ctx context.Context, userID, projectID uint, t time.Time) error {
 	var usage models.UserProjectUsage
-	err := s.db.Where("user_id = ? AND project_id = ?", userID, projectID).First(&usage).Error
+	err := s.db.WithContext(ctx).Where("user_id = ? AND project_id = ?", userID, projectID).First(&usage).Error
 
 	if err == gorm.ErrRecordNotFound {
 		usage = models.UserProjectUsage{
@@ -526,12 +521,12 @@ func (s *QuestionService) syncUsageToDB(userID, projectID uint, t time.Time) err
 			CreatedAt:  t,
 			UpdatedAt:  t,
 		}
-		return s.db.Create(&usage).Error
+		return s.db.WithContext(ctx).Create(&usage).Error
 	} else if err != nil {
 		return err
 	}
 
-	return s.db.Model(&usage).Updates(map[string]interface{}{
+	return s.db.WithContext(ctx).Model(&usage).Updates(map[string]interface{}{
 		"usage_count":  gorm.Expr("usage_count + ?", 1),
 		"last_used_at": t,
 		"updated_at":   t,
