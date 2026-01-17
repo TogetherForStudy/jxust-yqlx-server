@@ -24,6 +24,10 @@ func NewCountdownHandler(countdownService *services.CountdownService) *Countdown
 // CreateCountdown 创建倒数日
 func (h *CountdownHandler) CreateCountdown(c *gin.Context) {
 	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	var req request.CreateCountdownRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -43,6 +47,10 @@ func (h *CountdownHandler) CreateCountdown(c *gin.Context) {
 // GetCountdowns 获取用户倒数日列表
 func (h *CountdownHandler) GetCountdowns(c *gin.Context) {
 	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	result, err := h.countdownService.GetCountdowns(c, userID)
 	if err != nil {
@@ -56,6 +64,10 @@ func (h *CountdownHandler) GetCountdowns(c *gin.Context) {
 // GetCountdownByID 获取倒数日详情
 func (h *CountdownHandler) GetCountdownByID(c *gin.Context) {
 	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -80,6 +92,10 @@ func (h *CountdownHandler) GetCountdownByID(c *gin.Context) {
 // UpdateCountdown 更新倒数日
 func (h *CountdownHandler) UpdateCountdown(c *gin.Context) {
 	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -106,6 +122,10 @@ func (h *CountdownHandler) UpdateCountdown(c *gin.Context) {
 // DeleteCountdown 删除倒数日
 func (h *CountdownHandler) DeleteCountdown(c *gin.Context) {
 	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)

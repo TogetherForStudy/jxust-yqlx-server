@@ -32,6 +32,10 @@ func NewFeatureHandler(featureService *services.FeatureService) *FeatureHandler 
 // @Router /api/v0/user/features [get]
 func (h *FeatureHandler) GetUserFeatures(c *gin.Context) {
 	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	features, err := h.featureService.GetUserFeatures(c.Request.Context(), userID)
 	if err != nil {

@@ -34,8 +34,8 @@ func NewReviewHandler(reviewService *services.ReviewService) *ReviewHandler {
 // @Failure 400 {object} utils.Response
 // @Router /api/reviews [post]
 func (h *ReviewHandler) CreateReview(c *gin.Context) {
-	userID, exists := helper.GetUserID(c)
-	if !exists {
+	userID := helper.GetUserID(c)
+	if userID == 0 {
 		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
 		return
 	}
@@ -46,7 +46,7 @@ func (h *ReviewHandler) CreateReview(c *gin.Context) {
 		return
 	}
 
-	if err := h.reviewService.CreateReview(c.Request.Context(), userID.(uint), &req); err != nil {
+	if err := h.reviewService.CreateReview(c.Request.Context(), userID, &req); err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -98,8 +98,8 @@ func (h *ReviewHandler) GetReviewsByTeacher(c *gin.Context) {
 // @Failure 401 {object} utils.Response
 // @Router /api/reviews/user [get]
 func (h *ReviewHandler) GetUserReviews(c *gin.Context) {
-	userID, exists := helper.GetUserID(c)
-	if !exists {
+	userID := helper.GetUserID(c)
+	if userID == 0 {
 		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
 		return
 	}
@@ -107,7 +107,7 @@ func (h *ReviewHandler) GetUserReviews(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	size, _ := strconv.Atoi(c.DefaultQuery("size", "10"))
 
-	reviews, total, err := h.reviewService.GetUserReviews(c.Request.Context(), userID.(uint), page, size)
+	reviews, total, err := h.reviewService.GetUserReviews(c.Request.Context(), userID, page, size)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, "获取评价记录失败")
 		return

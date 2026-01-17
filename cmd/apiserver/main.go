@@ -16,6 +16,8 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/redis"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/router"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/scheduler"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/worker"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/worker/processors"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 
@@ -60,8 +62,12 @@ func main() {
 		logger.Fatalf("Failed to start scheduler: %v", err)
 	}
 
-	// 创建一个可取消的上下文，用于同步 Worker 的优雅关闭
-	syncCtx, syncCancel := context.WithCancel(context.Background())
+	// 初始化并启动异步工作器
+	workerManager := initializeWorkers(db)
+	workerCtx, workerCancel := context.WithCancel(context.Background())
+	if err := workerManager.StartAll(workerCtx); err != nil {
+		logger.Fatalf("Failed to start workers: %v", err)
+	}
 
 	// 设置生产模式
 	if os.Getenv(constant.ENV_GIN_MODE) == "release" {
@@ -69,7 +75,7 @@ func main() {
 	}
 
 	// 初始化路由
-	r := router.NewRouter(syncCtx, db, cfg)
+	r := router.NewRouter(db, cfg)
 
 	// 启动服务器
 	port := cfg.ServerPort
@@ -100,8 +106,12 @@ func main() {
 	// 停止定时任务调度器
 	taskScheduler.Stop()
 
-	// 停止异步同步 Worker
-	syncCancel()
+	// 停止异步工作器
+	logger.Info("Stopping workers...")
+	workerCancel()
+	if err := workerManager.StopAll(10 * time.Second); err != nil {
+		logger.Warnf("Worker shutdown error: %v", err)
+	}
 
 	logger.Info("Server shutdown complete")
 }
@@ -206,4 +216,38 @@ func initProjectRedisData(db *gorm.DB) {
 	}
 
 	logger.Info("Project Redis data initialization completed")
+}
+
+// initializeWorkers initializes and registers all async workers
+func initializeWorkers(db *gorm.DB) *worker.WorkerManager {
+	manager := worker.NewWorkerManager()
+
+	// Only initialize workers if Redis is available
+	if cache.GlobalCache != nil {
+		// Create queue provider
+		queueProvider := worker.NewRedisQueueProvider(cache.GlobalCache)
+
+		// Create question task processor
+		questionProcessor := processors.NewQuestionTaskProcessor(db)
+
+		// Configure question sync worker
+		config := worker.WorkerConfig{
+			QueueKey:        "sync:question:usage",
+			ProcessInterval: 5 * time.Second,
+			MaxRetries:      3,
+			WorkerName:      "question-sync-worker",
+		}
+
+		// Create and register worker
+		questionWorker := worker.NewWorker(config, questionProcessor, queueProvider)
+		if err := manager.RegisterWorker("question-sync", questionWorker); err != nil {
+			logger.Warnf("Failed to register question sync worker: %v", err)
+		} else {
+			logger.Info("Question sync worker registered")
+		}
+	} else {
+		logger.Warn("Redis not available, workers will not be started")
+	}
+
+	return manager
 }

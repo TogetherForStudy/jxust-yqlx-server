@@ -24,6 +24,10 @@ func NewStudyTaskHandler(studyTaskService *services.StudyTaskService) *StudyTask
 // CreateStudyTask 创建学习任务
 func (h *StudyTaskHandler) CreateStudyTask(c *gin.Context) {
 	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	var req request.CreateStudyTaskRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -43,6 +47,10 @@ func (h *StudyTaskHandler) CreateStudyTask(c *gin.Context) {
 // GetStudyTasks 获取用户学习任务列表
 func (h *StudyTaskHandler) GetStudyTasks(c *gin.Context) {
 	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	var req request.GetStudyTasksRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -77,6 +85,10 @@ func (h *StudyTaskHandler) GetStudyTasks(c *gin.Context) {
 // GetStudyTaskByID 获取学习任务详情
 func (h *StudyTaskHandler) GetStudyTaskByID(c *gin.Context) {
 	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -101,6 +113,10 @@ func (h *StudyTaskHandler) GetStudyTaskByID(c *gin.Context) {
 // UpdateStudyTask 更新学习任务
 func (h *StudyTaskHandler) UpdateStudyTask(c *gin.Context) {
 	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -127,6 +143,10 @@ func (h *StudyTaskHandler) UpdateStudyTask(c *gin.Context) {
 // DeleteStudyTask 删除学习任务
 func (h *StudyTaskHandler) DeleteStudyTask(c *gin.Context) {
 	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -147,6 +167,10 @@ func (h *StudyTaskHandler) DeleteStudyTask(c *gin.Context) {
 // GetStudyTaskStats 获取用户学习任务统计
 func (h *StudyTaskHandler) GetStudyTaskStats(c *gin.Context) {
 	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	result, err := h.studyTaskService.GetStudyTaskStats(c, userID)
 	if err != nil {
@@ -160,6 +184,10 @@ func (h *StudyTaskHandler) GetStudyTaskStats(c *gin.Context) {
 // GetCompletedTasks 获取已完成的任务（历史记录）
 func (h *StudyTaskHandler) GetCompletedTasks(c *gin.Context) {
 	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	pageStr := c.DefaultQuery("page", "1")
 	page, err := strconv.Atoi(pageStr)

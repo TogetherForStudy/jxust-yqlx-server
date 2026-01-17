@@ -24,6 +24,10 @@ func NewContributionHandler(contributionService *services.ContributionService) *
 // CreateContribution 创建投稿
 func (h *ContributionHandler) CreateContribution(c *gin.Context) {
 	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	var req request.CreateContributionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -43,6 +47,10 @@ func (h *ContributionHandler) CreateContribution(c *gin.Context) {
 // GetContributions 获取投稿列表
 func (h *ContributionHandler) GetContributions(c *gin.Context) {
 	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	var req request.GetContributionsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -76,6 +84,10 @@ func (h *ContributionHandler) GetContributions(c *gin.Context) {
 // GetContributionByID 获取投稿详情
 func (h *ContributionHandler) GetContributionByID(c *gin.Context) {
 	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -100,6 +112,10 @@ func (h *ContributionHandler) GetContributionByID(c *gin.Context) {
 // ReviewContribution 审核投稿（运营/管理员专用）
 func (h *ContributionHandler) ReviewContribution(c *gin.Context) {
 	reviewerID := helper.GetUserID(c)
+	if reviewerID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -126,6 +142,10 @@ func (h *ContributionHandler) ReviewContribution(c *gin.Context) {
 // GetUserContributionStats 获取用户投稿统计
 func (h *ContributionHandler) GetUserContributionStats(c *gin.Context) {
 	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	result, err := h.contributionService.GetUserContributionStats(c, userID)
 	if err != nil {
