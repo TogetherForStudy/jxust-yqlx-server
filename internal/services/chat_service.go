@@ -210,7 +210,7 @@ func (s *ChatService) getOwnedConversation(ctx context.Context, userID, conversa
 
 	var conv models.Conversation
 	if err := s.db.WithContext(ctx).
-		Where("id = ? AND user_id = ? AND deleted_at = null", conversationID, userID).
+		Where("id = ? AND user_id = ?", conversationID, userID).
 		First(&conv).Error; err != nil {
 		logger.ErrorCtx(ctx, map[string]any{
 			"action":          "get_conversation",
