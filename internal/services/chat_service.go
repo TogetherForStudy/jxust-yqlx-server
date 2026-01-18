@@ -14,7 +14,6 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
-	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 	"github.com/mark3labs/mcp-go/mcp"
 
 	einoopenai "github.com/cloudwego/eino-ext/components/model/openai"
@@ -39,10 +38,10 @@ type redisCheckPointStore struct {
 	expiration time.Duration
 }
 
-func newRedisCheckPointStore(c cache.Cache, expiration time.Duration) compose.CheckPointStore {
+func newRedisCheckPointStore() compose.CheckPointStore {
 	return &redisCheckPointStore{
-		cache:      c,
-		expiration: expiration,
+		cache:      cache.GlobalCache,
+		expiration: 2 * time.Hour,
 	}
 }
 
@@ -77,26 +76,13 @@ type ChatService struct {
 }
 
 func NewChatService(db *gorm.DB, cfg *config.Config) *ChatService {
-	services := &ChatService{
+	return &ChatService{
 		db:              db,
 		cfg:             cfg,
-		httpClient:      &http.Client{Timeout: 30 * time.Second},
-		checkPointStore: newRedisCheckPointStore(cache.GlobalCache, 2*time.Hour),
+		httpClient:      &http.Client{Timeout: 30 * time.Second}, // todo: 全局 http client 可以考虑放到更上层统一管理
+		checkPointStore: newRedisCheckPointStore(),
 		userClients:     make(map[uint]mcpClient),
 	}
-	if err := services.InitializeLLM(); err != nil {
-		logger.Fatalf("Failed to initialize LLM: %v", err)
-	}
-	return services
-}
-
-// InitializeLLM 初始化 LLM 和工具
-func (s *ChatService) InitializeLLM() error {
-	// TODO: 初始化 LLM 模型
-	// 这里需要根据配置初始化具体的 LLM 提供商 (OpenAI, etc)
-	// s.llm = ...
-
-	return nil
 }
 
 // initRAGFlowMCP 初始化 RAGFlow MCP 客户端
@@ -114,17 +100,30 @@ func (s *ChatService) initRAGFlowMCP(ctx context.Context) (*client.Client, error
 		transport.WithHTTPClient(s.httpClient),
 	)
 	if err != nil {
-		logger.Errorf("RequestID[%s]:Failed to initialize RAG flow MCP client: %v ", utils.GetRequestID(ctx), err)
+		logger.ErrorCtx(ctx, map[string]any{
+			"action": "init_ragflow_mcp_client",
+			"stage":  "new_client",
+			"error":  err.Error(),
+			"url":    s.cfg.LLM.RAGFlowMCPURL,
+		})
 		return nil, fmt.Errorf("failed to create ragflow mcp client: %w", err)
 	}
 	err = mcpClient.Start(ctx)
 	if err != nil {
-		logger.Errorf("RequestID[%s]:Failed to start RAG flow MCP client: %v ", utils.GetRequestID(ctx), err)
+		logger.ErrorCtx(ctx, map[string]any{
+			"action": "init_ragflow_mcp_client",
+			"stage":  "start_client",
+			"error":  err.Error(),
+		})
 		return nil, err
 	}
 	_, err = mcpClient.Initialize(ctx, mcp.InitializeRequest{})
 	if err != nil {
-		logger.Errorf("RequestID[%s]:Failed to initialize RAG flow MCP client connection: %v ", utils.GetRequestID(ctx), err)
+		logger.ErrorCtx(ctx, map[string]any{
+			"action": "init_ragflow_mcp_client",
+			"stage":  "initialize",
+			"error":  err.Error(),
+		})
 		return nil, err
 	}
 	return mcpClient, nil
@@ -138,7 +137,11 @@ func (s *ChatService) CreateConversation(ctx context.Context, userID uint, title
 	}
 
 	if err := s.db.WithContext(ctx).Create(conv).Error; err != nil {
-		logger.Errorf("RequestID[%s]:Failed to create conversation: %v", utils.GetRequestID(ctx), err)
+		logger.ErrorCtx(ctx, map[string]any{
+			"action":  "create_conversation",
+			"user_id": userID,
+			"error":   err.Error(),
+		})
 		return nil, err
 	}
 
@@ -160,53 +163,120 @@ func (s *ChatService) ListConversations(ctx context.Context, userID uint, page, 
 	offset := (page - 1) * pageSize
 
 	if err := s.db.WithContext(ctx).Model(&models.Conversation{}).
-		Where("user_id = ?", userID).
+		Where("user_id = ? AND deleted_at = null", userID).
 		Count(&total).Error; err != nil {
-		logger.Errorf("RequestID[%s]:Failed to list conversations: %v", utils.GetRequestID(ctx), err)
+		logger.ErrorCtx(ctx, map[string]any{
+			"action":  "list_conversations_total",
+			"user_id": userID,
+			"error":   err.Error(),
+		})
 		return nil, 0, err
 	}
 
 	if err := s.db.WithContext(ctx).
-		Where("user_id = ?", userID).
+		Where("user_id = ? AND deleted_at = null", userID).
 		Order("updated_at DESC").
 		Limit(pageSize).
 		Offset(offset).
 		Find(&conversations).Error; err != nil {
-		logger.Errorf("RequestID[%s]: Failed to list conversations: %v", utils.GetRequestID(ctx), err)
+		logger.ErrorCtx(ctx, map[string]any{
+			"action":  "list_conversations",
+			"user_id": userID,
+			"error":   err.Error(),
+		})
 		return nil, 0, err
 	}
 
 	return conversations, total, nil
 }
 
-// GetConversation 获取对话详情
-func (s *ChatService) GetConversation(ctx context.Context, userID, conversationID uint) (*models.Conversation, error) {
+// getOwnedConversation returns the conversation if it belongs to the user, with a small cache to reduce DB hits.
+func (s *ChatService) getOwnedConversation(ctx context.Context, userID, conversationID uint) (*models.Conversation, error) {
+	cacheKey := fmt.Sprintf(constant.CacheKeyConversationInfo, userID, conversationID)
+
+	if cached, err := cache.GlobalCache.Get(ctx, cacheKey); err == nil && cached != "" {
+		var conv models.Conversation
+		if err := json.Unmarshal([]byte(cached), &conv); err == nil {
+			return &conv, nil
+		}
+		logger.WarnCtx(ctx, map[string]any{
+			"action":          "conversation_cache_unmarshal",
+			"user_id":         userID,
+			"conversation_id": conversationID,
+			"error":           err.Error(),
+		})
+		_ = cache.GlobalCache.Delete(ctx, cacheKey)
+	}
+
 	var conv models.Conversation
 	if err := s.db.WithContext(ctx).
-		Where("id = ? AND user_id = ?", conversationID, userID).
+		Where("id = ? AND user_id = ? AND deleted_at = null", conversationID, userID).
 		First(&conv).Error; err != nil {
-		logger.Errorf("RequestID[%s]: Failed to get conversation: %v", utils.GetRequestID(ctx), err)
+		logger.ErrorCtx(ctx, map[string]any{
+			"action":          "get_conversation",
+			"user_id":         userID,
+			"conversation_id": conversationID,
+			"error":           err.Error(),
+		})
 		return nil, err
 	}
+
+	if data, err := json.Marshal(&conv); err == nil {
+		expiration := 10 * time.Minute
+		if err := cache.GlobalCache.Set(ctx, cacheKey, string(data), &expiration); err != nil {
+			logger.WarnCtx(ctx, map[string]any{
+				"action":          "set_conversation_cache",
+				"user_id":         userID,
+				"conversation_id": conversationID,
+				"error":           err.Error(),
+			})
+		}
+	}
+
 	return &conv, nil
+}
+
+func (s *ChatService) deleteConversationInfoCache(ctx context.Context, userID, conversationID uint) {
+	_ = cache.GlobalCache.Delete(ctx, fmt.Sprintf(constant.CacheKeyConversationInfo, userID, conversationID))
+}
+
+func (s *ChatService) deleteConversationAllCaches(ctx context.Context, userID, conversationID uint) {
+	_ = cache.GlobalCache.Delete(ctx, fmt.Sprintf(constant.CacheKeyConversationInfo, userID, conversationID))
+	_ = cache.GlobalCache.Delete(ctx, fmt.Sprintf(constant.CacheKeyConversationMessages, userID, conversationID))
+}
+
+// GetConversation 获取对话详情
+func (s *ChatService) GetConversation(ctx context.Context, userID, conversationID uint) (*models.Conversation, error) {
+	return s.getOwnedConversation(ctx, userID, conversationID)
 }
 
 // DeleteConversation 删除对话
 func (s *ChatService) DeleteConversation(ctx context.Context, userID, conversationID uint) error {
-	result := s.db.WithContext(ctx).
+	result := s.db.WithContext(ctx).Model(models.Conversation{}).
 		Where("id = ? AND user_id = ?", conversationID, userID).
-		Delete(&models.Conversation{})
+		Update("deleted_at", time.Now())
 
 	if result.Error != nil {
-		logger.Errorf("RequestID[%s]: Failed to delete conversation: %v", utils.GetRequestID(ctx), result.Error)
+		logger.ErrorCtx(ctx, map[string]any{
+			"action":          "delete_conversation",
+			"user_id":         userID,
+			"conversation_id": conversationID,
+			"error":           result.Error.Error(),
+		})
 		return result.Error
 	}
 
 	if result.RowsAffected == 0 {
-		logger.Warnf("RequestID[%s]: Conversation not found for deletion: conversationID=%d, userID=%d", utils.GetRequestID(ctx), conversationID, userID)
+
+		logger.WarnCtx(ctx, map[string]any{
+			"action":          "delete_conversation_not_found",
+			"user_id":         userID,
+			"conversation_id": conversationID,
+		})
 		return errors.New("conversation not found")
 	}
 
+	s.deleteConversationAllCaches(ctx, userID, conversationID)
 	return nil
 }
 
@@ -214,30 +284,38 @@ func (s *ChatService) DeleteConversation(ctx context.Context, userID, conversati
 func (s *ChatService) UpdateConversation(ctx context.Context, userID, conversationID uint, title string) error {
 	result := s.db.WithContext(ctx).
 		Model(&models.Conversation{}).
-		Where("id = ? AND user_id = ?", conversationID, userID).
+		Where("id = ? AND user_id = ? AND deleted_at = null", conversationID, userID).
 		Update("title", title)
 
 	if result.Error != nil {
-		logger.Errorf("RequestID[%s]: Failed to update conversation: %v", utils.GetRequestID(ctx), result.Error)
+		logger.ErrorCtx(ctx, map[string]any{
+			"action":          "update_conversation",
+			"user_id":         userID,
+			"conversation_id": conversationID,
+			"error":           result.Error.Error(),
+		})
 		return result.Error
 	}
 
 	if result.RowsAffected == 0 {
-		logger.Warnf("RequestID[%s]: Conversation not found for update: conversationID=%d, userID=%d", utils.GetRequestID(ctx), conversationID, userID)
+		//logger.Warnf("RequestID[%s]: Conversation not found for update: conversationID=%d, userID=%d", utils.GetRequestID(ctx), conversationID, userID)
+		logger.WarnCtx(ctx, map[string]any{
+			"action":          "update_conversation_not_found",
+			"user_id":         userID,
+			"conversation_id": conversationID,
+		})
 		return errors.New("conversation not found")
 	}
 
+	s.deleteConversationInfoCache(ctx, userID, conversationID)
 	return nil
 }
 
 // GetMessages 获取对话的所有消息（使用缓存，不存在则从数据库构建缓存）
 func (s *ChatService) GetMessages(ctx context.Context, userID, conversationID uint) ([]*schema.Message, error) {
-	// 验证对话属于用户
-	var conv models.Conversation
-	if err := s.db.WithContext(ctx).
-		Where("id = ? AND user_id = ?", conversationID, userID).
-		First(&conv).Error; err != nil {
-		logger.Errorf("RequestID[%s]: Failed to get conversation from database: %v", utils.GetRequestID(ctx), err)
+	// 验证对话属于用户（带缓存）
+	conv, err := s.getOwnedConversation(ctx, userID, conversationID)
+	if err != nil {
 		return nil, err
 	}
 
@@ -246,16 +324,26 @@ func (s *ChatService) GetMessages(ctx context.Context, userID, conversationID ui
 	if cachedData, err := cache.GlobalCache.Get(ctx, cacheKey); err == nil && cachedData != "" {
 		var messages []*schema.Message
 		if err := json.Unmarshal([]byte(cachedData), &messages); err == nil {
-			logger.Errorf("RequestID[%s]: Failed to Unmarshal cached data: %v", utils.GetRequestID(ctx), err)
 			return messages, nil
 		}
+		logger.WarnCtx(ctx, map[string]any{
+			"action":          "get_messages_cache_unmarshal",
+			"user_id":         userID,
+			"conversation_id": conversationID,
+			"error":           err.Error(),
+		})
 	}
 
 	// 从数据库加载
 	messages := []*schema.Message{}
 	if len(conv.Messages) > 0 {
 		if err := json.Unmarshal(conv.Messages, &messages); err != nil {
-			logger.Errorf("RequestID[%s]: Failed to unmarshal messages: %v", utils.GetRequestID(ctx), err)
+			logger.ErrorCtx(ctx, map[string]any{
+				"action":          "get_messages_unmarshal",
+				"user_id":         userID,
+				"conversation_id": conversationID,
+				"error":           err.Error(),
+			})
 			return nil, fmt.Errorf("failed to unmarshal messages: %w", err)
 		}
 	}
@@ -265,7 +353,12 @@ func (s *ChatService) GetMessages(ctx context.Context, userID, conversationID ui
 		expiration := 30 * time.Minute
 		err := cache.GlobalCache.Set(ctx, cacheKey, string(data), &expiration)
 		if err != nil {
-			logger.Errorf("RequestID[%s]: Failed to set messages cache: %v", utils.GetRequestID(ctx), err)
+			logger.ErrorCtx(ctx, map[string]any{
+				"action":          "get_messages_set_cache",
+				"user_id":         userID,
+				"conversation_id": conversationID,
+				"error":           err.Error(),
+			})
 			return nil, err
 		}
 	}
@@ -277,7 +370,13 @@ func (s *ChatService) GetMessages(ctx context.Context, userID, conversationID ui
 func (s *ChatService) SaveMessages(ctx context.Context, userID, conversationID uint, messages []*schema.Message) error {
 	messagesJSON, err := json.Marshal(messages)
 	if err != nil {
-		logger.Errorf("RequestID[%s]: Failed to marshal messages: %v", utils.GetRequestID(ctx), err)
+		logger.ErrorCtx(ctx, map[string]any{
+			"action":          "save_messages_marshal",
+			"user_id":         userID,
+			"conversation_id": conversationID,
+			"messages":        messages,
+			"error":           err.Error(),
+		})
 		return fmt.Errorf("failed to marshal messages: %w", err)
 	}
 
@@ -290,7 +389,13 @@ func (s *ChatService) SaveMessages(ctx context.Context, userID, conversationID u
 			"last_message_at": now,
 			"updated_at":      now,
 		}).Error; err != nil {
-		logger.Errorf("RequestID[%s]: Failed to update messages in database: %v", utils.GetRequestID(ctx), err)
+		logger.ErrorCtx(ctx, map[string]any{
+			"action":          "save_messages_update_db",
+			"user_id":         userID,
+			"messages":        messages,
+			"conversation_id": conversationID,
+			"error":           err.Error(),
+		})
 		return err
 	}
 
@@ -299,16 +404,23 @@ func (s *ChatService) SaveMessages(ctx context.Context, userID, conversationID u
 	expiration := 30 * time.Minute
 	err = cache.GlobalCache.Set(ctx, cacheKey, string(messagesJSON), &expiration)
 	if err != nil {
-		logger.Errorf("RequestID[%s]: Failed to set messages cache: %v", utils.GetRequestID(ctx), err)
+		logger.ErrorCtx(ctx, map[string]any{
+			"action":          "save_messages_set_cache",
+			"user_id":         userID,
+			"conversation_id": conversationID,
+			"messages":        messages,
+			"error":           err.Error(),
+		})
 		return err
 	}
 
+	s.deleteConversationInfoCache(ctx, userID, conversationID)
 	return nil
 }
 
 // todo: mcp server 除了系统内置的 mcp client 之外，还可以支持用户自定义的 mcp client
 func (s *ChatService) prepareUserMcpClient(ctx context.Context, userID uint, userToken string) (mcpClient, error) {
-	yqlxMcpClient, err := client.NewStreamableHttpClient(fmt.Sprintf("http://127.0.0.1:%s/api/mcp", s.cfg.ServerPort), // yqlx自身的 MCP 转发接口
+	yqlxMcpClient, err := client.NewStreamableHttpClient(fmt.Sprintf("http://127.0.0.1:%s/api/mcp", s.cfg.ServerPort), // yqlx自身的 MCP 转发接口 //todo:使用github.com/mark3labs/mcp-go/mcp重构后直接走api调用，不过网络栈
 		transport.WithHTTPHeaders(
 			map[string]string{
 				"Authorization": fmt.Sprintf("Bearer %s", userToken),
@@ -318,23 +430,43 @@ func (s *ChatService) prepareUserMcpClient(ctx context.Context, userID uint, use
 		transport.WithHTTPBasicClient(s.httpClient))
 	if err != nil {
 		msg := fmt.Sprintf("failed to create user mcp client: %v", err)
-		logger.Errorf("RequestID[%s]: %s userID:%d", utils.GetRequestID(ctx), msg, userID)
+		logger.ErrorCtx(ctx, map[string]any{
+			"action":  "prepare_user_mcp_client",
+			"stage":   "create_client",
+			"user_id": userID,
+			"error":   err.Error(),
+		})
 		return nil, errors.New(msg)
 	}
 	if err := yqlxMcpClient.Start(ctx); err != nil {
-		logger.Errorf("RequestID[%s]: failed to start yqlx mcp client: %v userID:%d", utils.GetRequestID(ctx), err, userID)
+		logger.ErrorCtx(ctx, map[string]any{
+			"action":  "prepare_user_mcp_client",
+			"stage":   "start_yqlx_mcp_client",
+			"user_id": userID,
+			"error":   err.Error(),
+		})
 		return nil, err
 	}
 	_, err = yqlxMcpClient.Initialize(ctx, mcp.InitializeRequest{})
 	if err != nil {
-		logger.Errorf("RequestID[%s]: failed to initialize yqlx mcp client connection: %v userID:%d", utils.GetRequestID(ctx), err, userID)
+		logger.ErrorCtx(ctx, map[string]any{
+			"action":  "prepare_user_mcp_client",
+			"stage":   "init_yqlx_mcp_client",
+			"user_id": userID,
+			"error":   err.Error(),
+		})
 		return nil, err
 	}
 	// 初始化 RAGFlow MCP 工具
 	// todo: sessionId 应该是每个用户唯一的，可以用 userID 或者其他方式生成
 	ragMcpClient, err := s.initRAGFlowMCP(ctx)
 	if err != nil {
-		logger.Errorf("RequestID[%s]: failed to init ragflow mcp client: %v userID:%d", utils.GetRequestID(ctx), err, userID)
+		logger.ErrorCtx(ctx, map[string]any{
+			"action":  "prepare_user_mcp_client",
+			"stage":   "init_ragflow_mcp_client",
+			"user_id": userID,
+			"error":   err.Error(),
+		})
 		return nil, fmt.Errorf("failed to init ragflow mcp: %w", err)
 	}
 	m := map[string]*client.Client{
@@ -389,7 +521,13 @@ func (p *streamEventProcessor) process(iter *adk.AsyncIterator[*adk.AgentEvent])
 		}
 
 		if event.Err != nil {
-			logger.Errorf("RequestID[%s]: Agent event error: %v", utils.GetRequestID(p.ctx), event.Err)
+			logger.ErrorCtx(p.ctx, map[string]any{
+				"action":          "agent_stream_event",
+				"user_id":         p.userID,
+				"conversation_id": p.conversationID,
+				"checkpoint_id":   p.checkpointID,
+				"error":           event.Err.Error(),
+			})
 			p.errChan <- event.Err
 			return
 		}
@@ -404,7 +542,12 @@ func (p *streamEventProcessor) process(iter *adk.AsyncIterator[*adk.AgentEvent])
 			if data, err := json.Marshal(interruptEvent); err == nil {
 				p.outputChan <- "data: " + string(data) + "\n\n"
 			}
-			logger.Infof("RequestID[%s]: Agent interrupted, checkpoint_id: %s", utils.GetRequestID(p.ctx), p.checkpointID)
+			logger.InfoCtx(p.ctx, map[string]any{
+				"action":          "agent_interrupted",
+				"user_id":         p.userID,
+				"conversation_id": p.conversationID,
+				"checkpoint_id":   p.checkpointID,
+			})
 			return
 		}
 
@@ -425,7 +568,13 @@ func (p *streamEventProcessor) process(iter *adk.AsyncIterator[*adk.AgentEvent])
 					break
 				}
 				if err != nil {
-					logger.Errorf("RequestID[%s]: Error receiving stream: %v", utils.GetRequestID(p.ctx), err)
+					logger.ErrorCtx(p.ctx, map[string]any{
+						"action":          "agent_stream_recv",
+						"user_id":         p.userID,
+						"conversation_id": p.conversationID,
+						"checkpoint_id":   p.checkpointID,
+						"error":           err.Error(),
+					})
 					p.errChan <- err
 					return
 				}
@@ -478,7 +627,13 @@ func (p *streamEventProcessor) process(iter *adk.AsyncIterator[*adk.AgentEvent])
 			// 非流式消息（如工具调用结果）
 			msg, err := msgOutput.GetMessage()
 			if err != nil {
-				logger.Errorf("RequestID[%s]: Failed to get message: %v", utils.GetRequestID(p.ctx), err)
+				logger.ErrorCtx(p.ctx, map[string]any{
+					"action":          "agent_get_message",
+					"user_id":         p.userID,
+					"conversation_id": p.conversationID,
+					"checkpoint_id":   p.checkpointID,
+					"error":           err.Error(),
+				})
 				continue
 			}
 
@@ -504,7 +659,13 @@ func (p *streamEventProcessor) process(iter *adk.AsyncIterator[*adk.AgentEvent])
 		}
 	}
 
-	logger.Infof("RequestID[%s]: Stream finished with %d events for conversation %d", utils.GetRequestID(p.ctx), messageCount, p.conversationID)
+	logger.InfoCtx(p.ctx, map[string]any{
+		"action":          "agent_stream_finished",
+		"user_id":         p.userID,
+		"conversation_id": p.conversationID,
+		"checkpoint_id":   p.checkpointID,
+		"message_count":   messageCount,
+	})
 
 	// 构建助手响应消息
 	assistantMsg := &schema.Message{
@@ -520,7 +681,13 @@ func (p *streamEventProcessor) process(iter *adk.AsyncIterator[*adk.AgentEvent])
 
 	// 保存更新后的消息列表到数据库和缓存
 	if err := p.service.SaveMessages(p.ctx, p.userID, p.conv.ID, p.messages); err != nil {
-		logger.Errorf("RequestID[%s]: Failed to save messages: %v", utils.GetRequestID(p.ctx), err)
+		logger.ErrorCtx(p.ctx, map[string]any{
+			"action":          "agent_save_messages",
+			"user_id":         p.userID,
+			"conversation_id": p.conversationID,
+			"checkpoint_id":   p.checkpointID,
+			"error":           err.Error(),
+		})
 	}
 
 	// 发送结束事件
@@ -543,10 +710,7 @@ func (p *streamEventProcessor) process(iter *adk.AsyncIterator[*adk.AgentEvent])
 // createChatModel 创建或获取 ChatModel
 func (s *ChatService) createChatModel(ctx context.Context) (einomodel.ToolCallingChatModel, error) {
 	if s.llm != nil {
-		chatModel, ok := s.llm.(einomodel.ToolCallingChatModel)
-		if !ok {
-			return nil, errors.New("LLM does not support tool calling")
-		}
+		chatModel := s.llm
 		return chatModel, nil
 	}
 
@@ -558,6 +722,10 @@ func (s *ChatService) createChatModel(ctx context.Context) (einomodel.ToolCallin
 		BaseURL:    s.cfg.LLM.BaseURL,
 	})
 	if err != nil {
+		logger.ErrorCtx(ctx, map[string]any{
+			"action": "create_chat_model",
+			"error":  err.Error(),
+		})
 		return nil, fmt.Errorf("failed to create chat model: %w", err)
 	}
 	return model, nil
@@ -580,9 +748,13 @@ func (s *ChatService) createAgent(ctx context.Context, tools []einotool.BaseTool
 				Tools: tools,
 			},
 		},
-		MaxIterations: 15,
+		MaxIterations: 15, //todo: 配置化
 	})
 	if err != nil {
+		logger.ErrorCtx(ctx, map[string]any{
+			"action": "create_agent",
+			"error":  err.Error(),
+		})
 		return nil, fmt.Errorf("failed to create agent: %w", err)
 	}
 	return agent, nil
@@ -595,14 +767,24 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 	// 验证对话属于用户
 	conv, err := s.GetConversation(ctx, userID, conversationID)
 	if err != nil {
-		logger.Errorf("RequestID[%s]: Failed to get conversation: %v", utils.GetRequestID(ctx), err)
+		logger.ErrorCtx(ctx, map[string]any{
+			"action":          "stream_chat_get_conversation",
+			"user_id":         userID,
+			"conversation_id": conversationID,
+			"error":           err.Error(),
+		})
 		return nil, nil, fmt.Errorf("failed to get conversation: %w", err)
 	}
 
 	// 获取完整的会话消息（使用缓存，不存在则从数据库构建）
 	messages, err := s.GetMessages(ctx, userID, conversationID)
 	if err != nil {
-		logger.Errorf("RequestID[%s]: Failed to get messages: %v", utils.GetRequestID(ctx), err)
+		logger.ErrorCtx(ctx, map[string]any{
+			"action":          "stream_chat_get_messages",
+			"user_id":         userID,
+			"conversation_id": conversationID,
+			"error":           err.Error(),
+		})
 		return nil, nil, fmt.Errorf("failed to get messages: %w", err)
 	}
 
@@ -619,24 +801,44 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 		// MCP 工具为"增强能力"，不应阻塞基础聊天能力。
 		mcpClients, err := s.prepareUserMcpClient(ctx, userID, userToken)
 		if err != nil {
-			logger.Warnf("RequestID[%s]: MCP client unavailable, fallback to no-tools chat: %v", utils.GetRequestID(ctx), err)
+			logger.WarnCtx(ctx, map[string]any{
+				"action":  "stream_chat_prepare_mcp_client",
+				"user_id": userID,
+				"msg":     "MCP client unavailable, fallback to no-tools chat",
+				"error":   err.Error(),
+			})
 		} else {
 			for _, cli := range mcpClients {
 				tools, err := einomcp.GetTools(ctx, &einomcp.Config{Cli: cli})
 				if err != nil {
-					logger.Warnf("RequestID[%s]: Failed to get tools from mcp client, ignore: %v", utils.GetRequestID(ctx), err)
+					logger.WarnCtx(ctx, map[string]any{
+						"action":  "stream_chat_get_mcp_tools",
+						"user_id": userID,
+						"msg":     "Failed to load MCP tools, skipping",
+						"error":   err.Error(),
+					})
 					continue
 				}
 				allTools = append(allTools, tools...)
 			}
 		}
-		logger.Infof("RequestID[%s]: Streaming chat loaded mcp tools count:%d", utils.GetRequestID(ctx), len(allTools))
+		logger.InfoCtx(ctx, map[string]any{
+			"action":          "stream_chat_loaded_mcp_tools",
+			"user_id":         userID,
+			"conversation_id": conversationID,
+			"tool_count":      len(allTools),
+		})
 	}
 
 	// 创建 Agent
 	agent, err := s.createAgent(ctx, allTools)
 	if err != nil {
-		logger.Errorf("RequestID[%s]: Failed to create agent: %v", utils.GetRequestID(ctx), err)
+		logger.ErrorCtx(ctx, map[string]any{
+			"action":          "stream_chat_create_agent",
+			"user_id":         userID,
+			"conversation_id": conversationID,
+			"error":           err.Error(),
+		})
 		return nil, nil, err
 	}
 
@@ -658,11 +860,22 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 		}
 		iter, err = runner.Resume(ctx, checkpointID, adk.WithToolOptions(toolOpts))
 		if err != nil {
-			logger.Errorf("RequestID[%s]: Failed to resume agent: %v", utils.GetRequestID(ctx), err)
+			logger.ErrorCtx(ctx, map[string]any{
+				"action":          "stream_chat_resume_agent",
+				"user_id":         userID,
+				"conversation_id": conversationID,
+				"checkpoint_id":   checkpointID,
+				"error":           err.Error(),
+			})
 			return nil, nil, fmt.Errorf("failed to resume agent: %w", err)
 		}
 		startEventType = "resume_start"
-		logger.Infof("RequestID[%s]: Resuming chat with checkpoint: %s", utils.GetRequestID(ctx), checkpointID)
+		logger.InfoCtx(ctx, map[string]any{
+			"action":          "stream_chat_resuming",
+			"user_id":         userID,
+			"conversation_id": conversationID,
+			"checkpoint_id":   checkpointID,
+		})
 	} else {
 		// 构建 Agent 输入消息（不包含系统提示词，由 Agent 的 Instruction 处理）
 		var inputMessages []adk.Message
