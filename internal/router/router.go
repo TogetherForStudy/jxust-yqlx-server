@@ -344,7 +344,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			}
 
 			// 聊天对话相关路由（需认证）
-			chat := authorized.Group("/chat")
+			chat := authorized.Group("/chat", middleware.RequirePermission(rbacService, models.PermissionChatStudy))
 			{
 				chat.POST("/conversations", middleware.IdempotencyRecommended(ca), chatHandler.CreateConversation) // 创建对话
 				chat.GET("/conversations", chatHandler.ListConversations)                                          // 列出对话

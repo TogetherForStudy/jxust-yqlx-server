@@ -43,6 +43,7 @@ const (
 	PermissionQuestion            = "question"              // basic_user
 	PermissionPomodoro            = "pomodoro"              // basic_user
 	PermissionDictionary          = "dictionary"            // basic_user
+	PermissionChatStudy           = "chat.study"            // basic_user
 
 	PermissionReviewManage               = "review.manage"
 	PermissionCourseTableManage          = "coursetable.manage"
