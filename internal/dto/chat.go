@@ -47,10 +47,17 @@ type EinoMessage struct {
 	ToolCallID string            `json:"tool_call_id,omitempty"`
 }
 
-// ChatRequest 聊天请求
+// ChatRequest 聊天请求（支持新对话和恢复中断的对话）
 type ChatRequest struct {
-	ConversationID uint           `json:"conversation_id" binding:"required,gt=0"`
-	Message        schema.Message `json:"message" binding:"required"`
+	ConversationID uint            `json:"conversation_id" binding:"required,gt=0"`
+	Message        *schema.Message `json:"message" binding:"omitempty"`       // 新消息（新对话时必填）
+	CheckpointID   string          `json:"checkpoint_id" binding:"omitempty"` // 恢复中断时的checkpoint ID
+	ResumeInput    string          `json:"resume_input" binding:"omitempty"`  // 恢复时提供的用户输入（如工具需要的额外信息）
+}
+
+// IsResume 判断是否是恢复请求
+func (r *ChatRequest) IsResume() bool {
+	return r.CheckpointID != ""
 }
 
 // ExportConversationResponse 导出对话响应

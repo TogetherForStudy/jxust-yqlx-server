@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -16,7 +15,6 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
-	"github.com/cloudwego/eino/compose"
 	"github.com/mark3labs/mcp-go/mcp"
 
 	einoopenai "github.com/cloudwego/eino-ext/components/model/openai"
@@ -25,6 +23,8 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 
 	json "github.com/bytedance/sonic"
+	"github.com/cloudwego/eino/adk"
+	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/client/transport"
@@ -33,12 +33,43 @@ import (
 
 type mcpClient map[string]*client.Client
 
+// redisCheckPointStore 使用 Redis 实现的 CheckPointStore，用于 Agent 中断恢复
+type redisCheckPointStore struct {
+	cache      cache.Cache
+	expiration time.Duration
+}
+
+func newRedisCheckPointStore(c cache.Cache, expiration time.Duration) compose.CheckPointStore {
+	return &redisCheckPointStore{
+		cache:      c,
+		expiration: expiration,
+	}
+}
+
+func (r *redisCheckPointStore) Get(ctx context.Context, checkPointID string) ([]byte, bool, error) {
+	key := fmt.Sprintf(constant.CacheKeyAgentCheckpoint, checkPointID)
+	data, err := r.cache.Get(ctx, key)
+	if err != nil {
+		// Key not found is not an error, just return false
+		return nil, false, nil
+	}
+	if data == "" {
+		return nil, false, nil
+	}
+	return []byte(data), true, nil
+}
+
+func (r *redisCheckPointStore) Set(ctx context.Context, checkPointID string, checkPoint []byte) error {
+	key := fmt.Sprintf(constant.CacheKeyAgentCheckpoint, checkPointID)
+	return r.cache.Set(ctx, key, string(checkPoint), &r.expiration)
+}
+
 type ChatService struct {
-	httpClient *http.Client // 复用的 HTTP 客户端,用于 MCP 等外部请求,减少GC压力和连接创建开销
-	db         *gorm.DB
-	cfg        *config.Config
-	llm        einomodel.ChatModel
-	tools      []einotool.BaseTool
+	httpClient      *http.Client // 复用的 HTTP 客户端,用于 MCP 等外部请求,减少GC压力和连接创建开销
+	db              *gorm.DB
+	cfg             *config.Config
+	llm             einomodel.ToolCallingChatModel
+	checkPointStore compose.CheckPointStore
 
 	//mcpClients    mcpClient          // global
 	userClients   map[uint]mcpClient // per-user MCP 客户端集合 key: userID, value: mcpClient
@@ -47,11 +78,11 @@ type ChatService struct {
 
 func NewChatService(db *gorm.DB, cfg *config.Config) *ChatService {
 	services := &ChatService{
-		db:         db,
-		cfg:        cfg,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
-		//mcpClients:  make(mcpClient),
-		userClients: make(map[uint]mcpClient),
+		db:              db,
+		cfg:             cfg,
+		httpClient:      &http.Client{Timeout: 30 * time.Second},
+		checkPointStore: newRedisCheckPointStore(cache.GlobalCache, 2*time.Hour),
+		userClients:     make(map[uint]mcpClient),
 	}
 	if err := services.InitializeLLM(); err != nil {
 		logger.Fatalf("Failed to initialize LLM: %v", err)
@@ -317,8 +348,250 @@ func (s *ChatService) prepareUserMcpClient(ctx context.Context, userID uint, use
 	return m, nil
 }
 
+// streamEventProcessor 处理 Agent 事件流并输出到通道
+// 这是 StreamChat 和 ResumeChat 共用的核心逻辑
+type streamEventProcessor struct {
+	ctx            context.Context
+	userID         uint
+	conversationID uint
+	checkpointID   string
+	messages       []*schema.Message
+	conv           *models.Conversation
+	service        *ChatService
+	outputChan     chan string
+	errChan        chan error
+	startEventType string // "start" 或 "resume_start"
+}
+
+func (p *streamEventProcessor) process(iter *adk.AsyncIterator[*adk.AgentEvent]) {
+	defer close(p.outputChan)
+	defer close(p.errChan)
+
+	var fullContent string
+	var fullToolCalls []schema.ToolCall
+	var usage *schema.TokenUsage
+	messageCount := 0
+
+	// 发送开始事件
+	startEvent := map[string]interface{}{
+		"type":          p.startEventType,
+		"checkpoint_id": p.checkpointID,
+	}
+	if data, err := json.Marshal(startEvent); err == nil {
+		p.outputChan <- "data: " + string(data) + "\n\n"
+	}
+
+	// 遍历 Agent 事件
+	for {
+		event, ok := iter.Next()
+		if !ok {
+			break
+		}
+
+		if event.Err != nil {
+			logger.Errorf("RequestID[%s]: Agent event error: %v", utils.GetRequestID(p.ctx), event.Err)
+			p.errChan <- event.Err
+			return
+		}
+
+		// 处理中断事件
+		if event.Action != nil && event.Action.Interrupted != nil {
+			interruptEvent := map[string]interface{}{
+				"type":          "interrupt",
+				"checkpoint_id": p.checkpointID,
+				"data":          event.Action.Interrupted.Data,
+			}
+			if data, err := json.Marshal(interruptEvent); err == nil {
+				p.outputChan <- "data: " + string(data) + "\n\n"
+			}
+			logger.Infof("RequestID[%s]: Agent interrupted, checkpoint_id: %s", utils.GetRequestID(p.ctx), p.checkpointID)
+			return
+		}
+
+		// 处理消息输出
+		if event.Output == nil || event.Output.MessageOutput == nil {
+			continue
+		}
+
+		msgOutput := event.Output.MessageOutput
+		messageCount++
+
+		// 处理流式消息
+		if msgOutput.IsStreaming {
+			st := msgOutput.MessageStream
+			for {
+				recv, err := st.Recv()
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					logger.Errorf("RequestID[%s]: Error receiving stream: %v", utils.GetRequestID(p.ctx), err)
+					p.errChan <- err
+					return
+				}
+
+				// 累积并发送内容
+				if recv.Content != "" {
+					fullContent += recv.Content
+					contentEvent := map[string]interface{}{
+						"type":    "content",
+						"content": recv.Content,
+					}
+					if data, err := json.Marshal(contentEvent); err == nil {
+						p.outputChan <- "data: " + string(data) + "\n\n"
+					}
+				}
+
+				// 处理 reasoning content
+				if recv.ReasoningContent != "" {
+					reasoningEvent := map[string]interface{}{
+						"type":    "reasoning",
+						"content": recv.ReasoningContent,
+					}
+					if data, err := json.Marshal(reasoningEvent); err == nil {
+						p.outputChan <- "data: " + string(data) + "\n\n"
+					}
+				}
+
+				// 累积工具调用
+				if len(recv.ToolCalls) > 0 {
+					fullToolCalls = append(fullToolCalls, recv.ToolCalls...)
+					for _, tc := range recv.ToolCalls {
+						toolCallEvent := map[string]interface{}{
+							"type":      "tool_call",
+							"tool_call": tc,
+							"function":  tc.Function.Name,
+							"arguments": tc.Function.Arguments,
+						}
+						if data, err := json.Marshal(toolCallEvent); err == nil {
+							p.outputChan <- "data: " + string(data) + "\n\n"
+						}
+					}
+				}
+
+				// 保存 usage 信息
+				if recv.ResponseMeta != nil && recv.ResponseMeta.Usage != nil {
+					usage = recv.ResponseMeta.Usage
+				}
+			}
+		} else {
+			// 非流式消息（如工具调用结果）
+			msg, err := msgOutput.GetMessage()
+			if err != nil {
+				logger.Errorf("RequestID[%s]: Failed to get message: %v", utils.GetRequestID(p.ctx), err)
+				continue
+			}
+
+			// 发送工具结果事件
+			if msg.Role == schema.Tool {
+				toolResultEvent := map[string]interface{}{
+					"type":         "tool_result",
+					"tool_call_id": msg.ToolCallID,
+					"content":      msg.Content,
+				}
+				if data, err := json.Marshal(toolResultEvent); err == nil {
+					p.outputChan <- "data: " + string(data) + "\n\n"
+				}
+			}
+
+			// 累积 Assistant 消息内容
+			if msg.Role == schema.Assistant && msg.Content != "" {
+				fullContent += msg.Content
+			}
+			if len(msg.ToolCalls) > 0 {
+				fullToolCalls = append(fullToolCalls, msg.ToolCalls...)
+			}
+		}
+	}
+
+	logger.Infof("RequestID[%s]: Stream finished with %d events for conversation %d", utils.GetRequestID(p.ctx), messageCount, p.conversationID)
+
+	// 构建助手响应消息
+	assistantMsg := &schema.Message{
+		Role:    schema.Assistant,
+		Content: fullContent,
+	}
+	if len(fullToolCalls) > 0 {
+		assistantMsg.ToolCalls = fullToolCalls
+	}
+
+	// 添加助手响应到消息列表
+	p.messages = append(p.messages, assistantMsg)
+
+	// 保存更新后的消息列表到数据库和缓存
+	if err := p.service.SaveMessages(p.ctx, p.userID, p.conv.ID, p.messages); err != nil {
+		logger.Errorf("RequestID[%s]: Failed to save messages: %v", utils.GetRequestID(p.ctx), err)
+	}
+
+	// 发送结束事件
+	endEvent := map[string]interface{}{
+		"type":          "end",
+		"message_count": messageCount,
+	}
+	if usage != nil {
+		endEvent["usage"] = map[string]interface{}{
+			"prompt_tokens":     usage.PromptTokens,
+			"completion_tokens": usage.CompletionTokens,
+			"total_tokens":      usage.TotalTokens,
+		}
+	}
+	if data, err := json.Marshal(endEvent); err == nil {
+		p.outputChan <- "data: " + string(data) + "\n\n"
+	}
+}
+
+// createChatModel 创建或获取 ChatModel
+func (s *ChatService) createChatModel(ctx context.Context) (einomodel.ToolCallingChatModel, error) {
+	if s.llm != nil {
+		chatModel, ok := s.llm.(einomodel.ToolCallingChatModel)
+		if !ok {
+			return nil, errors.New("LLM does not support tool calling")
+		}
+		return chatModel, nil
+	}
+
+	// 如果没有全局 LLM，为这个请求创建临时实例
+	model, err := einoopenai.NewChatModel(ctx, &einoopenai.ChatModelConfig{
+		HTTPClient: s.httpClient,
+		Model:      s.cfg.LLM.Model,
+		APIKey:     s.cfg.LLM.APIKey,
+		BaseURL:    s.cfg.LLM.BaseURL,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create chat model: %w", err)
+	}
+	return model, nil
+}
+
+// createAgent 创建 ChatModelAgent
+func (s *ChatService) createAgent(ctx context.Context, tools []einotool.BaseTool) (adk.Agent, error) {
+	chatModel, err := s.createChatModel(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
+		Name:        "StudyAssistant",
+		Description: "A helpful assistant for students at JXUST.",
+		Instruction: constant.ChatSystemPrompt,
+		Model:       chatModel,
+		ToolsConfig: adk.ToolsConfig{
+			ToolsNodeConfig: compose.ToolsNodeConfig{
+				Tools: tools,
+			},
+		},
+		MaxIterations: 15,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create agent: %w", err)
+	}
+	return agent, nil
+}
+
 // StreamChat 流式聊天 (返回一个通道用于 SSE)
-func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uint, newMessage *schema.Message, userToken string) (<-chan string, <-chan error, error) {
+// 使用 NewChatModelAgent 实现，支持中断恢复和流式传输
+// 当 checkpointID 不为空时，执行恢复操作；否则执行新对话
+func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uint, newMessage *schema.Message, userToken string, checkpointID string, resumeInput string) (<-chan string, <-chan error, error) {
 	// 验证对话属于用户
 	conv, err := s.GetConversation(ctx, userID, conversationID)
 	if err != nil {
@@ -333,214 +606,113 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 		return nil, nil, fmt.Errorf("failed to get messages: %w", err)
 	}
 
-	// 合并新消息到会话中
-	messages = append(messages, newMessage)
+	var allTools []einotool.BaseTool
+	isResume := checkpointID != ""
 
-	var (
-		mcpClients    mcpClient
-		einoToolInfos []*schema.ToolInfo
-		allTools      []einotool.BaseTool
-	)
-
-	// MCP 工具为“增强能力”，不应阻塞基础聊天能力。
-	mcpClients, err = s.prepareUserMcpClient(ctx, userID, userToken)
-	if err != nil {
-		logger.Warnf("RequestID[%s]: MCP client unavailable, fallback to no-tools chat: %v", utils.GetRequestID(ctx), err)
-	} else {
-		for _, client := range mcpClients {
-			tools, err := einomcp.GetTools(ctx, &einomcp.Config{Cli: client})
-			if err != nil {
-				logger.Warnf("RequestID[%s]: Failed to get tools from mcp client, ignore: %v", utils.GetRequestID(ctx), err)
-				continue
-			}
-			allTools = append(allTools, tools...)
-			for toolsIndex := range tools {
-				info, err := tools[toolsIndex].Info(ctx)
-				if err != nil {
-					logger.Warnf("RequestID[%s]: Failed to get tool info, ignore tool: %v", utils.GetRequestID(ctx), err)
-					return nil, nil, err
-				}
-				einoToolInfos = append(einoToolInfos, info)
-			}
-
+	// 新对话：合并新消息，加载工具
+	if !isResume {
+		if newMessage == nil {
+			return nil, nil, errors.New("message is required for new conversation")
 		}
-	}
-	logger.Infof("RequestID[%s]: Streaming chat loaded mcp tools count:%d", utils.GetRequestID(ctx), len(einoToolInfos))
-	// 添加系统提示词（仅在首次聊天时）
-	var prompts []*schema.Message
-	if len(messages) > 0 && messages[0].Role == schema.System {
-		// 已有系统提示词，直接使用
-		prompts = messages
-	} else {
-		// 首次聊天，添加系统提示词
-		prompts = append([]*schema.Message{schema.SystemMessage(constant.ChatSystemPrompt)}, messages...)
-	}
+		messages = append(messages, newMessage)
 
-	// 使用配置的 LLM 或创建新实例
-	var chatModel einomodel.ChatModel
-	if s.llm != nil {
-		chatModel = s.llm
-	} else {
-		// 如果没有全局 LLM，为这个请求创建临时实例
-		model, err := einoopenai.NewChatModel(ctx, &einoopenai.ChatModelConfig{
-			HTTPClient: s.httpClient,
-			Model:      s.cfg.LLM.Model,
-			APIKey:     s.cfg.LLM.APIKey,
-			BaseURL:    s.cfg.LLM.BaseURL,
-		})
+		// MCP 工具为"增强能力"，不应阻塞基础聊天能力。
+		mcpClients, err := s.prepareUserMcpClient(ctx, userID, userToken)
 		if err != nil {
-			logger.Errorf("RequestID[%s]: Failed to create chat model: %v", utils.GetRequestID(ctx), err)
-			return nil, nil, fmt.Errorf("failed to create chat model: %w", err)
+			logger.Warnf("RequestID[%s]: MCP client unavailable, fallback to no-tools chat: %v", utils.GetRequestID(ctx), err)
+		} else {
+			for _, cli := range mcpClients {
+				tools, err := einomcp.GetTools(ctx, &einomcp.Config{Cli: cli})
+				if err != nil {
+					logger.Warnf("RequestID[%s]: Failed to get tools from mcp client, ignore: %v", utils.GetRequestID(ctx), err)
+					continue
+				}
+				allTools = append(allTools, tools...)
+			}
 		}
-		chatModel = model
+		logger.Infof("RequestID[%s]: Streaming chat loaded mcp tools count:%d", utils.GetRequestID(ctx), len(allTools))
 	}
-	err = chatModel.BindTools(einoToolInfos)
+
+	// 创建 Agent
+	agent, err := s.createAgent(ctx, allTools)
 	if err != nil {
-		logger.Errorf("RequestID[%s]: Failed to bind tools to chat model: %v", utils.GetRequestID(ctx), err)
+		logger.Errorf("RequestID[%s]: Failed to create agent: %v", utils.GetRequestID(ctx), err)
 		return nil, nil, err
 	}
-	node, err := compose.NewToolNode(ctx, &compose.ToolsNodeConfig{Tools: allTools})
-	if err != nil {
-		logger.Errorf("RequestID[%s]: Failed to create tool node: %v", utils.GetRequestID(ctx), err)
-		return nil, nil, err
-	}
-	chain := compose.NewChain[[]*schema.Message, []*schema.Message]()
-	chain.
-		AppendChatModel(chatModel, compose.WithNodeName("chat_model")).
-		AppendToolsNode(node, compose.WithNodeName("tools"))
-	agent, err := chain.Compile(ctx)
-	if err != nil {
-		logger.Errorf("RequestID[%s]: Failed to compile chat node: %v", utils.GetRequestID(ctx), err)
-	}
-	// 创建流式请求
-	sr, err := agent.Stream(ctx, prompts)
-	if err != nil {
-		logger.Errorf("RequestID[%s]: Failed to create agent chat stream: %v", utils.GetRequestID(ctx), err)
-		return nil, nil, fmt.Errorf("failed to create agent chat stream: %w", err)
+
+	// 创建 Runner（支持 checkpoint）
+	runner := adk.NewRunner(ctx, adk.RunnerConfig{
+		Agent:           agent,
+		EnableStreaming: true,
+		CheckPointStore: s.checkPointStore,
+	})
+
+	var iter *adk.AsyncIterator[*adk.AgentEvent]
+	var startEventType string
+
+	if isResume {
+		// 恢复运行
+		var toolOpts []einotool.Option
+		if resumeInput != "" {
+			toolOpts = append(toolOpts, WithResumeInput(resumeInput))
+		}
+		iter, err = runner.Resume(ctx, checkpointID, adk.WithToolOptions(toolOpts))
+		if err != nil {
+			logger.Errorf("RequestID[%s]: Failed to resume agent: %v", utils.GetRequestID(ctx), err)
+			return nil, nil, fmt.Errorf("failed to resume agent: %w", err)
+		}
+		startEventType = "resume_start"
+		logger.Infof("RequestID[%s]: Resuming chat with checkpoint: %s", utils.GetRequestID(ctx), checkpointID)
+	} else {
+		// 构建 Agent 输入消息（不包含系统提示词，由 Agent 的 Instruction 处理）
+		var inputMessages []adk.Message
+		for _, msg := range messages {
+			if msg.Role != schema.System {
+				inputMessages = append(inputMessages, msg)
+			}
+		}
+
+		// 生成新的 checkpointID
+		checkpointID = fmt.Sprintf("%d:%d:%d", userID, conversationID, time.Now().UnixNano())
+
+		// 运行 Agent
+		iter = runner.Run(ctx, inputMessages, adk.WithCheckPointID(checkpointID))
+		startEventType = "start"
 	}
 
 	// 创建输出通道
 	outputChan := make(chan string, 50)
 	errChan := make(chan error, 1)
 
-	// 启动流式处理 goroutine
-	go func() {
-		defer close(outputChan)
-		defer close(errChan)
-		defer sr.Close()
+	// 创建事件处理器并启动
+	processor := &streamEventProcessor{
+		ctx:            ctx,
+		userID:         userID,
+		conversationID: conversationID,
+		checkpointID:   checkpointID,
+		messages:       messages,
+		conv:           conv,
+		service:        s,
+		outputChan:     outputChan,
+		errChan:        errChan,
+		startEventType: startEventType,
+	}
 
-		var fullContent string
-		var fullToolCalls []schema.ToolCall
-		var usage *schema.TokenUsage
-		messageCount := 0
-
-		// 发送开始事件
-		startEvent := map[string]interface{}{
-			"type": "start",
-		}
-		if data, err := json.Marshal(startEvent); err == nil {
-			outputChan <- "data: " + string(data) + "\n\n"
-		}
-
-		// 读取流式消息
-		for {
-			message, err := sr.Recv()
-			if err != nil {
-				if err == io.EOF {
-					break
-				}
-				logger.Errorf("RequestID[%s]: Error receiving chat stream message: %v", utils.GetRequestID(ctx), err)
-				errChan <- err
-				return
-			}
-
-			messageCount++
-
-			// 累积内容
-			if message.Content != "" {
-				fullContent += message.Content
-
-				// 发送内容增量
-				contentEvent := map[string]interface{}{
-					"type":    "content",
-					"content": message.Content,
-				}
-				if data, err := json.Marshal(contentEvent); err == nil {
-					outputChan <- "data: " + string(data) + "\n\n"
-				}
-			}
-
-			// 处理 reasoning content (如果有)
-			if message.ReasoningContent != "" {
-				reasoningEvent := map[string]interface{}{
-					"type":    "reasoning",
-					"content": message.ReasoningContent,
-				}
-				if data, err := json.Marshal(reasoningEvent); err == nil {
-					outputChan <- "data: " + string(data) + "\n\n"
-				}
-			}
-
-			// 累积工具调用
-			if len(message.ToolCalls) > 0 {
-				fullToolCalls = append(fullToolCalls, message.ToolCalls...)
-				// 发送工具调用事件
-				for _, tc := range message.ToolCalls {
-					toolCallEvent := map[string]interface{}{
-						"type":      "tool_call",
-						"tool_call": tc,
-						"function":  tc.Function.Name,
-						"arguments": tc.Function.Arguments,
-					}
-					if data, err := json.Marshal(toolCallEvent); err == nil {
-						outputChan <- "data: " + string(data) + "\n\n"
-					}
-				}
-			}
-
-			// 保存 usage 信息
-			if message.ResponseMeta != nil && message.ResponseMeta.Usage != nil {
-				usage = message.ResponseMeta.Usage
-			}
-		}
-
-		logger.Infof("Stream finished with %d messages for conversation %d", messageCount, conversationID)
-
-		// 构建助手响应消息
-		assistantMsg := &schema.Message{
-			Role:    schema.Assistant,
-			Content: fullContent,
-		}
-		if len(fullToolCalls) > 0 {
-			assistantMsg.ToolCalls = fullToolCalls
-		}
-
-		// 添加助手响应到消息列表
-		messages = append(messages, assistantMsg)
-
-		// 保存更新后的消息列表到数据库和缓存
-		if err := s.SaveMessages(ctx, userID, conv.ID, messages); err != nil {
-			logger.Errorf("RequestID[%s]: Failed to save messages: %v", utils.GetRequestID(ctx), err)
-		}
-
-		// 发送结束事件
-		endEvent := map[string]interface{}{
-			"type":          "end",
-			"message_count": messageCount,
-		}
-		if usage != nil {
-			endEvent["usage"] = map[string]interface{}{
-				"prompt_tokens":     usage.PromptTokens,
-				"completion_tokens": usage.CompletionTokens,
-				"total_tokens":      usage.TotalTokens,
-			}
-		}
-		if data, err := json.Marshal(endEvent); err == nil {
-			outputChan <- "data: " + string(data) + "\n\n"
-		}
-	}()
+	go processor.process(iter)
 
 	return outputChan, errChan, nil
+}
+
+// resumeInputOption 用于传递恢复时的用户输入
+type resumeInputOption struct {
+	input string
+}
+
+// WithResumeInput 创建一个包含恢复输入的工具选项
+func WithResumeInput(input string) einotool.Option {
+	return einotool.WrapImplSpecificOptFn(func(o *resumeInputOption) {
+		o.input = input
+	})
 }
 
 // GenerateTitleFromFirstMessage 从第一条消息生成标题

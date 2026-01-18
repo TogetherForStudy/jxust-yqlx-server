@@ -188,7 +188,7 @@ func (h *ChatHandler) ExportConversation(c *gin.Context) {
 	})
 }
 
-// StreamConversation SSE 流式对话
+// StreamConversation SSE 流式对话（支持新对话和恢复中断的对话）
 func (h *ChatHandler) StreamConversation(c *gin.Context) {
 	var req dto.ChatRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -196,9 +196,23 @@ func (h *ChatHandler) StreamConversation(c *gin.Context) {
 		return
 	}
 
+	// 验证请求：新对话需要 message，恢复需要 checkpoint_id
+	if !req.IsResume() && req.Message == nil {
+		helper.ValidateResponse(c, "message is required for new conversation")
+		return
+	}
+
 	userID := helper.GetUserID(c)
 
-	outputChan, errChan, err := h.service.StreamChat(c.Request.Context(), userID, req.ConversationID, &req.Message, helper.GetAuthorizationToken(c))
+	outputChan, errChan, err := h.service.StreamChat(
+		c.Request.Context(),
+		userID,
+		req.ConversationID,
+		req.Message,
+		helper.GetAuthorizationToken(c),
+		req.CheckpointID,
+		req.ResumeInput,
+	)
 	if err != nil {
 		logger.Errorf("RequestID[%s]: Failed to stream conversation: %v", utils.GetRequestID(c), err)
 		helper.ErrorResponse(c, http.StatusInternalServerError, "Failed to stream conversation")
@@ -220,7 +234,11 @@ func (h *ChatHandler) StreamConversation(c *gin.Context) {
 			if !ok {
 				return
 			}
-			c.Writer.Write([]byte(msg))
+			write, err := c.Writer.Write([]byte(msg))
+			if err != nil {
+				logger.Errorf("RequestID[%s]: Failed to write SSE message, written bytes: %d, error: %v", utils.GetRequestID(c), write, err)
+				return
+			}
 			c.Writer.Flush()
 		case err := <-errChan:
 			if err != nil {
@@ -229,7 +247,10 @@ func (h *ChatHandler) StreamConversation(c *gin.Context) {
 					"error": err.Error(),
 				}
 				if data, jsonErr := json.Marshal(errorEvent); jsonErr == nil {
-					c.Writer.Write([]byte("data: " + string(data) + "\n\n"))
+					write, err := c.Writer.Write([]byte("data: " + string(data) + "\n\n"))
+					if err != nil {
+						logger.Errorf("RequestID[%s]: Failed to write SSE error message, written bytes: %d, error: %v", utils.GetRequestID(c), write, err)
+					}
 					c.Writer.Flush()
 				}
 			}

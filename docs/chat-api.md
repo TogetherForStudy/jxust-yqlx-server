@@ -243,6 +243,29 @@ data: {"type":"end","message_count":15,"usage":{"prompt_tokens":100,"completion_
 - `tool_call`: 工具调用事件
 - `end`: 对话结束，包含统计信息
 
+POST /api/v0/chat/conversation
+
+```json
+{
+    "conversation_id": 123,
+    "message": {
+        "role": "user",
+        "content": "Hello"
+    }
+}
+```
+
+Resume Interrupted Conversation:
+
+POST /api/v0/chat/conversation
+
+```json
+{
+    "conversation_id": 123,
+    "checkpoint_id": "123:456:1234567890",
+    "resume_input": "user's additional input for the tool"
+}
+```
 ## 数据模型
 
 ### 响应格式速查表

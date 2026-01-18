@@ -3,7 +3,6 @@ package middleware
 import (
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
