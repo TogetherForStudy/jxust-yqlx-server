@@ -163,7 +163,7 @@ func (s *ChatService) ListConversations(ctx context.Context, userID uint, page, 
 	offset := (page - 1) * pageSize
 
 	if err := s.db.WithContext(ctx).Model(&models.Conversation{}).
-		Where("user_id = ? AND deleted_at = null", userID).
+		Where("user_id = ?", userID).
 		Count(&total).Error; err != nil {
 		logger.ErrorCtx(ctx, map[string]any{
 			"action":  "list_conversations_total",
