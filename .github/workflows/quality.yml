@@ -242,6 +242,7 @@ jobs:
           docker push ${{ env.IMAGE }}
 
       - name: Prepare and send deployment config
+        id: deploy
         run: |
           set -e
           BRANCH_NAME=${{ github.head_ref || github.ref_name }}
@@ -253,6 +254,28 @@ jobs:
           ssh-keyscan -H "${{ secrets.YQLX_DEPLOY_SERVER_IP }}" >> ~/.ssh/known_hosts
           
           echo "Modify config and pipe to remote script"
-          sed -e "s|  image: .*|  image: ${{ env.IMAGE }}|" \
+          DEPLOY_OUTPUT=$(sed -e "s|  image: .*|  image: ${{ env.IMAGE }}|" \
               -e "/backend:/,/frontend:/s|  branch: main|  branch: $BRANCH_NAME|" \
-              ci-test-opt.yml.example | ssh -o IdentitiesOnly=yes -i ~/.ssh/id_rsa root@${{ secrets.YQLX_DEPLOY_SERVER_IP }} 'python3 /opt/deploy/gateway.py test-deploy'
+              ci-test-opt.yml.example | ssh -o IdentitiesOnly=yes -i ~/.ssh/id_rsa root@${{ secrets.YQLX_DEPLOY_SERVER_IP }} 'python3 /opt/deploy/gateway.py test-deploy' 2>&1)
+          
+          echo "$DEPLOY_OUTPUT"
+          
+          # Extract the deployment URL
+          DEPLOY_URL=$(echo "$DEPLOY_OUTPUT" | grep -oP 'Access at: \Khttps://[^\s]+' || echo "")
+          echo "deploy_url=$DEPLOY_URL" >> $GITHUB_OUTPUT
+
+      - name: Comment PR with deployment URL
+        if: steps.deploy.outputs.deploy_url != ''
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const deployUrl = '${{ steps.deploy.outputs.deploy_url }}';
+            const prNumber = context.issue.number;
+            const comment = `🚀 **部署成功！**\n\n测试环境已部署，可通过以下地址访问：\n\n**${deployUrl}**\n\n---\n*部署镜像: \`${{ env.IMAGE }}\`*`;
+            
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: comment
+            });
