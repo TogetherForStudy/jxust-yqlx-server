@@ -47,7 +47,7 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           args: --timeout=5m
-          version: v2
+          version: v2.8
   unit-test:
     name: Code-Quality / Unit-Test
     runs-on: ubuntu-latest
