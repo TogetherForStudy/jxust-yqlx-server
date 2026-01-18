@@ -22,6 +22,10 @@ func NewPomodoroHandler(pomodoroService *services.PomodoroService) *PomodoroHand
 // Increment 增加番茄钟次数
 func (h *PomodoroHandler) Increment(c *gin.Context) {
 	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	err := h.pomodoroService.IncrementPomodoroCount(c, userID)
 	if err != nil {

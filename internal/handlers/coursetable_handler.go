@@ -36,9 +36,9 @@ func NewCourseTableHandler(courseTableService *services.CourseTableService) *Cou
 // @Router /api/v0/coursetable [get]
 func (h *CourseTableHandler) GetCourseTable(c *gin.Context) {
 	// 从上下文中获取用户ID（通过认证中间件设置）
-	userID, exists := helper.GetUserID(c)
-	if !exists {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "用户未认证")
+	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
 		return
 	}
 
@@ -48,7 +48,7 @@ func (h *CourseTableHandler) GetCourseTable(c *gin.Context) {
 		return
 	}
 
-	result, err := h.courseTableService.GetUserCourseTableWithVersion(c, userID.(uint), req.Semester, req.LastModified)
+	result, err := h.courseTableService.GetUserCourseTableWithVersion(c, userID, req.Semester, req.LastModified)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -107,9 +107,9 @@ func (h *CourseTableHandler) SearchClasses(c *gin.Context) {
 // @Router /api/v0/coursetable/class [put]
 func (h *CourseTableHandler) UpdateUserClass(c *gin.Context) {
 	// 从上下文中获取用户ID（通过认证中间件设置）
-	userID, exists := helper.GetUserID(c)
-	if !exists {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "用户未认证")
+	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
 		return
 	}
 
@@ -119,7 +119,7 @@ func (h *CourseTableHandler) UpdateUserClass(c *gin.Context) {
 		return
 	}
 
-	err := h.courseTableService.UpdateUserClass(c, userID.(uint), req.ClassID)
+	err := h.courseTableService.UpdateUserClass(c, userID, req.ClassID)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
@@ -141,9 +141,9 @@ func (h *CourseTableHandler) UpdateUserClass(c *gin.Context) {
 // @Router /api/v0/coursetable [put]
 func (h *CourseTableHandler) EditCourseCell(c *gin.Context) {
 	// 从上下文中获取用户ID（通过认证中间件设置）
-	userID, exists := helper.GetUserID(c)
-	if !exists {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "用户未认证")
+	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
 		return
 	}
 
@@ -167,7 +167,7 @@ func (h *CourseTableHandler) EditCourseCell(c *gin.Context) {
 		return
 	}
 
-	if err := h.courseTableService.EditUserCourseCell(c, userID.(uint), req.Semester, req.Index, bytesValue); err != nil {
+	if err := h.courseTableService.EditUserCourseCell(c, userID, req.Semester, req.Index, bytesValue); err != nil {
 		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}

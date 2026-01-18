@@ -87,13 +87,13 @@ func (h *AuthHandler) MockWechatLogin(c *gin.Context) {
 // @Failure 401 {object} utils.Response
 // @Router /api/user/profile [get]
 func (h *AuthHandler) GetProfile(c *gin.Context) {
-	userID, exists := helper.GetUserID(c)
-	if !exists {
+	userID := helper.GetUserID(c)
+	if userID == 0 {
 		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
 		return
 	}
 
-	user, err := h.authService.GetUserByID(c, userID.(uint))
+	user, err := h.authService.GetUserByID(c, userID)
 	if err != nil {
 		helper.ErrorResponse(c, http.StatusNotFound, "用户不存在")
 		return
@@ -146,8 +146,8 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 // @Failure 400 {object} utils.Response
 // @Router /api/user/profile [put]
 func (h *AuthHandler) UpdateProfile(c *gin.Context) {
-	userID, exists := helper.GetUserID(c)
-	if !exists {
+	userID := helper.GetUserID(c)
+	if userID == 0 {
 		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
 		return
 	}
@@ -188,7 +188,7 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 		updates["class_id"] = *req.ClassID
 	}
 
-	if err := h.authService.UpdateUserProfile(c, userID.(uint), updates); err != nil {
+	if err := h.authService.UpdateUserProfile(c, userID, updates); err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, "更新失败")
 		return
 	}

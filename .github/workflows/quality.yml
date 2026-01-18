@@ -215,8 +215,6 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.base_ref }}
 
       - name: Build Docker Image
         run: |

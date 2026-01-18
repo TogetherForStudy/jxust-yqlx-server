@@ -24,6 +24,10 @@ func NewNotificationHandler(notificationService *services.NotificationService) *
 // CreateNotification 创建通知（运营专用）
 func (h *NotificationHandler) CreateNotification(c *gin.Context) {
 	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	var req request.CreateNotificationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -118,6 +122,10 @@ func (h *NotificationHandler) GetNotificationAdminByID(c *gin.Context) {
 // UpdateNotification 更新通知
 func (h *NotificationHandler) UpdateNotification(c *gin.Context) {
 	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -144,6 +152,10 @@ func (h *NotificationHandler) UpdateNotification(c *gin.Context) {
 // PublishNotification 发布通知
 func (h *NotificationHandler) PublishNotification(c *gin.Context) {
 	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -164,6 +176,10 @@ func (h *NotificationHandler) PublishNotification(c *gin.Context) {
 // PublishNotificationAdmin 管理员直接发布通知（跳过审核流程）
 func (h *NotificationHandler) PublishNotificationAdmin(c *gin.Context) {
 	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -209,6 +225,10 @@ func (h *NotificationHandler) ConvertToSchedule(c *gin.Context) {
 // DeleteNotification 删除通知
 func (h *NotificationHandler) DeleteNotification(c *gin.Context) {
 	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -281,6 +301,10 @@ func (h *NotificationHandler) UpdateCategory(c *gin.Context) {
 // ApproveNotification 审核通知（管理员专用）
 func (h *NotificationHandler) ApproveNotification(c *gin.Context) {
 	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)

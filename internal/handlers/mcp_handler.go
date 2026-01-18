@@ -82,6 +82,10 @@ func NewMCPHandler(
 func (h *MCPHandler) Handle(c *gin.Context) {
 	// Get user info from Gin context (set by AuthMiddleware)
 	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	// Inject user info into request context for MCP tool handlers
 	ctx := context.WithValue(c.Request.Context(), mcpUserIDKey, userID)

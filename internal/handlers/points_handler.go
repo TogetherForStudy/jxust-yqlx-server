@@ -64,6 +64,10 @@ func (h *PointsHandler) GetUserPoints(c *gin.Context) {
 // GetPointsTransactions 获取积分交易记录
 func (h *PointsHandler) GetPointsTransactions(c *gin.Context) {
 	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	var req request.GetPointsTransactionsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -100,6 +104,10 @@ func (h *PointsHandler) GetPointsTransactions(c *gin.Context) {
 // RedeemPoints 兑换积分
 func (h *PointsHandler) SpendPoints(c *gin.Context) {
 	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
 
 	var req request.SpendPointsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

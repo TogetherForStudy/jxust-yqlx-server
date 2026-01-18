@@ -81,8 +81,8 @@ func (h *MaterialHandler) GetMaterialDetail(c *gin.Context) {
 
 	// 获取用户ID（可选，未登录用户也可以查看）
 	var userIDPtr *uint
-	if userID, exists := helper.GetUserID(c); exists {
-		uid := userID.(uint)
+	if userID := helper.GetUserID(c); userID != 0 {
+		uid := userID
 		userIDPtr = &uid
 	}
 
@@ -168,12 +168,12 @@ func (h *MaterialHandler) SearchMaterials(c *gin.Context) {
 	}
 
 	// 记录搜索日志
-	if userID, exists := helper.GetUserID(c); exists {
+	if userID := helper.GetUserID(c); userID != 0 {
 		logReq := &request.MaterialLogCreateRequest{
 			Type:     1, // 搜索
 			Keywords: req.Keywords,
 		}
-		if err := h.materialService.CreateMaterialLog(c.Request.Context(), userID.(uint), logReq); err != nil {
+		if err := h.materialService.CreateMaterialLog(c.Request.Context(), userID, logReq); err != nil {
 			helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -226,8 +226,8 @@ func (h *MaterialHandler) GetTopMaterials(c *gin.Context) {
 // @Failure 400 {object} helper.Response
 // @Router /api/materials/{md5}/rating [post]
 func (h *MaterialHandler) RateMaterial(c *gin.Context) {
-	userID, exists := helper.GetUserID(c)
-	if !exists {
+	userID := helper.GetUserID(c)
+	if userID == 0 {
 		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
 		return
 	}
@@ -244,7 +244,7 @@ func (h *MaterialHandler) RateMaterial(c *gin.Context) {
 		return
 	}
 
-	if err := h.materialService.RateMaterial(c.Request.Context(), userID.(uint), md5, req.Rating); err != nil {
+	if err := h.materialService.RateMaterial(c.Request.Context(), userID, md5, req.Rating); err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -359,8 +359,8 @@ func (h *MaterialHandler) GetHotWords(c *gin.Context) {
 // @Failure 400 {object} helper.Response
 // @Router /api/materials/{md5}/download [post]
 func (h *MaterialHandler) DownloadMaterial(c *gin.Context) {
-	userID, exists := helper.GetUserID(c)
-	if !exists {
+	userID := helper.GetUserID(c)
+	if userID == 0 {
 		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
 		return
 	}
@@ -377,7 +377,7 @@ func (h *MaterialHandler) DownloadMaterial(c *gin.Context) {
 		MaterialMD5: md5,
 	}
 
-	if err := h.materialService.CreateMaterialLog(c.Request.Context(), userID.(uint), logReq); err != nil {
+	if err := h.materialService.CreateMaterialLog(c.Request.Context(), userID, logReq); err != nil {
 		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
