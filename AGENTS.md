@@ -18,9 +18,7 @@ This project is the back-end service for a WeChat mini-program called "GoJxust",
 ## Code Style and Conventions
 
 1. All handlers and services **MUST** pass the `ctx context.Context` parameter.
-2. Use pre-packaged logging components such as `logger.Errorf` and `logger.Infoln`, and include the RequestID in the log message, for example: `logger.Errorf("RequestID[%s]: Failed to get conversation: %v", utils.GetRequestID(ctx), err)`
-3. Use `helper.GetUserID(c)` to obtain the user ID from the gin context.
-4. Use `helper.SuccessResponse(c, struct_or_msg)` to return successful responses,
+2. Use `helper.SuccessResponse(c, struct_or_msg)` to return successful responses,
    `helper.ErrorResponse(c, code, msg)` to return error responses, `helper.PageSuccessResponse(c, result, total, page, pageSize)` for paginated responses.
 
 ## Building and Running
