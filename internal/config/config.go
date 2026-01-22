@@ -4,13 +4,16 @@ import (
 	"os"
 	"sync"
 
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 	"github.com/caarlos0/env/v11"
+	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
 	Database `yaml:"database"`
 	Redis    `yaml:"redis"`
 	MinIO    `yaml:"minio"`
+	LLM      `yaml:"llm"`
 
 	JWTSecret       string `yaml:"jwt_secret" env:"JWT_SECRET"`
 	ServerPort      string `yaml:"server_port" env:"SERVER_PORT" envDefault:"8085"`
@@ -30,7 +33,7 @@ type Config struct {
 	ClsTopicID   string `yaml:"cls_topic_id" env:"CLS_TOPIC_ID"`
 
 	// For minio signature and correct reverse proxy configuration
-	Host   string `yaml:"host" env:"HOST" envDefault:"localhost:8085"`
+	Host   string `yaml:"host" env:"HOST" envDefault:"localhost:8085"` // The port is usually the same as the ServerPort.
 	Scheme string `yaml:"scheme" env:"SCHEME" envDefault:"http"`
 }
 
@@ -58,6 +61,14 @@ type MinIO struct {
 	BucketName     string `yaml:"bucket_name" env:"BUCKET_NAME" envDefault:"yqlx"`
 }
 
+type LLM struct {
+	RAGFlowMCPURL string `yaml:"ragflow_mcp_url" env:"RAGFLOW_MCP_URL" envDefault:""` // e.g., "http://localhost:8080/mcp/sse"
+	RAGFlowAPIKey string `yaml:"ragflow_api_key" env:"RAGFLOW_API_KEY" envDefault:""`
+	Model         string `yaml:"llm_model" env:"LLM_MODEL" envDefault:"gpt-4"`
+	APIKey        string `yaml:"llm_api_key" env:"LLM_API_KEY" envDefault:""`
+	BaseURL       string `yaml:"llm_base_url" env:"LLM_BASE_URL" envDefault:""`
+}
+
 var _once sync.Once
 
 // NewConfig initializes and return the configuration by reading environment variables.
@@ -66,10 +77,25 @@ var _once sync.Once
 func NewConfig() *Config {
 	_once.Do(func() {
 		var cfg Config
-		if err := env.Parse(&cfg); err != nil {
-			println("Failed to parse environment variables: ", err)
-			os.Exit(1)
+		_, err := os.Stat("yqlx-config.yaml")
+		if err == nil {
+			// Load from yaml file if exists
+			file, err := os.Open("yqlx-config.yaml")
+			if err != nil {
+				logger.Fatalln("Failed to open config file: ", err)
+			}
+			err = yaml.NewDecoder(file).Decode(&cfg)
+			if err != nil {
+				logger.Fatalln("Failed to parse config file: ", err)
+			}
+			logger.Info("Loading configuration from yqlx-config.yaml")
+			GlobalConfig = &cfg
+			return
 		}
+		if err := env.Parse(&cfg); err != nil {
+			logger.Fatalln("Failed to parse environment variables: ", err)
+		}
+		logger.Info("Loading configuration from environment variables")
 		GlobalConfig = &cfg
 	})
 

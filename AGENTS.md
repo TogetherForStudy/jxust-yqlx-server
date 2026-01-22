@@ -15,6 +15,14 @@ This project is the back-end service for a WeChat mini-program called "GoJxust",
 *   **Configuration:** Environment variables
 *   **Object Storage:** MinIO
 
+## Code Style and Conventions
+
+1. All handlers and services **MUST** pass the `ctx context.Context` parameter.
+2. Use pre-packaged logging components such as `logger.Errorf` and `logger.Infoln`, and include the RequestID in the log message, for example: `logger.Errorf("RequestID[%s]: Failed to get conversation: %v", utils.GetRequestID(ctx), err)`
+3. Use `helper.GetUserID(c)` to obtain the user ID from the gin context.
+4. Use `helper.SuccessResponse(c, struct_or_msg)` to return successful responses,
+   `helper.ErrorResponse(c, code, msg)` to return error responses, `helper.PageSuccessResponse(c, result, total, page, pageSize)` for paginated responses.
+
 ## Building and Running
 
 The project uses a `Makefile` to streamline common development tasks.
@@ -34,14 +42,6 @@ The `README.md` suggests running the application directly using `go run`:
 ```shell
 go run cmd/apiserver/main.go
 ```
-
-Before running, you need to set up the configuration in a `.env` file. You can copy the example file:
-
-```shell
-cp .env.example .env
-```
-
-And then edit the `.env` file with your database, JWT, and other settings.
 
 **Run unit tests:**
 
@@ -95,9 +95,11 @@ make docker-build
     *   `internal/models`: Defines the data structures and interacts with the database.
     *   `internal/router`: Defines the API routes and wires up the handlers.
     *   `internal/dto`: Defines data transfer objects for requests and responses.
+    *   `internal/pkg/cache`: Contains caching logic using Redis.
+    *   `internal/middleware`: Contains middleware functions for authentication, logging, etc.
+    *   `internal/config`: Manages application configuration via environment variables, loaded from a `.env` file or yaml config file.
+    *   `pkg/constant`: Contains application-wide constants.
 *   **API Versioning:** The API is versioned under the `/api/v0` path.
 *   **Authentication:** JWT-based authentication is used for protected routes. The authentication middleware is in `internal/middleware/middleware.go`.
 *   **Database Migrations:** The application uses GORM's auto-migration feature to keep the database schema up-to-date.
 *   **Dependency Management:** Go modules are used for dependency management. Dependencies are listed in the `go.mod` file.
-*   **Configuration:** Configuration is managed through environment variables, loaded from a `.env` file.
-*   **Code Style:** The project follows standard Go formatting. Use `gofmt` to format your code.

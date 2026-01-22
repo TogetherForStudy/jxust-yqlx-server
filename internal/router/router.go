@@ -57,6 +57,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	pomodoroService := services.NewPomodoroService(db)
 	statService := services.NewStatService()
 	dictionaryService := services.NewDictionaryService(db)
+	chatService := services.NewChatService(db, cfg)
 
 	// 初始化处理器
 	rbacHandler := handlers.NewRBACHandler(rbacService)
@@ -79,6 +80,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	pomodoroHandler := handlers.NewPomodoroHandler(pomodoroService)
 	statHandler := handlers.NewStatHandler(statService)
 	dictionaryHandler := handlers.NewDictionaryHandler(dictionaryService)
+	chatHandler := handlers.NewChatHandler(chatService)
 
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
@@ -341,6 +343,19 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				pomodoro.GET("/ranking", middleware.RequirePermission(rbacService, models.PermissionPomodoro), pomodoroHandler.GetRanking)   // 获取排名
 			}
 
+			// 聊天对话相关路由（需认证）
+			chat := authorized.Group("/chat", middleware.RequirePermission(rbacService, models.PermissionChatStudy))
+			{
+				chat.POST("/conversations", middleware.IdempotencyRecommended(ca), chatHandler.CreateConversation) // 创建对话
+				chat.GET("/conversations", chatHandler.ListConversations)                                          // 列出对话
+				chat.GET("/conversations/:id", chatHandler.ChooseConversation)                                     // 选择对话（返回历史消息）
+				chat.PUT("/conversations/:id", chatHandler.UpdateConversation)                                     // 更新对话
+				chat.DELETE("/conversations/:id", chatHandler.DeleteConversation)                                  // 删除对话
+				chat.GET("/conversations/:id/export", chatHandler.ExportConversation)                              // 导出对话
+				chat.POST("/conversation", chatHandler.StreamConversation)                                         // 流式对话
+			}
+
+			// 通知管理路由（需要运营权限）
 			// 统计（需认证）
 			stat := authorized.Group("/stat")
 			{

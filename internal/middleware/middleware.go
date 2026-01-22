@@ -3,7 +3,6 @@ package middleware
 import (
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
@@ -112,16 +111,9 @@ func Logger() gin.HandlerFunc {
 // AuthMiddleware JWT认证中间件
 func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			helper.ErrorResponse(c, http.StatusUnauthorized, "未授权访问")
-			c.Abort()
-			return
-		}
-
 		// 检查Bearer前缀
-		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-		if tokenString == authHeader {
+		tokenString := helper.GetAuthorizationToken(c)
+		if tokenString == "" {
 			helper.ErrorResponse(c, http.StatusUnauthorized, "无效的 Authorization 头")
 			c.Abort()
 			return
