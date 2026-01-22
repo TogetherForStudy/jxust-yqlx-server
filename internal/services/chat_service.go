@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
@@ -69,10 +68,6 @@ type ChatService struct {
 	cfg             *config.Config
 	llm             einomodel.ToolCallingChatModel
 	checkPointStore compose.CheckPointStore
-
-	//mcpClients    mcpClient          // global
-	userClients   map[uint]mcpClient // per-user MCP 客户端集合 key: userID, value: mcpClient
-	userClientsMu sync.RWMutex
 }
 
 func NewChatService(db *gorm.DB, cfg *config.Config) *ChatService {
@@ -81,7 +76,6 @@ func NewChatService(db *gorm.DB, cfg *config.Config) *ChatService {
 		cfg:             cfg,
 		httpClient:      &http.Client{Timeout: 30 * time.Second}, // todo: 全局 http client 可以考虑放到更上层统一管理
 		checkPointStore: newRedisCheckPointStore(),
-		userClients:     make(map[uint]mcpClient),
 	}
 }
 
@@ -420,7 +414,7 @@ func (s *ChatService) SaveMessages(ctx context.Context, userID, conversationID u
 
 // todo: mcp server 除了系统内置的 mcp client 之外，还可以支持用户自定义的 mcp client
 func (s *ChatService) prepareUserMcpClient(ctx context.Context, userID uint, userToken string) (mcpClient, error) {
-	yqlxMcpClient, err := client.NewStreamableHttpClient(fmt.Sprintf("http://127.0.0.1:%s/api/mcp", s.cfg.ServerPort), // yqlx自身的 MCP 转发接口 //todo:使用github.com/mark3labs/mcp-go/mcp重构后直接走api调用，不过网络栈
+	yqlxMcpClient, err := client.NewStreamableHttpClient(fmt.Sprintf("%s://%s/api/mcp", s.cfg.Scheme, s.cfg.Host), // yqlx自身的 MCP 转发接口 //todo:使用github.com/mark3labs/mcp-go/mcp重构后直接走api调用，不过网络栈
 		transport.WithHTTPHeaders(
 			map[string]string{
 				"Authorization": fmt.Sprintf("Bearer %s", userToken),
@@ -473,10 +467,6 @@ func (s *ChatService) prepareUserMcpClient(ctx context.Context, userID uint, use
 		"yqlx":    yqlxMcpClient,
 		"ragflow": ragMcpClient,
 	}
-
-	s.userClientsMu.Lock()
-	s.userClients[userID] = m
-	s.userClientsMu.Unlock()
 	return m, nil
 }
 
@@ -951,15 +941,4 @@ func (s *ChatService) ExportConversation(ctx context.Context, userID, conversati
 	}
 
 	return conv, messages, nil
-}
-
-// Cleanup 清理资源
-func (s *ChatService) Cleanup() {
-	s.userClientsMu.Lock()
-	defer s.userClientsMu.Unlock()
-	for _, client := range s.userClients {
-		if client != nil {
-			// TODO: close client when needed
-		}
-	}
 }

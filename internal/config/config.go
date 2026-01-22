@@ -33,7 +33,7 @@ type Config struct {
 	ClsTopicID   string `yaml:"cls_topic_id" env:"CLS_TOPIC_ID"`
 
 	// For minio signature and correct reverse proxy configuration
-	Host   string `yaml:"host" env:"HOST" envDefault:"localhost:8085"`
+	Host   string `yaml:"host" env:"HOST" envDefault:"localhost:8085"` // The port is usually the same as the ServerPort.
 	Scheme string `yaml:"scheme" env:"SCHEME" envDefault:"http"`
 }
 
@@ -93,8 +93,7 @@ func NewConfig() *Config {
 			return
 		}
 		if err := env.Parse(&cfg); err != nil {
-			println("Failed to parse environment variables: ", err)
-			os.Exit(1)
+			logger.Fatalln("Failed to parse environment variables: ", err)
 		}
 		logger.Info("Loading configuration from environment variables")
 		GlobalConfig = &cfg
