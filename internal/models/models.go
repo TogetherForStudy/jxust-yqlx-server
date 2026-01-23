@@ -3,6 +3,7 @@ package models
 import (
 	"time"
 
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -33,8 +34,8 @@ type User struct {
 type UserStatus int8
 
 const (
-	UserStatusNormal   UserStatus = 1 // 正常
-	UserStatusDisabled UserStatus = 2 // 禁用
+	UserStatusNormal   UserStatus = constant.UserStatusNormal   // 正常
+	UserStatusDisabled UserStatus = constant.UserStatusDisabled // 禁用
 )
 
 // TeacherReview 教师评价模型
@@ -58,17 +59,17 @@ type TeacherAttitude int8
 
 // 评价态度常量定义（提升可读性）
 const (
-	AttitudeNeutral   TeacherAttitude = 3 // 中立
-	AttitudeRecommend TeacherAttitude = 1 // 推荐
-	AttitudeAvoid     TeacherAttitude = 2 // 避雷
+	AttitudeNeutral   TeacherAttitude = constant.AttitudeNeutral   // 中立
+	AttitudeRecommend TeacherAttitude = constant.AttitudeRecommend // 推荐
+	AttitudeAvoid     TeacherAttitude = constant.AttitudeAvoid     // 避雷
 )
 
 type TeacherReviewStatus int8
 
 const (
-	TeacherReviewStatusPending  TeacherReviewStatus = 1 // 待审核
-	TeacherReviewStatusApproved TeacherReviewStatus = 2 // 已通过
-	TeacherReviewStatusRejected TeacherReviewStatus = 3 // 已拒绝
+	TeacherReviewStatusPending  TeacherReviewStatus = constant.TeacherReviewStatusPending  // 待审核
+	TeacherReviewStatusApproved TeacherReviewStatus = constant.TeacherReviewStatusApproved // 已通过
+	TeacherReviewStatusRejected TeacherReviewStatus = constant.TeacherReviewStatusRejected // 已拒绝
 )
 
 // 课程表模型
@@ -176,18 +177,18 @@ type Notification struct {
 type NotificationPublisherType int8
 
 const (
-	NotificationPublisherOperator NotificationPublisherType = 1 // 运营发布
-	NotificationPublisherUser     NotificationPublisherType = 2 // 用户投稿
+	NotificationPublisherOperator NotificationPublisherType = constant.NotificationPublisherOperator // 运营发布
+	NotificationPublisherUser     NotificationPublisherType = constant.NotificationPublisherUser     // 用户投稿
 )
 
 // NotificationStatus 通知状态
 type NotificationStatus int8
 
 const (
-	NotificationStatusDraft     NotificationStatus = 1 // 草稿
-	NotificationStatusPending   NotificationStatus = 2 // 待审核
-	NotificationStatusPublished NotificationStatus = 3 // 已发布
-	NotificationStatusDeleted   NotificationStatus = 4 // 已删除
+	NotificationStatusDraft     NotificationStatus = constant.NotificationStatusDraft     // 草稿
+	NotificationStatusPending   NotificationStatus = constant.NotificationStatusPending   // 待审核
+	NotificationStatusPublished NotificationStatus = constant.NotificationStatusPublished // 已发布
+	NotificationStatusDeleted   NotificationStatus = constant.NotificationStatusDeleted   // 已删除
 )
 
 // NotificationApproval 通知审核记录模型
@@ -205,8 +206,8 @@ type NotificationApproval struct {
 type NotificationApprovalStatus int8
 
 const (
-	NotificationApprovalStatusApproved NotificationApprovalStatus = 1 // 同意
-	NotificationApprovalStatusRejected NotificationApprovalStatus = 2 // 拒绝
+	NotificationApprovalStatusApproved NotificationApprovalStatus = constant.NotificationApprovalStatusApproved // 同意
+	NotificationApprovalStatusRejected NotificationApprovalStatus = constant.NotificationApprovalStatusRejected // 拒绝
 )
 
 // ScheduleData 日程数据结构（用于JSON存储）
@@ -242,17 +243,17 @@ type PointsTransaction struct {
 type PointsTransactionType int8
 
 const (
-	PointsTransactionTypeEarn  PointsTransactionType = 1 // 获得
-	PointsTransactionTypeSpend PointsTransactionType = 2 // 消耗
+	PointsTransactionTypeEarn  PointsTransactionType = constant.PointsTransactionTypeEarn  // 获得
+	PointsTransactionTypeSpend PointsTransactionType = constant.PointsTransactionTypeSpend // 消耗
 )
 
 // PointsTransactionSource 积分交易来源常量
 const (
-	PointsTransactionSourceDailyLogin   = "daily_login"  // 每日登录
-	PointsTransactionSourceReview       = "review"       // 发布评价并审核通过
-	PointsTransactionSourceContribution = "contribution" // 投稿信息并审核通过
-	PointsTransactionSourceRedeem       = "redeem"       // 兑换奖品
-	PointsTransactionSourceAdminGrant   = "admin_grant"  // 管理员手动赋予
+	PointsTransactionSourceDailyLogin   = constant.PointsTransactionSourceDailyLogin   // 每日登录
+	PointsTransactionSourceReview       = constant.PointsTransactionSourceReview       // 发布评价并审核通过
+	PointsTransactionSourceContribution = constant.PointsTransactionSourceContribution // 投稿信息并审核通过
+	PointsTransactionSourceRedeem       = constant.PointsTransactionSourceRedeem       // 兑换奖品
+	PointsTransactionSourceAdminGrant   = constant.PointsTransactionSourceAdminGrant   // 管理员手动赋予
 )
 
 // UserActivity 用户活动记录模型
@@ -291,9 +292,9 @@ type UserContribution struct {
 type UserContributionStatus int8
 
 const (
-	UserContributionStatusPending  UserContributionStatus = 1 // 待审核
-	UserContributionStatusApproved UserContributionStatus = 2 // 已采纳
-	UserContributionStatusRejected UserContributionStatus = 3 // 已拒绝
+	UserContributionStatusPending  UserContributionStatus = constant.UserContributionStatusPending  // 待审核
+	UserContributionStatusApproved UserContributionStatus = constant.UserContributionStatusApproved // 已采纳
+	UserContributionStatusRejected UserContributionStatus = constant.UserContributionStatusRejected // 已拒绝
 )
 
 // ==================== 倒数日功能模型 ====================
@@ -331,17 +332,17 @@ type StudyTask struct {
 type StudyTaskPriority int8
 
 const (
-	StudyTaskPriorityHigh   StudyTaskPriority = 1 // 高
-	StudyTaskPriorityMedium StudyTaskPriority = 2 // 中
-	StudyTaskPriorityLow    StudyTaskPriority = 3 // 低
+	StudyTaskPriorityHigh   StudyTaskPriority = constant.StudyTaskPriorityHigh   // 高
+	StudyTaskPriorityMedium StudyTaskPriority = constant.StudyTaskPriorityMedium // 中
+	StudyTaskPriorityLow    StudyTaskPriority = constant.StudyTaskPriorityLow    // 低
 )
 
 // StudyTaskStatus 学习任务状态
 type StudyTaskStatus int8
 
 const (
-	StudyTaskStatusPending   StudyTaskStatus = 1 // 待完成
-	StudyTaskStatusCompleted StudyTaskStatus = 2 // 已完成
+	StudyTaskStatusPending   StudyTaskStatus = constant.StudyTaskStatusPending   // 待完成
+	StudyTaskStatusCompleted StudyTaskStatus = constant.StudyTaskStatusCompleted // 已完成
 )
 
 // ==================== 资料管理系统模型 ====================
@@ -404,10 +405,10 @@ type MaterialLog struct {
 type MaterialLogType int8
 
 const (
-	MaterialLogTypeSearch   MaterialLogType = 1 // 搜索
-	MaterialLogTypeView     MaterialLogType = 2 // 查看
-	MaterialLogTypeRating   MaterialLogType = 3 // 评分
-	MaterialLogTypeDownload MaterialLogType = 4 // 下载
+	MaterialLogTypeSearch   MaterialLogType = constant.MaterialLogTypeSearch   // 搜索
+	MaterialLogTypeView     MaterialLogType = constant.MaterialLogTypeView     // 查看
+	MaterialLogTypeRating   MaterialLogType = constant.MaterialLogTypeRating   // 评分
+	MaterialLogTypeDownload MaterialLogType = constant.MaterialLogTypeDownload // 下载
 )
 
 // =============== 刷题功能相关模型 ===============
@@ -449,8 +450,8 @@ type Question struct {
 type QuestionType int8
 
 const (
-	QuestionTypeChoice QuestionType = 1 // 选择题
-	QuestionTypeEssay  QuestionType = 2 // 简答题
+	QuestionTypeChoice QuestionType = constant.QuestionTypeChoice // 选择题
+	QuestionTypeEssay  QuestionType = constant.QuestionTypeEssay  // 简答题
 )
 
 // UserProjectUsage 用户对项目的使用记录

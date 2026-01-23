@@ -20,6 +20,7 @@ This project is the back-end service for a WeChat mini-program called "GoJxust",
 1. All handlers and services **MUST** pass the `ctx context.Context` parameter.
 2. Use `helper.SuccessResponse(c, struct_or_msg)` to return successful responses,
    `helper.ErrorResponse(c, code, msg)` to return error responses, `helper.PageSuccessResponse(c, result, total, page, pageSize)` for paginated responses.
+3. All constants, except for those related to DTOs, are stored in `pkg/constant` .
 
 ## Building and Running
 

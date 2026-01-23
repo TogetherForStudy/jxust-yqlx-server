@@ -8,16 +8,10 @@ import (
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/worker"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 
 	"gorm.io/gorm"
-)
-
-// Task type constants
-const (
-	TaskTypeStudy    = "study"
-	TaskTypePractice = "practice"
-	TaskTypeUsage    = "usage"
 )
 
 // QuestionTask represents a question-related async task.
@@ -81,11 +75,11 @@ func (p *QuestionTaskProcessor) ProcessTask(ctx context.Context, task worker.Tas
 	}
 
 	switch qt.Type {
-	case TaskTypeStudy:
+	case constant.TaskTypeStudy:
 		return p.syncStudyToDB(ctx, qt.UserID, qt.QuestionID, qt.Time)
-	case TaskTypePractice:
+	case constant.TaskTypePractice:
 		return p.syncPracticeToDB(ctx, qt.UserID, qt.QuestionID, qt.Time)
-	case TaskTypeUsage:
+	case constant.TaskTypeUsage:
 		return p.syncUsageToDB(ctx, qt.UserID, qt.ProjectID, qt.Time)
 	default:
 		return fmt.Errorf("unknown task type: %s", qt.Type)
@@ -103,7 +97,7 @@ func (p *QuestionTaskProcessor) Unmarshal(data []byte) (worker.Task, error) {
 
 // GetSupportedTypes returns the list of task types this processor handles.
 func (p *QuestionTaskProcessor) GetSupportedTypes() []string {
-	return []string{TaskTypeStudy, TaskTypePractice, TaskTypeUsage}
+	return []string{constant.TaskTypeStudy, constant.TaskTypePractice, constant.TaskTypeUsage}
 }
 
 // syncStudyToDB syncs study count to database.

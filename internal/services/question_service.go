@@ -12,6 +12,7 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/worker/processors"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 
 	"gorm.io/gorm"
 )
@@ -264,7 +265,7 @@ func (s *QuestionService) RecordStudy(ctx context.Context, userID uint, req *req
 	now := time.Now()
 	// 将任务推送到 Redis 队列
 	task := processors.QuestionTask{
-		Type:       processors.TaskTypeStudy,
+		Type:       constant.TaskTypeStudy,
 		UserID:     userID,
 		QuestionID: req.QuestionID,
 		Time:       now,
@@ -303,7 +304,7 @@ func (s *QuestionService) SubmitPractice(ctx context.Context, userID uint, req *
 	now := time.Now()
 	// 将任务推送到 Redis 队列
 	task := processors.QuestionTask{
-		Type:       processors.TaskTypePractice,
+		Type:       constant.TaskTypePractice,
 		UserID:     userID,
 		QuestionID: req.QuestionID,
 		Time:       now,
@@ -339,7 +340,7 @@ func (s *QuestionService) updateProjectUsage(ctx context.Context, userID, projec
 
 	// 将任务推送到 Redis 队列
 	task := processors.QuestionTask{
-		Type:      processors.TaskTypeUsage,
+		Type:      constant.TaskTypeUsage,
 		UserID:    userID,
 		ProjectID: projectID,
 		Time:      now,

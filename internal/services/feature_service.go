@@ -7,19 +7,10 @@ import (
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 
 	json "github.com/bytedance/sonic"
 	"gorm.io/gorm"
-)
-
-const (
-	// 缓存Key前缀
-	cacheKeyUserFeatures   = "user_features:%d"   // 用户功能列表缓存
-	cacheKeyFeatureEnabled = "feature_enabled:%s" // 功能全局开关缓存
-
-	// 缓存过期时间
-	userFeaturesCacheTTL   = 5 * time.Minute  // 用户功能列表缓存5分钟
-	featureEnabledCacheTTL = 10 * time.Minute // 功能开关缓存10分钟
 )
 
 type FeatureService struct {
@@ -69,7 +60,7 @@ func (s *FeatureService) CheckUserFeature(ctx context.Context, userID uint, feat
 func (s *FeatureService) GetUserFeatures(ctx context.Context, userID uint) ([]string, error) {
 	// 1. 尝试从缓存获取
 	if s.cache != nil {
-		cacheKey := fmt.Sprintf(cacheKeyUserFeatures, userID)
+		cacheKey := fmt.Sprintf(constant.CacheKeyUserFeatures, userID)
 		cachedData, err := s.cache.Get(ctx, cacheKey)
 		if err == nil && cachedData != "" {
 			var features []string
@@ -96,9 +87,9 @@ func (s *FeatureService) GetUserFeatures(ctx context.Context, userID uint) ([]st
 
 	// 5. 缓存结果
 	if s.cache != nil {
-		cacheKey := fmt.Sprintf(cacheKeyUserFeatures, userID)
+		cacheKey := fmt.Sprintf(constant.CacheKeyUserFeatures, userID)
 		data, _ := json.Marshal(features)
-		ttl := userFeaturesCacheTTL
+		ttl := constant.UserFeaturesCacheTTL
 		_ = s.cache.Set(ctx, cacheKey, string(data), &ttl)
 	}
 
@@ -109,7 +100,7 @@ func (s *FeatureService) GetUserFeatures(ctx context.Context, userID uint) ([]st
 func (s *FeatureService) isFeatureEnabled(ctx context.Context, featureKey string) (bool, error) {
 	// 1. 尝试从缓存获取
 	if s.cache != nil {
-		cacheKey := fmt.Sprintf(cacheKeyFeatureEnabled, featureKey)
+		cacheKey := fmt.Sprintf(constant.CacheKeyFeatureEnabled, featureKey)
 		cachedData, err := s.cache.Get(ctx, cacheKey)
 		if err == nil && cachedData != "" {
 			return cachedData == "1", nil
@@ -131,12 +122,12 @@ func (s *FeatureService) isFeatureEnabled(ctx context.Context, featureKey string
 
 	// 3. 缓存结果
 	if s.cache != nil {
-		cacheKey := fmt.Sprintf(cacheKeyFeatureEnabled, featureKey)
+		cacheKey := fmt.Sprintf(constant.CacheKeyFeatureEnabled, featureKey)
 		value := "0"
 		if feature.IsEnabled {
 			value = "1"
 		}
-		ttl := featureEnabledCacheTTL
+		ttl := constant.FeatureEnabledCacheTTL
 		_ = s.cache.Set(ctx, cacheKey, value, &ttl)
 	}
 
@@ -346,7 +337,7 @@ func (s *FeatureService) GetUserFeatureDetails(ctx context.Context, userID uint)
 // clearUserFeaturesCache 清除用户功能缓存
 func (s *FeatureService) clearUserFeaturesCache(ctx context.Context, userID uint) {
 	if s.cache != nil {
-		cacheKey := fmt.Sprintf(cacheKeyUserFeatures, userID)
+		cacheKey := fmt.Sprintf(constant.CacheKeyUserFeatures, userID)
 		_ = s.cache.Delete(ctx, cacheKey)
 	}
 }
@@ -354,7 +345,7 @@ func (s *FeatureService) clearUserFeaturesCache(ctx context.Context, userID uint
 // clearFeatureEnabledCache 清除功能启用状态缓存
 func (s *FeatureService) clearFeatureEnabledCache(ctx context.Context, featureKey string) {
 	if s.cache != nil {
-		cacheKey := fmt.Sprintf(cacheKeyFeatureEnabled, featureKey)
+		cacheKey := fmt.Sprintf(constant.CacheKeyFeatureEnabled, featureKey)
 		_ = s.cache.Delete(ctx, cacheKey)
 	}
 }

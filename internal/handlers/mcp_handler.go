@@ -9,6 +9,7 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 
 	"github.com/bytedance/sonic"
 	"github.com/gin-gonic/gin"
@@ -88,7 +89,7 @@ func (h *MCPHandler) Handle(c *gin.Context) {
 	}
 
 	// Inject user info into request context for MCP tool handlers
-	ctx := context.WithValue(c.Request.Context(), mcpUserIDKey, userID)
+	ctx := context.WithValue(c.Request.Context(), mcpContextKey(constant.MCPUserIDKey), userID)
 
 	h.handler.ServeHTTP(c.Writer, c.Request.WithContext(ctx))
 }
@@ -96,12 +97,8 @@ func (h *MCPHandler) Handle(c *gin.Context) {
 // Context keys for user info
 type mcpContextKey string
 
-const (
-	mcpUserIDKey mcpContextKey = "user_id"
-)
-
 func getUserFromContext(ctx context.Context) uint {
-	userID, _ := ctx.Value(mcpUserIDKey).(uint)
+	userID, _ := ctx.Value(mcpContextKey(constant.MCPUserIDKey)).(uint)
 	return userID
 }
 
