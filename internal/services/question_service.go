@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
@@ -14,6 +13,7 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/worker/processors"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 
+	json "github.com/bytedance/sonic"
 	"gorm.io/gorm"
 )
 
