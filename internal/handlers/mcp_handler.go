@@ -13,14 +13,15 @@ import (
 
 	"github.com/bytedance/sonic"
 	"github.com/gin-gonic/gin"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
 	"gorm.io/datatypes"
 )
 
 // MCPHandler handles MCP protocol requests for LLM tool calling
 type MCPHandler struct {
-	server  *mcp.Server
-	handler *mcp.StreamableHTTPHandler
+	mcpServer  *server.MCPServer
+	httpServer *server.StreamableHTTPServer
 }
 
 // mcpToolHandlers holds all services and provides tool handler methods
@@ -59,23 +60,17 @@ func NewMCPHandler(
 	}
 
 	// Create MCP server with GoJxust implementation info
-	server := mcp.NewServer(&mcp.Implementation{
-		Name:    "gojxust-mcp-server",
-		Title:   "江理一起来学智能助理 MCP 服务，提供各种校园服务、学习类服务工具调用接口",
-		Version: "0.1.0",
-	}, &mcp.ServerOptions{HasTools: true})
+	mcpServer := server.NewMCPServer("gojxust-mcp-server", "0.1.0")
 
 	// Register all tools
-	th.registerTools(server)
+	th.registerTools(mcpServer)
 
 	// Create streamable HTTP handler
-	handler := mcp.NewStreamableHTTPHandler(func(req *http.Request) *mcp.Server {
-		return server
-	}, nil)
+	httpServer := server.NewStreamableHTTPServer(mcpServer)
 
 	return &MCPHandler{
-		server:  server,
-		handler: handler,
+		mcpServer:  mcpServer,
+		httpServer: httpServer,
 	}
 }
 
@@ -91,7 +86,7 @@ func (h *MCPHandler) Handle(c *gin.Context) {
 	// Inject user info into request context for MCP tool handlers
 	ctx := context.WithValue(c.Request.Context(), mcpContextKey(constant.MCPUserIDKey), userID)
 
-	h.handler.ServeHTTP(c.Writer, c.Request.WithContext(ctx))
+	h.httpServer.ServeHTTP(c.Writer, c.Request.WithContext(ctx))
 }
 
 // Context keys for user info
@@ -103,51 +98,78 @@ func getUserFromContext(ctx context.Context) uint {
 }
 
 // registerTools registers all MCP tools
-func (th *mcpToolHandlers) registerTools(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
-		Name:        "listHeroes",
-		Description: "列出英雄榜（列出所有为项目贡献代码、贡献学习资料的贡献者） - 获取所有显示的英雄名单",
-	}, th.handleListHeroes)
+func (th *mcpToolHandlers) registerTools(s *server.MCPServer) {
+	s.AddTool(
+		mcp.NewTool("listHeroes",
+			mcp.WithDescription("列出英雄榜（列出所有为项目贡献代码、贡献学习资料的贡献者） - 获取所有显示的英雄名单"),
+			mcp.WithInputSchema[ListHeroesParams](),
+		),
+		th.handleListHeroes,
+	)
 
-	mcp.AddTool(server, &mcp.Tool{
-		Name:        "notifications",
-		Description: "通知管理 - 获取通知列表或获取单个通知详情",
-	}, th.handleNotifications)
+	s.AddTool(
+		mcp.NewTool("notifications",
+			mcp.WithDescription("通知管理 - 获取通知列表或获取单个通知详情"),
+			mcp.WithInputSchema[NotificationsParams](),
+		),
+		th.handleNotifications,
+	)
 
-	mcp.AddTool(server, &mcp.Tool{
-		Name:        "userProfile",
-		Description: "用户信息管理 - 获取或更新用户信息（昵称、真名、学院、专业、班级）",
-	}, th.handleUserProfile)
+	s.AddTool(
+		mcp.NewTool("userProfile",
+			mcp.WithDescription("用户信息管理 - 获取或更新用户信息（昵称、真名、学院、专业、班级）"),
+			mcp.WithInputSchema[UserProfileParams](),
+		),
+		th.handleUserProfile,
+	)
 
-	mcp.AddTool(server, &mcp.Tool{
-		Name:        "teacherReview",
-		Description: "教师评价 - 创建教师评价或获取教师评价列表",
-	}, th.handleTeacherReview)
+	s.AddTool(
+		mcp.NewTool("teacherReview",
+			mcp.WithDescription("教师评价 - 创建教师评价或获取教师评价列表"),
+			mcp.WithInputSchema[TeacherReviewParams](),
+		),
+		th.handleTeacherReview,
+	)
 
-	mcp.AddTool(server, &mcp.Tool{
-		Name:        "getCourseTable",
-		Description: "获取用户课程表",
-	}, th.handleGetCourseTable)
+	s.AddTool(
+		mcp.NewTool("getCourseTable",
+			mcp.WithDescription("获取用户课程表"),
+			mcp.WithInputSchema[GetCourseTableParams](),
+		),
+		th.handleGetCourseTable,
+	)
 
-	mcp.AddTool(server, &mcp.Tool{
-		Name:        "editCourseCell",
-		Description: "编辑个人课程表中的单个格子",
-	}, th.handleEditCourseCell)
+	s.AddTool(
+		mcp.NewTool("editCourseCell",
+			mcp.WithDescription("编辑个人课程表中的单个格子"),
+			mcp.WithInputSchema[EditCourseCellParams](),
+		),
+		th.handleEditCourseCell,
+	)
 
-	mcp.AddTool(server, &mcp.Tool{
-		Name:        "queryFailRate",
-		Description: "查询挂科率 - 如果不指定课程名则随机返回10条挂科率数据",
-	}, th.handleQueryFailRate)
+	s.AddTool(
+		mcp.NewTool("queryFailRate",
+			mcp.WithDescription("查询挂科率 - 如果不指定课程名则随机返回10条挂科率数据"),
+			mcp.WithInputSchema[QueryFailRateParams](),
+		),
+		th.handleQueryFailRate,
+	)
 
-	mcp.AddTool(server, &mcp.Tool{
-		Name:        "countdown",
-		Description: "倒数日管理 - 创建、获取、更新、删除倒数日",
-	}, th.handleCountdown)
+	s.AddTool(
+		mcp.NewTool("countdown",
+			mcp.WithDescription("倒数日管理 - 创建、获取、更新、删除倒数日"),
+			mcp.WithInputSchema[CountdownParams](),
+		),
+		th.handleCountdown,
+	)
 
-	mcp.AddTool(server, &mcp.Tool{
-		Name:        "studyTask",
-		Description: "学习清单管理 - 创建、获取、更新、删除、统计学习任务",
-	}, th.handleStudyTask)
+	s.AddTool(
+		mcp.NewTool("studyTask",
+			mcp.WithDescription("学习清单管理 - 创建、获取、更新、删除、统计学习任务"),
+			mcp.WithInputSchema[StudyTaskParams](),
+		),
+		th.handleStudyTask,
+	)
 }
 
 // ============== Tool Parameter Structs ==============
@@ -228,19 +250,24 @@ type StudyTaskParams struct {
 
 // ============== Tool Handler Methods ==============
 
-func (th *mcpToolHandlers) handleListHeroes(ctx context.Context, req *mcp.CallToolRequest, params *ListHeroesParams) (*mcp.CallToolResult, any, error) {
+func (th *mcpToolHandlers) handleListHeroes(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	heroes, err := th.heroService.ListAll(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("获取英雄榜失败: %w", err)
+		return nil, fmt.Errorf("获取英雄榜失败: %w", err)
 	}
 	data, err := sonic.Marshal(heroes)
 	if err != nil {
-		return nil, nil, fmt.Errorf("序列化英雄榜数据失败: %w", err)
+		return nil, fmt.Errorf("序列化英雄榜数据失败: %w", err)
 	}
-	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(data)}}}, nil, nil
+	return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(string(data))}}, nil
 }
 
-func (th *mcpToolHandlers) handleNotifications(ctx context.Context, req *mcp.CallToolRequest, params *NotificationsParams) (*mcp.CallToolResult, any, error) {
+func (th *mcpToolHandlers) handleNotifications(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var params NotificationsParams
+	if err := req.BindArguments(&params); err != nil {
+		return nil, fmt.Errorf("参数解析失败: %w", err)
+	}
+
 	switch params.Action {
 	case "list":
 		page, size := params.Page, params.Size
@@ -252,44 +279,46 @@ func (th *mcpToolHandlers) handleNotifications(ctx context.Context, req *mcp.Cal
 		}
 		result, err := th.notificationService.GetNotifications(ctx, &request.GetNotificationsRequest{Page: page, Size: size})
 		if err != nil {
-			return nil, nil, fmt.Errorf("获取通知列表失败: %w", err)
+			return nil, fmt.Errorf("获取通知列表失败: %w", err)
 		}
 		data, _ := sonic.Marshal(result)
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(data)}}}, nil, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(string(data))}}, nil
 	case "get":
 		if params.ID == 0 {
-			return nil, nil, fmt.Errorf("请提供通知ID")
+			return nil, fmt.Errorf("请提供通知ID")
 		}
 		result, err := th.notificationService.GetNotificationByID(ctx, params.ID)
 		if err != nil {
-			return nil, nil, fmt.Errorf("获取通知详情失败: %w", err)
+			return nil, fmt.Errorf("获取通知详情失败: %w", err)
 		}
 		data, _ := sonic.Marshal(result)
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(data)}}}, nil, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(string(data))}}, nil
 	default:
-		return nil, nil, fmt.Errorf("不支持的操作: %s", params.Action)
+		return nil, fmt.Errorf("不支持的操作: %s", params.Action)
 	}
 }
 
-func (th *mcpToolHandlers) handleUserProfile(ctx context.Context, req *mcp.CallToolRequest, params *UserProfileParams) (*mcp.CallToolResult, any, error) {
+func (th *mcpToolHandlers) handleUserProfile(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var params UserProfileParams
+	if err := req.BindArguments(&params); err != nil {
+		return nil, fmt.Errorf("参数解析失败: %w", err)
+	}
+
 	userID := getUserFromContext(ctx)
 	if userID == 0 {
-		return nil, nil, fmt.Errorf("用户未认证")
+		return nil, fmt.Errorf("用户未认证")
 	}
 
 	switch params.Action {
 	case "get":
 		user, err := th.authService.GetUserByID(ctx, userID)
 		if err != nil {
-			return nil, nil, fmt.Errorf("获取用户信息失败: %w", err)
+			return nil, fmt.Errorf("获取用户信息失败: %w", err)
 		}
 		result := map[string]any{"id": user.ID, "nickname": user.Nickname, "real_name": user.RealName, "college": user.College, "major": user.Major, "class_id": user.ClassID}
 		data, _ := sonic.Marshal(result)
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(data)}}}, nil, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(string(data))}}, nil
 	case "update":
-		// 构建更新 map，只包含非空字段
-		// 注意：MCP 工具调用中，如果字段未传递，值为空字符串，这里只更新非空字段
-		// 如果需要支持清空字段，需要修改 UserProfileParams 为指针类型
 		updates := make(map[string]any)
 		if params.Nickname != "" {
 			updates["nickname"] = params.Nickname
@@ -307,35 +336,40 @@ func (th *mcpToolHandlers) handleUserProfile(ctx context.Context, req *mcp.CallT
 			updates["class_id"] = params.ClassID
 		}
 		if err := th.authService.UpdateUserProfile(ctx, userID, updates); err != nil {
-			return nil, nil, fmt.Errorf("更新用户信息失败: %w", err)
+			return nil, fmt.Errorf("更新用户信息失败: %w", err)
 		}
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: `{"message": "更新成功"}`}}}, nil, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(`{"message": "更新成功"}`)}}, nil
 	default:
-		return nil, nil, fmt.Errorf("不支持的操作: %s", params.Action)
+		return nil, fmt.Errorf("不支持的操作: %s", params.Action)
 	}
 }
 
-func (th *mcpToolHandlers) handleTeacherReview(ctx context.Context, req *mcp.CallToolRequest, params *TeacherReviewParams) (*mcp.CallToolResult, any, error) {
+func (th *mcpToolHandlers) handleTeacherReview(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var params TeacherReviewParams
+	if err := req.BindArguments(&params); err != nil {
+		return nil, fmt.Errorf("参数解析失败: %w", err)
+	}
+
 	userID := getUserFromContext(ctx)
 
 	switch params.Action {
 	case "create":
 		if userID == 0 {
-			return nil, nil, fmt.Errorf("用户未认证")
+			return nil, fmt.Errorf("用户未认证")
 		}
 		if params.TeacherName == "" || params.Campus == "" || params.CourseName == "" || params.Content == "" || params.Attitude == 0 {
-			return nil, nil, fmt.Errorf("请提供完整的评价信息")
+			return nil, fmt.Errorf("请提供完整的评价信息")
 		}
 		err := th.reviewService.CreateReview(ctx, userID, &request.CreateReviewRequest{
 			TeacherName: params.TeacherName, Campus: params.Campus, CourseName: params.CourseName, Content: params.Content, Attitude: models.TeacherAttitude(params.Attitude),
 		})
 		if err != nil {
-			return nil, nil, fmt.Errorf("创建评价失败: %w", err)
+			return nil, fmt.Errorf("创建评价失败: %w", err)
 		}
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: `{"message": "评价提交成功，等待审核"}`}}}, nil, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(`{"message": "评价提交成功，等待审核"}`)}}, nil
 	case "get":
 		if params.TeacherName == "" {
-			return nil, nil, fmt.Errorf("请提供教师姓名")
+			return nil, fmt.Errorf("请提供教师姓名")
 		}
 		page, size := params.Page, params.Size
 		if page <= 0 {
@@ -346,51 +380,66 @@ func (th *mcpToolHandlers) handleTeacherReview(ctx context.Context, req *mcp.Cal
 		}
 		reviews, total, err := th.reviewService.GetReviewsByTeacher(ctx, params.TeacherName, page, size)
 		if err != nil {
-			return nil, nil, fmt.Errorf("获取评价失败: %w", err)
+			return nil, fmt.Errorf("获取评价失败: %w", err)
 		}
 		data, _ := sonic.Marshal(map[string]any{"data": reviews, "total": total, "page": page, "size": size})
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(data)}}}, nil, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(string(data))}}, nil
 	default:
-		return nil, nil, fmt.Errorf("不支持的操作: %s", params.Action)
+		return nil, fmt.Errorf("不支持的操作: %s", params.Action)
 	}
 }
 
-func (th *mcpToolHandlers) handleGetCourseTable(ctx context.Context, req *mcp.CallToolRequest, params *GetCourseTableParams) (*mcp.CallToolResult, any, error) {
+func (th *mcpToolHandlers) handleGetCourseTable(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var params GetCourseTableParams
+	if err := req.BindArguments(&params); err != nil {
+		return nil, fmt.Errorf("参数解析失败: %w", err)
+	}
+
 	userID := getUserFromContext(ctx)
 	if userID == 0 {
-		return nil, nil, fmt.Errorf("用户未认证")
+		return nil, fmt.Errorf("用户未认证")
 	}
 	result, err := th.courseTableService.GetUserCourseTable(ctx, userID, params.Semester)
 	if err != nil {
-		return nil, nil, fmt.Errorf("获取课程表失败: %w", err)
+		return nil, fmt.Errorf("获取课程表失败: %w", err)
 	}
 	data, _ := sonic.Marshal(result)
-	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(data)}}}, nil, nil
+	return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(string(data))}}, nil
 }
 
-func (th *mcpToolHandlers) handleEditCourseCell(ctx context.Context, req *mcp.CallToolRequest, params *EditCourseCellParams) (*mcp.CallToolResult, any, error) {
+func (th *mcpToolHandlers) handleEditCourseCell(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var params EditCourseCellParams
+	if err := req.BindArguments(&params); err != nil {
+		return nil, fmt.Errorf("参数解析失败: %w", err)
+	}
+
 	userID := getUserFromContext(ctx)
 	if userID == 0 {
-		return nil, nil, fmt.Errorf("用户未认证")
+		return nil, fmt.Errorf("用户未认证")
 	}
 	valueBytes, err := sonic.Marshal(params.Value)
 	if err != nil {
-		return nil, nil, fmt.Errorf("无效的格子数据: %w", err)
+		return nil, fmt.Errorf("无效的格子数据: %w", err)
 	}
 	if err := th.courseTableService.EditUserCourseCell(ctx, userID, params.Semester, params.Index, datatypes.JSON(valueBytes)); err != nil {
-		return nil, nil, fmt.Errorf("编辑课程表失败: %w", err)
+		return nil, fmt.Errorf("编辑课程表失败: %w", err)
 	}
-	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: `{"message": "编辑成功"}`}}}, nil, nil
+	return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(`{"message": "编辑成功"}`)}}, nil
 }
 
-func (th *mcpToolHandlers) handleQueryFailRate(ctx context.Context, req *mcp.CallToolRequest, params *QueryFailRateParams) (*mcp.CallToolResult, any, error) {
+func (th *mcpToolHandlers) handleQueryFailRate(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var params QueryFailRateParams
+	if err := req.BindArguments(&params); err != nil {
+		return nil, fmt.Errorf("参数解析失败: %w", err)
+	}
+
 	if params.Keyword == "" {
 		list, err := th.failRateService.Rand(ctx, 10)
 		if err != nil {
-			return nil, nil, fmt.Errorf("查询挂科率失败: %w", err)
+			return nil, fmt.Errorf("查询挂科率失败: %w", err)
 		}
 		data, _ := sonic.Marshal(map[string]any{"data": list})
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(data)}}}, nil, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(string(data))}}, nil
 	}
 	page, size := params.Page, params.Size
 	if page <= 0 {
@@ -401,49 +450,54 @@ func (th *mcpToolHandlers) handleQueryFailRate(ctx context.Context, req *mcp.Cal
 	}
 	list, total, err := th.failRateService.Search(ctx, params.Keyword, page, size)
 	if err != nil {
-		return nil, nil, fmt.Errorf("查询挂科率失败: %w", err)
+		return nil, fmt.Errorf("查询挂科率失败: %w", err)
 	}
 	data, _ := sonic.Marshal(map[string]any{"data": list, "total": total, "page": page, "size": size})
-	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(data)}}}, nil, nil
+	return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(string(data))}}, nil
 }
 
-func (th *mcpToolHandlers) handleCountdown(ctx context.Context, req *mcp.CallToolRequest, params *CountdownParams) (*mcp.CallToolResult, any, error) {
+func (th *mcpToolHandlers) handleCountdown(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var params CountdownParams
+	if err := req.BindArguments(&params); err != nil {
+		return nil, fmt.Errorf("参数解析失败: %w", err)
+	}
+
 	userID := getUserFromContext(ctx)
 	if userID == 0 {
-		return nil, nil, fmt.Errorf("用户未认证")
+		return nil, fmt.Errorf("用户未认证")
 	}
 
 	switch params.Action {
 	case "create":
 		if params.Title == "" || params.TargetDate == "" {
-			return nil, nil, fmt.Errorf("请提供标题和目标日期")
+			return nil, fmt.Errorf("请提供标题和目标日期")
 		}
 		result, err := th.countdownService.CreateCountdown(ctx, userID, &request.CreateCountdownRequest{Title: params.Title, Description: params.Description, TargetDate: params.TargetDate})
 		if err != nil {
-			return nil, nil, fmt.Errorf("创建倒数日失败: %w", err)
+			return nil, fmt.Errorf("创建倒数日失败: %w", err)
 		}
 		data, _ := sonic.Marshal(result)
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(data)}}}, nil, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(string(data))}}, nil
 	case "list":
 		result, err := th.countdownService.GetCountdowns(ctx, userID)
 		if err != nil {
-			return nil, nil, fmt.Errorf("获取倒数日列表失败: %w", err)
+			return nil, fmt.Errorf("获取倒数日列表失败: %w", err)
 		}
 		data, _ := sonic.Marshal(result)
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(data)}}}, nil, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(string(data))}}, nil
 	case "get":
 		if params.ID == 0 {
-			return nil, nil, fmt.Errorf("请提供倒数日ID")
+			return nil, fmt.Errorf("请提供倒数日ID")
 		}
 		result, err := th.countdownService.GetCountdownByID(ctx, params.ID, userID)
 		if err != nil {
-			return nil, nil, fmt.Errorf("获取倒数日详情失败: %w", err)
+			return nil, fmt.Errorf("获取倒数日详情失败: %w", err)
 		}
 		data, _ := sonic.Marshal(result)
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(data)}}}, nil, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(string(data))}}, nil
 	case "update":
 		if params.ID == 0 {
-			return nil, nil, fmt.Errorf("请提供倒数日ID")
+			return nil, fmt.Errorf("请提供倒数日ID")
 		}
 		var titlePtr, descPtr, datePtr *string
 		if params.Title != "" {
@@ -457,33 +511,38 @@ func (th *mcpToolHandlers) handleCountdown(ctx context.Context, req *mcp.CallToo
 		}
 		result, err := th.countdownService.UpdateCountdown(ctx, params.ID, userID, &request.UpdateCountdownRequest{Title: titlePtr, Description: descPtr, TargetDate: datePtr})
 		if err != nil {
-			return nil, nil, fmt.Errorf("更新倒数日失败: %w", err)
+			return nil, fmt.Errorf("更新倒数日失败: %w", err)
 		}
 		data, _ := sonic.Marshal(result)
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(data)}}}, nil, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(string(data))}}, nil
 	case "delete":
 		if params.ID == 0 {
-			return nil, nil, fmt.Errorf("请提供倒数日ID")
+			return nil, fmt.Errorf("请提供倒数日ID")
 		}
 		if err := th.countdownService.DeleteCountdown(ctx, params.ID, userID); err != nil {
-			return nil, nil, fmt.Errorf("删除倒数日失败: %w", err)
+			return nil, fmt.Errorf("删除倒数日失败: %w", err)
 		}
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: `{"message": "删除成功"}`}}}, nil, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(`{"message": "删除成功"}`)}}, nil
 	default:
-		return nil, nil, fmt.Errorf("不支持的操作: %s", params.Action)
+		return nil, fmt.Errorf("不支持的操作: %s", params.Action)
 	}
 }
 
-func (th *mcpToolHandlers) handleStudyTask(ctx context.Context, req *mcp.CallToolRequest, params *StudyTaskParams) (*mcp.CallToolResult, any, error) {
+func (th *mcpToolHandlers) handleStudyTask(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var params StudyTaskParams
+	if err := req.BindArguments(&params); err != nil {
+		return nil, fmt.Errorf("参数解析失败: %w", err)
+	}
+
 	userID := getUserFromContext(ctx)
 	if userID == 0 {
-		return nil, nil, fmt.Errorf("用户未认证")
+		return nil, fmt.Errorf("用户未认证")
 	}
 
 	switch params.Action {
 	case "create":
 		if params.Title == "" {
-			return nil, nil, fmt.Errorf("请提供任务标题")
+			return nil, fmt.Errorf("请提供任务标题")
 		}
 		priority := uint8(2)
 		if params.Priority != nil {
@@ -491,10 +550,10 @@ func (th *mcpToolHandlers) handleStudyTask(ctx context.Context, req *mcp.CallToo
 		}
 		result, err := th.studyTaskService.CreateStudyTask(ctx, userID, &request.CreateStudyTaskRequest{Title: params.Title, Description: params.Description, DueDate: params.DueDate, Priority: priority})
 		if err != nil {
-			return nil, nil, fmt.Errorf("创建学习任务失败: %w", err)
+			return nil, fmt.Errorf("创建学习任务失败: %w", err)
 		}
 		data, _ := sonic.Marshal(result)
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(data)}}}, nil, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(string(data))}}, nil
 	case "list":
 		page, size := params.Page, params.Size
 		if page <= 0 {
@@ -505,23 +564,23 @@ func (th *mcpToolHandlers) handleStudyTask(ctx context.Context, req *mcp.CallToo
 		}
 		result, err := th.studyTaskService.GetStudyTasks(ctx, userID, &request.GetStudyTasksRequest{Page: page, Size: size, Status: params.Status, Priority: params.Priority})
 		if err != nil {
-			return nil, nil, fmt.Errorf("获取学习任务列表失败: %w", err)
+			return nil, fmt.Errorf("获取学习任务列表失败: %w", err)
 		}
 		data, _ := sonic.Marshal(result)
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(data)}}}, nil, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(string(data))}}, nil
 	case "get":
 		if params.ID == 0 {
-			return nil, nil, fmt.Errorf("请提供任务ID")
+			return nil, fmt.Errorf("请提供任务ID")
 		}
 		result, err := th.studyTaskService.GetStudyTaskByID(ctx, params.ID, userID)
 		if err != nil {
-			return nil, nil, fmt.Errorf("获取学习任务详情失败: %w", err)
+			return nil, fmt.Errorf("获取学习任务详情失败: %w", err)
 		}
 		data, _ := sonic.Marshal(result)
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(data)}}}, nil, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(string(data))}}, nil
 	case "update":
 		if params.ID == 0 {
-			return nil, nil, fmt.Errorf("请提供任务ID")
+			return nil, fmt.Errorf("请提供任务ID")
 		}
 		var titlePtr, descPtr, datePtr *string
 		if params.Title != "" {
@@ -535,26 +594,26 @@ func (th *mcpToolHandlers) handleStudyTask(ctx context.Context, req *mcp.CallToo
 		}
 		result, err := th.studyTaskService.UpdateStudyTask(ctx, params.ID, userID, &request.UpdateStudyTaskRequest{Title: titlePtr, Description: descPtr, DueDate: datePtr, Priority: params.Priority, Status: params.Status})
 		if err != nil {
-			return nil, nil, fmt.Errorf("更新学习任务失败: %w", err)
+			return nil, fmt.Errorf("更新学习任务失败: %w", err)
 		}
 		data, _ := sonic.Marshal(result)
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(data)}}}, nil, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(string(data))}}, nil
 	case "delete":
 		if params.ID == 0 {
-			return nil, nil, fmt.Errorf("请提供任务ID")
+			return nil, fmt.Errorf("请提供任务ID")
 		}
 		if err := th.studyTaskService.DeleteStudyTask(ctx, params.ID, userID); err != nil {
-			return nil, nil, fmt.Errorf("删除学习任务失败: %w", err)
+			return nil, fmt.Errorf("删除学习任务失败: %w", err)
 		}
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: `{"message": "删除成功"}`}}}, nil, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(`{"message": "删除成功"}`)}}, nil
 	case "stats":
 		result, err := th.studyTaskService.GetStudyTaskStats(ctx, userID)
 		if err != nil {
-			return nil, nil, fmt.Errorf("获取学习任务统计失败: %w", err)
+			return nil, fmt.Errorf("获取学习任务统计失败: %w", err)
 		}
 		data, _ := sonic.Marshal(result)
-		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(data)}}}, nil, nil
+		return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(string(data))}}, nil
 	default:
-		return nil, nil, fmt.Errorf("不支持的操作: %s", params.Action)
+		return nil, fmt.Errorf("不支持的操作: %s", params.Action)
 	}
 }
