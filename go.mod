@@ -14,7 +14,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/mark3labs/mcp-go v0.43.2
 	github.com/minio/minio-go/v7 v7.0.98
-	github.com/redis/go-redis/v9 v9.17.2
+	github.com/redis/go-redis/v9 v9.17.3
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/tencentcloud/tencentcloud-cls-sdk-go v1.0.14
 	go.uber.org/zap v1.27.1
