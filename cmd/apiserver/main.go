@@ -12,6 +12,7 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/database"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	_ "github.com/TogetherForStudy/jxust-yqlx-server/internal/perf"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/redis"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/router"

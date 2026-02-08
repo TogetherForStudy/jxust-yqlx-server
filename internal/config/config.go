@@ -38,7 +38,29 @@ type Config struct {
 }
 
 // GlobalConfig is a singleton instance of Config that can be accessed globally.
-var GlobalConfig *Config
+var GlobalConfig = sync.OnceValue[*Config](func() *Config {
+	var cfg Config
+	_, err := os.Stat("yqlx-config.yaml")
+	if err == nil {
+		// Load from yaml file if exists
+		file, err := os.Open("yqlx-config.yaml")
+		if err != nil {
+			panic("Failed to open config file: " + err.Error())
+		}
+		defer file.Close()
+		err = yaml.NewDecoder(file).Decode(&cfg)
+		if err != nil {
+			panic("Failed to parse config file: " + err.Error())
+		}
+		logger.Info("Loading configuration from yqlx-config.yaml")
+		return &cfg
+	}
+	if err := env.Parse(&cfg); err != nil {
+		panic("Failed to parse environment variables: " + err.Error())
+	}
+	logger.Info("Loading configuration from environment variables")
+	return &cfg
+})
 
 type Database struct {
 	DBHost     string `yaml:"db_host" env:"DB_HOST" envDefault:"localhost"`
@@ -69,35 +91,7 @@ type LLM struct {
 	BaseURL       string `yaml:"llm_base_url" env:"LLM_BASE_URL" envDefault:""`
 }
 
-var _once sync.Once
-
 // NewConfig initializes and return the configuration by reading environment variables.
 //
 //	If the configuration has already been initialized, it returns the existing instance.
-func NewConfig() *Config {
-	_once.Do(func() {
-		var cfg Config
-		_, err := os.Stat("yqlx-config.yaml")
-		if err == nil {
-			// Load from yaml file if exists
-			file, err := os.Open("yqlx-config.yaml")
-			if err != nil {
-				logger.Fatalln("Failed to open config file: ", err)
-			}
-			err = yaml.NewDecoder(file).Decode(&cfg)
-			if err != nil {
-				logger.Fatalln("Failed to parse config file: ", err)
-			}
-			logger.Info("Loading configuration from yqlx-config.yaml")
-			GlobalConfig = &cfg
-			return
-		}
-		if err := env.Parse(&cfg); err != nil {
-			logger.Fatalln("Failed to parse environment variables: ", err)
-		}
-		logger.Info("Loading configuration from environment variables")
-		GlobalConfig = &cfg
-	})
-
-	return GlobalConfig
-}
+var NewConfig = GlobalConfig

@@ -33,7 +33,7 @@ docker-build:
 	docker build -f cmd/apiserver/Dockerfile -t gojxust-app:nightly .
 
 build-apiserver: # $(or $(CGO_ENABLED),0)
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -v -ldflags "-w -s" \
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -v -ldflags "-w -s" -tags="sonic" \
 	-o ./bin/apiserver ./cmd/apiserver
 
 test:

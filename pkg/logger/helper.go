@@ -14,16 +14,16 @@ import (
 type contextKey string
 
 const (
-	ctxKeyUserID          contextKey = "user_id"
-	ctxKeyUserRoles       contextKey = "user_roles"
+	ctxKeyUserID    contextKey = "user_id"
+	ctxKeyUserRoles contextKey = "user_roles"
 
-	ctxKeyClientIP        contextKey = "client_ip"
-	ctxKeyMethod          contextKey = "method"
-	ctxKeyPath            contextKey = "path"
-	ctxKeyProtocol        contextKey = "protocol"
-	ctxKeyUserAgent       contextKey = "user_agent"
-	ctxKeyTimestamp       contextKey = "timestamp"
-	ctxKeyIdempotencyKey  contextKey = "idempotency_key"
+	ctxKeyClientIP       contextKey = "client_ip"
+	ctxKeyMethod         contextKey = "method"
+	ctxKeyPath           contextKey = "path"
+	ctxKeyProtocol       contextKey = "protocol"
+	ctxKeyUserAgent      contextKey = "user_agent"
+	ctxKeyTimestamp      contextKey = "timestamp"
+	ctxKeyIdempotencyKey contextKey = "idempotency_key"
 )
 
 func parserMapStringAnyToMapStringString(m map[string]any) map[string]string {
