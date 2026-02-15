@@ -5,7 +5,7 @@ go 1.24.1
 require (
 	github.com/bytedance/sonic v1.15.0
 	github.com/caarlos0/env/v11 v11.3.1
-	github.com/cloudwego/eino v0.7.32
+	github.com/cloudwego/eino v0.7.34
 	github.com/cloudwego/eino-ext/components/model/openai v0.1.8
 	github.com/cloudwego/eino-ext/components/tool/mcp v0.0.8
 	github.com/gin-gonic/gin v1.11.0
