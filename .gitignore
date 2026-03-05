@@ -26,6 +26,9 @@ go.work
 .idea/
 *.swp
 *.swo
+.claude
+CLAUDE.md
+temp/
 
 # Logs
 *.log
