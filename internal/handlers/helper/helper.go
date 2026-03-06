@@ -3,6 +3,7 @@ package helper
 import (
 	"strings"
 
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/gin-gonic/gin"
 )
 
@@ -44,4 +45,15 @@ func GetAuthorizationToken(c *gin.Context) string {
 	}
 
 	return tokenString
+}
+
+func GetAuthSessionID(c *gin.Context) string {
+	sessionID, ok := c.Get(constant.AuthContextSessionID)
+	if !ok {
+		return ""
+	}
+	if sid, ok := sessionID.(string); ok {
+		return sid
+	}
+	return ""
 }

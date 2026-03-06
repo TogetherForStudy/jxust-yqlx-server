@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"sync"
+	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 	"github.com/caarlos0/env/v11"
@@ -15,11 +16,14 @@ type Config struct {
 	MinIO    `yaml:"minio"`
 	LLM      `yaml:"llm"`
 
-	JWTSecret       string `yaml:"jwt_secret" env:"JWT_SECRET"`
-	ServerPort      string `yaml:"server_port" env:"SERVER_PORT" envDefault:"8085"`
-	WechatAppID     string `yaml:"wechat_app_id" env:"WECHAT_APP_ID"`
-	WechatAppSecret string `yaml:"wechat_app_secret" env:"WECHAT_APP_SECRET" envDefault:""`
-	InitRbac        bool   `yaml:"init_rbac" env:"INIT_RBAC" envDefault:"false"`
+	JWTSecret          string        `yaml:"jwt_secret" env:"JWT_SECRET"`
+	RefreshTokenSecret string        `yaml:"refresh_token_secret" env:"REFRESH_TOKEN_SECRET" envDefault:""`
+	AccessTokenTTL     time.Duration `yaml:"access_token_ttl" env:"ACCESS_TOKEN_TTL" envDefault:"2h"`
+	RefreshTokenTTL    time.Duration `yaml:"refresh_token_ttl" env:"REFRESH_TOKEN_TTL" envDefault:"720h"`
+	ServerPort         string        `yaml:"server_port" env:"SERVER_PORT" envDefault:"8085"`
+	WechatAppID        string        `yaml:"wechat_app_id" env:"WECHAT_APP_ID"`
+	WechatAppSecret    string        `yaml:"wechat_app_secret" env:"WECHAT_APP_SECRET" envDefault:""`
+	InitRbac           bool          `yaml:"init_rbac" env:"INIT_RBAC" envDefault:"false"`
 
 	// Upyun/CDN Token 防盗链配置
 	UpyunTokenSecret string `yaml:"upyun_token_secret" env:"UPYUN_TOKEN_SECRET" envDefault:""`

@@ -11,7 +11,6 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/middleware"
-	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
@@ -38,7 +37,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		}
 	}
 
-	authService := services.NewAuthService(db, cfg, rbacService)
+	authService := services.NewAuthService(db, cfg, rbacService, ca)
 	pointsService := services.NewPointsService(db)
 	reviewService := services.NewReviewService(db, pointsService)
 	courseTableService := services.NewCourseTableService(db)
@@ -58,6 +57,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	statService := services.NewStatService()
 	dictionaryService := services.NewDictionaryService(db)
 	chatService := services.NewChatService(db, cfg)
+	userActivityService := services.NewUserActivityService(db, rbacService)
 
 	// 初始化处理器
 	rbacHandler := handlers.NewRBACHandler(rbacService)
@@ -81,6 +81,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	statHandler := handlers.NewStatHandler(statService)
 	dictionaryHandler := handlers.NewDictionaryHandler(dictionaryService)
 	chatHandler := handlers.NewChatHandler(chatService)
+	userActivityHandler := handlers.NewUserActivityHandler(userActivityService)
 
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
@@ -97,7 +98,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	mcpGroup := api.Group("/mcp")
 	{
 		mcpGroup.Use(middleware.RequestID())
-		mcpGroup.Use(middleware.AuthMiddleware(cfg))
+		mcpGroup.Use(middleware.AuthMiddleware(cfg, ca))
 		mcpHandler := handlers.NewMCPHandler(
 			heroService,
 			notificationService,
@@ -117,6 +118,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		auth := v0.Group("/auth")
 		{
 			auth.POST("/wechat-login", authHandler.WechatLogin)
+			auth.POST("/refresh", authHandler.RefreshToken)
 			if os.Getenv(constant.ENV_GIN_MODE) != "release" {
 				auth.POST("/mock-wechat-login", authHandler.MockWechatLogin)
 			}
@@ -142,30 +144,37 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 		// 需要认证的路由
 		authorized := v0.Group("/")
-		authorized.Use(middleware.AuthMiddleware(cfg))
+		authorized.Use(middleware.AuthMiddleware(cfg, ca))
 		authorized.Use(middleware.RequestRecordMiddleware(db, pointsService)) // 通用请求记录中间件（每日登录、在线人数统计）
 		{
+			authProtected := authorized.Group("/auth")
+			{
+				authProtected.POST("/logout", authHandler.Logout)
+				authProtected.POST("/logout-all", authHandler.LogoutAll)
+			}
+
 			// 用户（需认证）
 			user := authorized.Group("/user")
 			{
-				user.GET("/profile", middleware.RequirePermission(rbacService, models.PermissionUserGet), authHandler.GetProfile)
-				user.PUT("/profile", middleware.RequirePermission(rbacService, models.PermissionUserUpdate), authHandler.UpdateProfile)
-				user.GET("/features", middleware.RequirePermission(rbacService, models.PermissionUserGet), featureHandler.GetUserFeatures) // 获取用户功能列表
+				user.GET("/profile", middleware.RequirePermission(rbacService, constant.PermissionUserGet), authHandler.GetProfile)
+				user.PUT("/profile", middleware.RequirePermission(rbacService, constant.PermissionUserUpdate), authHandler.UpdateProfile)
+				user.GET("/features", middleware.RequirePermission(rbacService, constant.PermissionUserGet), featureHandler.GetUserFeatures)     // 获取用户功能列表
+				user.GET("/login-days", middleware.RequirePermission(rbacService, constant.PermissionUserGet), userActivityHandler.GetLoginDays) // 获取过去100天登录天数
 			}
 			// OSS/CDN Token （需认证）
 			oss := authorized.Group("/oss")
 			{
-				oss.POST("/token", middleware.RequirePermission(rbacService, models.PermissionOSSTokenGet), ossHandler.GetToken)
+				oss.POST("/token", middleware.RequirePermission(rbacService, constant.PermissionOSSTokenGet), ossHandler.GetToken)
 			}
 			// 评价（需认证）
 			authReviews := authorized.Group("/reviews")
 			{
-				authReviews.POST("/", middleware.RequirePermission(rbacService, models.PermissionReviewCreate), middleware.IdempotencyRecommended(ca), reviewHandler.CreateReview)
-				authReviews.GET("/user", middleware.RequirePermission(rbacService, models.PermissionReviewGetSelf), reviewHandler.GetUserReviews)
+				authReviews.POST("/", middleware.RequirePermission(rbacService, constant.PermissionReviewCreate), middleware.IdempotencyRecommended(ca), reviewHandler.CreateReview)
+				authReviews.GET("/user", middleware.RequirePermission(rbacService, constant.PermissionReviewGetSelf), reviewHandler.GetUserReviews)
 
 				// 管理员
 				adminReviews := authReviews.Group("")
-				adminReviews.Use(middleware.RequirePermission(rbacService, models.PermissionReviewManage))
+				adminReviews.Use(middleware.RequirePermission(rbacService, constant.PermissionReviewManage))
 				{
 					adminReviews.GET("/", reviewHandler.GetReviews)
 					adminReviews.POST("/:id/approve", middleware.IdempotencyRecommended(ca), reviewHandler.ApproveReview)
@@ -177,14 +186,16 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			// 课程表（需认证）
 			courseTable := authorized.Group("/coursetable")
 			{
-				courseTable.GET("/", middleware.RequirePermission(rbacService, models.PermissionCourseTableGet), courseTableHandler.GetCourseTable)               // 获取用户课程表
-				courseTable.GET("/search", middleware.RequirePermission(rbacService, models.PermissionCourseTableClassSearch), courseTableHandler.SearchClasses)  // 搜索班级
-				courseTable.PUT("/class", middleware.RequirePermission(rbacService, models.PermissionCourseTableClassUpdate), courseTableHandler.UpdateUserClass) // 更新用户班级
-				courseTable.PUT("/", middleware.RequirePermission(rbacService, models.PermissionCourseTableUpdate), courseTableHandler.EditCourseCell)            // 编辑个人课表的单个格子
+				courseTable.GET("/", middleware.RequirePermission(rbacService, constant.PermissionCourseTableGet), courseTableHandler.GetCourseTable)               // 获取用户课程表
+				courseTable.GET("/search", middleware.RequirePermission(rbacService, constant.PermissionCourseTableClassSearch), courseTableHandler.SearchClasses)  // 搜索班级
+				courseTable.GET("/bind-count", middleware.RequirePermission(rbacService, constant.PermissionCourseTableGet), courseTableHandler.GetBindCount)       // 获取课表已绑定次数
+				courseTable.PUT("/class", middleware.RequirePermission(rbacService, constant.PermissionCourseTableClassUpdate), courseTableHandler.UpdateUserClass) // 更新用户班级
+				courseTable.PUT("/", middleware.RequirePermission(rbacService, constant.PermissionCourseTableUpdate), courseTableHandler.EditCourseCell)            // 编辑个人课表的单个格子
+				courseTable.DELETE("/schedule", middleware.RequirePermission(rbacService, constant.PermissionCourseTableUpdate), courseTableHandler.ResetSchedule)  // 重置个人课表
 
 				// 管理员
 				adminCourseTable := courseTable.Group("")
-				adminCourseTable.Use(middleware.RequirePermission(rbacService, models.PermissionCourseTableManage))
+				adminCourseTable.Use(middleware.RequirePermission(rbacService, constant.PermissionCourseTableManage))
 				{
 					adminCourseTable.POST("/reset/:id", courseTableHandler.ResetUserBindCountToOne)
 				}
@@ -193,15 +204,15 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			// 挂科率（需认证）
 			failrate := authorized.Group("/failrate")
 			{
-				failrate.GET("/search", middleware.RequirePermission(rbacService, models.PermissionFailRate), failRateHandler.SearchFailRate)
-				failrate.GET("/rand", middleware.RequirePermission(rbacService, models.PermissionFailRate), failRateHandler.RandFailRate)
+				failrate.GET("/search", middleware.RequirePermission(rbacService, constant.PermissionFailRate), failRateHandler.SearchFailRate)
+				failrate.GET("/rand", middleware.RequirePermission(rbacService, constant.PermissionFailRate), failRateHandler.RandFailRate)
 			}
 
 			// 英雄榜（管理员）
 			heroes := authorized.Group("/heroes")
 			{
 				adminHeroes := heroes.Group("")
-				adminHeroes.Use(middleware.RequirePermission(rbacService, models.PermissionHeroManage))
+				adminHeroes.Use(middleware.RequirePermission(rbacService, constant.PermissionHeroManage))
 				{
 					adminHeroes.POST("/", middleware.IdempotencyRecommended(ca), heroHandler.Create)
 					adminHeroes.PUT("/:id", heroHandler.Update)
@@ -215,7 +226,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			{
 
 				adminConfig := configWrite.Group("")
-				adminConfig.Use(middleware.RequirePermission(rbacService, models.PermissionConfigManage))
+				adminConfig.Use(middleware.RequirePermission(rbacService, constant.PermissionConfigManage))
 				{
 					adminConfig.POST("/", middleware.IdempotencyRecommended(ca), configHandler.Create)
 					adminConfig.PUT("/:key", middleware.IdempotencyRecommended(ca), configHandler.Update)
@@ -231,7 +242,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				store.GET("/:resource_id/stream", storeHandler.GetFileStream)
 
 				adminStore := store.Group("")
-				adminStore.Use(middleware.RequirePermission(rbacService, models.PermissionS3Manage))
+				adminStore.Use(middleware.RequirePermission(rbacService, constant.PermissionS3Manage))
 				{
 					adminStore.POST("", storeHandler.UploadFile)
 					adminStore.DELETE("/:resource_id", storeHandler.DeleteFile)
@@ -243,14 +254,14 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			// 积分（需认证）
 			points := authorized.Group("/points")
 			{
-				points.GET("/", middleware.RequirePermission(rbacService, models.PermissionPointGet), pointsHandler.GetUserPoints)
-				points.GET("/transactions", middleware.RequirePermission(rbacService, models.PermissionPointGet), pointsHandler.GetPointsTransactions)
-				points.POST("/spend", middleware.RequirePermission(rbacService, models.PermissionPointSpend), middleware.IdempotencyRecommended(ca), pointsHandler.SpendPoints)
-				points.GET("/stats", middleware.RequirePermission(rbacService, models.PermissionPointGet), pointsHandler.GetUserPointsStats)
+				points.GET("/", middleware.RequirePermission(rbacService, constant.PermissionPointGet), pointsHandler.GetUserPoints)
+				points.GET("/transactions", middleware.RequirePermission(rbacService, constant.PermissionPointGet), pointsHandler.GetPointsTransactions)
+				points.POST("/spend", middleware.RequirePermission(rbacService, constant.PermissionPointSpend), middleware.IdempotencyRecommended(ca), pointsHandler.SpendPoints)
+				points.GET("/stats", middleware.RequirePermission(rbacService, constant.PermissionPointGet), pointsHandler.GetUserPointsStats)
 
 				// 管理员
 				adminPoints := points.Group("")
-				adminPoints.Use(middleware.RequirePermission(rbacService, models.PermissionPointManage))
+				adminPoints.Use(middleware.RequirePermission(rbacService, constant.PermissionPointManage))
 				{
 					adminPoints.POST("/grant", middleware.IdempotencyRecommended(ca), pointsHandler.GrantPoints) // 管理员手动赋予积分
 				}
@@ -259,14 +270,14 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			// 投稿（需认证）
 			contributions := authorized.Group("/contributions")
 			{
-				contributions.POST("/", middleware.RequirePermission(rbacService, models.PermissionContributionCreate), middleware.IdempotencyRecommended(ca), contributionHandler.CreateContribution)
-				contributions.GET("/", middleware.RequirePermission(rbacService, models.PermissionContributionGet), contributionHandler.GetContributions)
-				contributions.GET("/:id", middleware.RequirePermission(rbacService, models.PermissionContributionGet), contributionHandler.GetContributionByID)
-				contributions.GET("/stats", middleware.RequirePermission(rbacService, models.PermissionContributionGet), contributionHandler.GetUserContributionStats)
+				contributions.POST("/", middleware.RequirePermission(rbacService, constant.PermissionContributionCreate), middleware.IdempotencyRecommended(ca), contributionHandler.CreateContribution)
+				contributions.GET("/", middleware.RequirePermission(rbacService, constant.PermissionContributionGet), contributionHandler.GetContributions)
+				contributions.GET("/:id", middleware.RequirePermission(rbacService, constant.PermissionContributionGet), contributionHandler.GetContributionByID)
+				contributions.GET("/stats", middleware.RequirePermission(rbacService, constant.PermissionContributionGet), contributionHandler.GetUserContributionStats)
 
 				// 管理员
 				adminContributions := contributions.Group("")
-				adminContributions.Use(middleware.RequirePermission(rbacService, models.PermissionContributionManage))
+				adminContributions.Use(middleware.RequirePermission(rbacService, constant.PermissionContributionManage))
 				{
 					adminContributions.POST("/:id/review", middleware.IdempotencyRecommended(ca), contributionHandler.ReviewContribution) // 审核投稿（幂等性保护）
 					adminContributions.GET("/stats-admin", contributionHandler.GetAdminContributionStats)                                 // 管理员投稿统计
@@ -276,75 +287,75 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			// 倒数日（需认证）
 			countdowns := authorized.Group("/countdowns")
 			{
-				countdowns.POST("/", middleware.RequirePermission(rbacService, models.PermissionCountdown), middleware.IdempotencyRecommended(ca), countdownHandler.CreateCountdown)
-				countdowns.GET("/", middleware.RequirePermission(rbacService, models.PermissionCountdown), countdownHandler.GetCountdowns)
-				countdowns.GET("/:id", middleware.RequirePermission(rbacService, models.PermissionCountdown), countdownHandler.GetCountdownByID)
-				countdowns.PUT("/:id", middleware.RequirePermission(rbacService, models.PermissionCountdown), middleware.IdempotencyRecommended(ca), countdownHandler.UpdateCountdown)
-				countdowns.DELETE("/:id", middleware.RequirePermission(rbacService, models.PermissionCountdown), countdownHandler.DeleteCountdown)
+				countdowns.POST("/", middleware.RequirePermission(rbacService, constant.PermissionCountdown), middleware.IdempotencyRecommended(ca), countdownHandler.CreateCountdown)
+				countdowns.GET("/", middleware.RequirePermission(rbacService, constant.PermissionCountdown), countdownHandler.GetCountdowns)
+				countdowns.GET("/:id", middleware.RequirePermission(rbacService, constant.PermissionCountdown), countdownHandler.GetCountdownByID)
+				countdowns.PUT("/:id", middleware.RequirePermission(rbacService, constant.PermissionCountdown), middleware.IdempotencyRecommended(ca), countdownHandler.UpdateCountdown)
+				countdowns.DELETE("/:id", middleware.RequirePermission(rbacService, constant.PermissionCountdown), countdownHandler.DeleteCountdown)
 			}
 
 			// 学习清单（需认证）
 			studyTasks := authorized.Group("/study-tasks")
 			{
-				studyTasks.POST("/", middleware.RequirePermission(rbacService, models.PermissionStudyTask), middleware.IdempotencyRecommended(ca), studyTaskHandler.CreateStudyTask)
-				studyTasks.GET("/", middleware.RequirePermission(rbacService, models.PermissionStudyTask), studyTaskHandler.GetStudyTasks)
-				studyTasks.GET("/:id", middleware.RequirePermission(rbacService, models.PermissionStudyTask), studyTaskHandler.GetStudyTaskByID)
-				studyTasks.PUT("/:id", middleware.RequirePermission(rbacService, models.PermissionStudyTask), middleware.IdempotencyRecommended(ca), studyTaskHandler.UpdateStudyTask)
-				studyTasks.DELETE("/:id", middleware.RequirePermission(rbacService, models.PermissionStudyTask), studyTaskHandler.DeleteStudyTask)
-				studyTasks.GET("/stats", middleware.RequirePermission(rbacService, models.PermissionStudyTask), studyTaskHandler.GetStudyTaskStats)
-				studyTasks.GET("/completed", middleware.RequirePermission(rbacService, models.PermissionStudyTask), studyTaskHandler.GetCompletedTasks)
+				studyTasks.POST("/", middleware.RequirePermission(rbacService, constant.PermissionStudyTask), middleware.IdempotencyRecommended(ca), studyTaskHandler.CreateStudyTask)
+				studyTasks.GET("/", middleware.RequirePermission(rbacService, constant.PermissionStudyTask), studyTaskHandler.GetStudyTasks)
+				studyTasks.GET("/:id", middleware.RequirePermission(rbacService, constant.PermissionStudyTask), studyTaskHandler.GetStudyTaskByID)
+				studyTasks.PUT("/:id", middleware.RequirePermission(rbacService, constant.PermissionStudyTask), middleware.IdempotencyRecommended(ca), studyTaskHandler.UpdateStudyTask)
+				studyTasks.DELETE("/:id", middleware.RequirePermission(rbacService, constant.PermissionStudyTask), studyTaskHandler.DeleteStudyTask)
+				studyTasks.GET("/stats", middleware.RequirePermission(rbacService, constant.PermissionStudyTask), studyTaskHandler.GetStudyTaskStats)
+				studyTasks.GET("/completed", middleware.RequirePermission(rbacService, constant.PermissionStudyTask), studyTaskHandler.GetCompletedTasks)
 			}
 
 			// 资料（需认证）
 			materials := authorized.Group("/materials")
 			{
-				materials.GET("/", middleware.RequirePermission(rbacService, models.PermissionMaterialGet), materialHandler.GetMaterialList)                     // 获取资料列表
-				materials.GET("/top", middleware.RequirePermission(rbacService, models.PermissionMaterialGet), materialHandler.GetTopMaterials)                  // 获取热门资料
-				materials.GET("/hot-words", middleware.RequirePermission(rbacService, models.PermissionMaterialGet), materialHandler.GetHotWords)                // 获取热词
-				materials.GET("/search", middleware.RequirePermission(rbacService, models.PermissionMaterialGet), materialHandler.SearchMaterials)               // 搜索资料
-				materials.GET("/:md5", middleware.RequirePermission(rbacService, models.PermissionMaterialGet), materialHandler.GetMaterialDetail)               // 获取资料详情
-				materials.POST("/:md5/rating", middleware.RequirePermission(rbacService, models.PermissionMaterialRate), materialHandler.RateMaterial)           // 资料评分
-				materials.POST("/:md5/download", middleware.RequirePermission(rbacService, models.PermissionMaterialDownload), materialHandler.DownloadMaterial) // 下载资料
+				materials.GET("/", middleware.RequirePermission(rbacService, constant.PermissionMaterialGet), materialHandler.GetMaterialList)                     // 获取资料列表
+				materials.GET("/top", middleware.RequirePermission(rbacService, constant.PermissionMaterialGet), materialHandler.GetTopMaterials)                  // 获取热门资料
+				materials.GET("/hot-words", middleware.RequirePermission(rbacService, constant.PermissionMaterialGet), materialHandler.GetHotWords)                // 获取热词
+				materials.GET("/search", middleware.RequirePermission(rbacService, constant.PermissionMaterialGet), materialHandler.SearchMaterials)               // 搜索资料
+				materials.GET("/:md5", middleware.RequirePermission(rbacService, constant.PermissionMaterialGet), materialHandler.GetMaterialDetail)               // 获取资料详情
+				materials.POST("/:md5/rating", middleware.RequirePermission(rbacService, constant.PermissionMaterialRate), materialHandler.RateMaterial)           // 资料评分
+				materials.POST("/:md5/download", middleware.RequirePermission(rbacService, constant.PermissionMaterialDownload), materialHandler.DownloadMaterial) // 下载资料
 			}
 
 			// 资料分类（需认证）
 			materialCategories := authorized.Group("/material-categories")
 			{
-				materialCategories.GET("/", middleware.RequirePermission(rbacService, models.PermissionMaterialCategoryGet), materialHandler.GetCategories) // 获取分类列表
+				materialCategories.GET("/", middleware.RequirePermission(rbacService, constant.PermissionMaterialCategoryGet), materialHandler.GetCategories) // 获取分类列表
 			}
 
 			// 通知（需认证）
 			notifications := authorized.Group("/notifications")
 			{
-				notifications.GET("/", middleware.RequirePermission(rbacService, models.PermissionNotificationGet), notificationHandler.GetNotifications)       // 获取通知列表
-				notifications.GET("/:id", middleware.RequirePermission(rbacService, models.PermissionNotificationGet), notificationHandler.GetNotificationByID) // 获取通知详情
+				notifications.GET("/", middleware.RequirePermission(rbacService, constant.PermissionNotificationGet), notificationHandler.GetNotifications)       // 获取通知列表
+				notifications.GET("/:id", middleware.RequirePermission(rbacService, constant.PermissionNotificationGet), notificationHandler.GetNotificationByID) // 获取通知详情
 			}
 
 			// 通知分类（需认证）
 			categories := authorized.Group("/categories")
 			{
-				categories.GET("/", middleware.RequirePermission(rbacService, models.PermissionNotificationGet), notificationHandler.GetCategories) // 获取所有分类
+				categories.GET("/", middleware.RequirePermission(rbacService, constant.PermissionNotificationGet), notificationHandler.GetCategories) // 获取所有分类
 			}
 
 			// 刷题（需认证）
 			questions := authorized.Group("/questions")
 			{
-				questions.GET("/projects", middleware.RequirePermission(rbacService, models.PermissionQuestion), questionHandler.GetProjects)     // 获取项目列表
-				questions.GET("/list", middleware.RequirePermission(rbacService, models.PermissionQuestion), questionHandler.GetQuestions)        // 获取题目ID列表
-				questions.GET("/:id", middleware.RequirePermission(rbacService, models.PermissionQuestion), questionHandler.GetQuestionByID)      // 获取题目详情
-				questions.POST("/study", middleware.RequirePermission(rbacService, models.PermissionQuestion), questionHandler.RecordStudy)       // 记录学习次数
-				questions.POST("/practice", middleware.RequirePermission(rbacService, models.PermissionQuestion), questionHandler.SubmitPractice) // 记录做题次数
+				questions.GET("/projects", middleware.RequirePermission(rbacService, constant.PermissionQuestion), questionHandler.GetProjects)     // 获取项目列表
+				questions.GET("/list", middleware.RequirePermission(rbacService, constant.PermissionQuestion), questionHandler.GetQuestions)        // 获取题目ID列表
+				questions.GET("/:id", middleware.RequirePermission(rbacService, constant.PermissionQuestion), questionHandler.GetQuestionByID)      // 获取题目详情
+				questions.POST("/study", middleware.RequirePermission(rbacService, constant.PermissionQuestion), questionHandler.RecordStudy)       // 记录学习次数
+				questions.POST("/practice", middleware.RequirePermission(rbacService, constant.PermissionQuestion), questionHandler.SubmitPractice) // 记录做题次数
 			}
 
 			// 番茄钟（需认证）
 			pomodoro := authorized.Group("/pomodoro")
 			{
-				pomodoro.POST("/increment", middleware.RequirePermission(rbacService, models.PermissionPomodoro), pomodoroHandler.Increment) // 增加次数
-				pomodoro.GET("/ranking", middleware.RequirePermission(rbacService, models.PermissionPomodoro), pomodoroHandler.GetRanking)   // 获取排名
+				pomodoro.POST("/increment", middleware.RequirePermission(rbacService, constant.PermissionPomodoro), pomodoroHandler.Increment) // 增加次数
+				pomodoro.GET("/ranking", middleware.RequirePermission(rbacService, constant.PermissionPomodoro), pomodoroHandler.GetRanking)   // 获取排名
 			}
 
 			// 聊天对话相关路由（需认证）
-			chat := authorized.Group("/chat", middleware.RequirePermission(rbacService, models.PermissionChatStudy))
+			chat := authorized.Group("/chat", middleware.RequirePermission(rbacService, constant.PermissionChatStudy))
 			{
 				chat.POST("/conversations", middleware.IdempotencyRecommended(ca), chatHandler.CreateConversation) // 创建对话
 				chat.GET("/conversations", chatHandler.ListConversations)                                          // 列出对话
@@ -359,36 +370,36 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			// 统计（需认证）
 			stat := authorized.Group("/stat")
 			{
-				stat.GET("/system/online", middleware.RequirePermission(rbacService, models.PermissionStatisticGet), statHandler.GetSystemOnlineCount)               // 获取系统在线人数
-				stat.GET("/project/:project_id/online", middleware.RequirePermission(rbacService, models.PermissionStatisticGet), statHandler.GetProjectOnlineCount) // 获取项目在线人数
+				stat.GET("/system/online", middleware.RequirePermission(rbacService, constant.PermissionStatisticGet), statHandler.GetSystemOnlineCount)               // 获取系统在线人数
+				stat.GET("/project/:project_id/online", middleware.RequirePermission(rbacService, constant.PermissionStatisticGet), statHandler.GetProjectOnlineCount) // 获取项目在线人数
 			}
 
 			// 词典（需认证）
 			dictionary := authorized.Group("/dictionary")
 			{
-				dictionary.GET("/word", middleware.RequirePermission(rbacService, models.PermissionDictionary), dictionaryHandler.GetRandomWord)
+				dictionary.GET("/word", middleware.RequirePermission(rbacService, constant.PermissionDictionary), dictionaryHandler.GetRandomWord)
 			}
 
 			// 通知管理（管理员）
 			notificationAdmin := authorized.Group("/admin/notifications")
 			{
-				notificationAdmin.GET("/", middleware.RequirePermission(rbacService, models.PermissionNotificationGetAdmin), notificationHandler.GetAdminNotifications)                                                                 // 获取管理员通知列表
-				notificationAdmin.GET("/stats", middleware.RequirePermission(rbacService, models.PermissionNotificationGetAdmin), notificationHandler.GetNotificationStats)                                                             // 获取通知统计信息
-				notificationAdmin.GET("/:id", middleware.RequirePermission(rbacService, models.PermissionNotificationGetAdmin), notificationHandler.GetNotificationAdminByID)                                                           // 获取通知详情
-				notificationAdmin.POST("/", middleware.RequirePermission(rbacService, models.PermissionNotificationCreate), middleware.IdempotencyRecommended(ca), notificationHandler.CreateNotification)                              // 创建通知（幂等性保护）
-				notificationAdmin.POST("/:id/publish", middleware.RequirePermission(rbacService, models.PermissionNotificationPublish), middleware.IdempotencyRecommended(ca), notificationHandler.PublishNotification)                 // 发布通知（幂等性保护）
-				notificationAdmin.PUT("/:id", middleware.RequirePermission(rbacService, models.PermissionNotificationUpdate), notificationHandler.UpdateNotification)                                                                   // 更新通知
-				notificationAdmin.POST("/:id/approve", middleware.RequirePermission(rbacService, models.PermissionNotificationApprove), middleware.IdempotencyRecommended(ca), notificationHandler.ApproveNotification)                 // 审核通知（幂等性保护）
-				notificationAdmin.POST("/:id/schedule", middleware.RequirePermission(rbacService, models.PermissionNotificationSchedule), middleware.IdempotencyRecommended(ca), notificationHandler.ConvertToSchedule)                 // 转换为日程（幂等性保护）
-				notificationAdmin.DELETE("/:id", middleware.RequirePermission(rbacService, models.PermissionNotificationDelete), notificationHandler.DeleteNotification)                                                                // 删除通知
-				notificationAdmin.POST("/:id/publish-admin", middleware.RequirePermission(rbacService, models.PermissionNotificationPublishAdmin), middleware.IdempotencyRecommended(ca), notificationHandler.PublishNotificationAdmin) // 管理员直接发布通知（跳过审核，幂等性保护）
-				notificationAdmin.POST("/:id/pin", middleware.RequirePermission(rbacService, models.PermissionNotificationPin), middleware.IdempotencyRecommended(ca), notificationHandler.PinNotification)                             // 置顶通知（幂等性保护）
-				notificationAdmin.POST("/:id/unpin", middleware.RequirePermission(rbacService, models.PermissionNotificationPin), middleware.IdempotencyRecommended(ca), notificationHandler.UnpinNotification)                         // 取消置顶通知（幂等性保护）
+				notificationAdmin.GET("/", middleware.RequirePermission(rbacService, constant.PermissionNotificationGetAdmin), notificationHandler.GetAdminNotifications)                                                                 // 获取管理员通知列表
+				notificationAdmin.GET("/stats", middleware.RequirePermission(rbacService, constant.PermissionNotificationGetAdmin), notificationHandler.GetNotificationStats)                                                             // 获取通知统计信息
+				notificationAdmin.GET("/:id", middleware.RequirePermission(rbacService, constant.PermissionNotificationGetAdmin), notificationHandler.GetNotificationAdminByID)                                                           // 获取通知详情
+				notificationAdmin.POST("/", middleware.RequirePermission(rbacService, constant.PermissionNotificationCreate), middleware.IdempotencyRecommended(ca), notificationHandler.CreateNotification)                              // 创建通知（幂等性保护）
+				notificationAdmin.POST("/:id/publish", middleware.RequirePermission(rbacService, constant.PermissionNotificationPublish), middleware.IdempotencyRecommended(ca), notificationHandler.PublishNotification)                 // 发布通知（幂等性保护）
+				notificationAdmin.PUT("/:id", middleware.RequirePermission(rbacService, constant.PermissionNotificationUpdate), notificationHandler.UpdateNotification)                                                                   // 更新通知
+				notificationAdmin.POST("/:id/approve", middleware.RequirePermission(rbacService, constant.PermissionNotificationApprove), middleware.IdempotencyRecommended(ca), notificationHandler.ApproveNotification)                 // 审核通知（幂等性保护）
+				notificationAdmin.POST("/:id/schedule", middleware.RequirePermission(rbacService, constant.PermissionNotificationSchedule), middleware.IdempotencyRecommended(ca), notificationHandler.ConvertToSchedule)                 // 转换为日程（幂等性保护）
+				notificationAdmin.DELETE("/:id", middleware.RequirePermission(rbacService, constant.PermissionNotificationDelete), notificationHandler.DeleteNotification)                                                                // 删除通知
+				notificationAdmin.POST("/:id/publish-admin", middleware.RequirePermission(rbacService, constant.PermissionNotificationPublishAdmin), middleware.IdempotencyRecommended(ca), notificationHandler.PublishNotificationAdmin) // 管理员直接发布通知（跳过审核，幂等性保护）
+				notificationAdmin.POST("/:id/pin", middleware.RequirePermission(rbacService, constant.PermissionNotificationPin), middleware.IdempotencyRecommended(ca), notificationHandler.PinNotification)                             // 置顶通知（幂等性保护）
+				notificationAdmin.POST("/:id/unpin", middleware.RequirePermission(rbacService, constant.PermissionNotificationPin), middleware.IdempotencyRecommended(ca), notificationHandler.UnpinNotification)                         // 取消置顶通知（幂等性保护）
 			}
 
 			// 通知分类管理（管理员）
 			categoryAdmin := authorized.Group("/admin/categories")
-			categoryAdmin.Use(middleware.RequirePermission(rbacService, models.PermissionNotificationCategoryManage))
+			categoryAdmin.Use(middleware.RequirePermission(rbacService, constant.PermissionNotificationCategoryManage))
 			{
 				categoryAdmin.POST("/", middleware.IdempotencyRecommended(ca), notificationHandler.CreateCategory) // 创建分类（幂等性保护）
 				categoryAdmin.PUT("/:id", notificationHandler.UpdateCategory)                                      // 更新分类
@@ -396,7 +407,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 			// 功能管理（管理员）
 			featureAdmin := authorized.Group("/admin/features")
-			featureAdmin.Use(middleware.RequirePermission(rbacService, models.PermissionFeatureManage))
+			featureAdmin.Use(middleware.RequirePermission(rbacService, constant.PermissionFeatureManage))
 			{
 				featureAdmin.GET("", featureHandler.ListFeatures)                                                                   // 获取所有功能列表
 				featureAdmin.GET("/:key", featureHandler.GetFeature)                                                                // 获取功能详情
@@ -411,14 +422,18 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 			// 用户管理（管理员）
 			userFeatureAdmin := authorized.Group("/admin/users")
-			userFeatureAdmin.Use(middleware.RequirePermission(rbacService, models.PermissionUserManage))
+			userFeatureAdmin.Use(middleware.RequirePermission(rbacService, constant.PermissionUserManage))
 			{
+				userFeatureAdmin.GET("/:id", authHandler.GetUserDetail)
+				userFeatureAdmin.POST("/:id/kick", authHandler.KickUser)
+				userFeatureAdmin.POST("/:id/ban", authHandler.BanUser)
+				userFeatureAdmin.POST("/:id/unban", authHandler.UnbanUser)
 				userFeatureAdmin.GET("/:id/features", featureHandler.GetUserFeatureDetails) // 查看用户功能权限详情
 			}
 
 			// RBAC 管理（管理员）
 			rbacAdmin := authorized.Group("/admin/rbac")
-			rbacAdmin.Use(middleware.RequirePermission(rbacService, models.PermissionUserManage))
+			rbacAdmin.Use(middleware.RequirePermission(rbacService, constant.PermissionUserManage))
 			{
 				rbacAdmin.GET("/roles", rbacHandler.ListRoles)
 				rbacAdmin.GET("/roles/permissions", rbacHandler.ListRolesWithPermissions) // 获取所有角色及其权限列表
@@ -434,7 +449,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 			// 资料管理（管理员）
 			materialAdmin := authorized.Group("/admin")
-			materialAdmin.Use(middleware.RequirePermission(rbacService, models.PermissionMaterialManage))
+			materialAdmin.Use(middleware.RequirePermission(rbacService, constant.PermissionMaterialManage))
 			{
 				// 资料管理
 				materialAdmin.DELETE("/materials/:md5", materialHandler.DeleteMaterial) // 删除资料

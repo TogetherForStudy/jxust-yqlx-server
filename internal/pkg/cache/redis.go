@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -80,6 +81,14 @@ func (r *redisCache) SIsMember(ctx context.Context, key string, member interface
 	return r.cli.GetRedisCli().SIsMember(ctx, key, member).Result()
 }
 
+func (r *redisCache) SMembers(ctx context.Context, key string) ([]string, error) {
+	return r.cli.GetRedisCli().SMembers(ctx, key).Result()
+}
+
+func (r *redisCache) SRem(ctx context.Context, key string, members ...interface{}) (int64, error) {
+	return r.cli.GetRedisCli().SRem(ctx, key, members...).Result()
+}
+
 func (r *redisCache) GetInt(ctx context.Context, key string) (int64, error) {
 	val, err := r.cli.GetRedisCli().Get(ctx, key).Result()
 	if err != nil {
@@ -104,11 +113,22 @@ func (r *redisCache) ZAdd(ctx context.Context, key string, score float64, member
 }
 
 func (r *redisCache) ZCount(ctx context.Context, key string, min, max float64) (int64, error) {
-	return r.cli.GetRedisCli().ZCount(ctx, key, fmt.Sprintf("%.0f", min), fmt.Sprintf("%.0f", max)).Result()
+	return r.cli.GetRedisCli().ZCount(ctx, key, formatZScoreBound(min), formatZScoreBound(max)).Result()
+}
+
+func (r *redisCache) ZRangeByScore(ctx context.Context, key string, min, max float64) ([]string, error) {
+	return r.cli.GetRedisCli().ZRangeByScore(ctx, key, &rediscache.ZRangeBy{
+		Min: formatZScoreBound(min),
+		Max: formatZScoreBound(max),
+	}).Result()
+}
+
+func (r *redisCache) ZRem(ctx context.Context, key string, members ...interface{}) (int64, error) {
+	return r.cli.GetRedisCli().ZRem(ctx, key, members...).Result()
 }
 
 func (r *redisCache) ZRemRangeByScore(ctx context.Context, key string, min, max float64) (int64, error) {
-	return r.cli.GetRedisCli().ZRemRangeByScore(ctx, key, fmt.Sprintf("%.0f", min), fmt.Sprintf("%.0f", max)).Result()
+	return r.cli.GetRedisCli().ZRemRangeByScore(ctx, key, formatZScoreBound(min), formatZScoreBound(max)).Result()
 }
 
 func (r *redisCache) LPush(ctx context.Context, key string, values ...interface{}) (int64, error) {
@@ -125,4 +145,15 @@ func (r *redisCache) LLen(ctx context.Context, key string) (int64, error) {
 
 func (r *redisCache) Close() error {
 	return r.cli.GetRedisCli().Close()
+}
+
+func formatZScoreBound(score float64) string {
+	switch {
+	case math.IsInf(score, -1):
+		return "-inf"
+	case math.IsInf(score, 1):
+		return "+inf"
+	default:
+		return fmt.Sprintf("%.0f", score)
+	}
 }

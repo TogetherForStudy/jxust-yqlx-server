@@ -9,6 +9,7 @@ import (
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 	json "github.com/bytedance/sonic"
 	"gorm.io/gorm"
@@ -44,99 +45,99 @@ func (s *RBACService) cacheKey(userID uint) string {
 // SeedDefaults 初始化设计文档中预置的角色/权限与绑定关系
 func (s *RBACService) SeedDefaults(ctx context.Context) error {
 	roleSeeds := []models.Role{
-		{RoleTag: models.RoleTagUserBasic, Name: "基本用户", Description: "默认角色"},
-		{RoleTag: models.RoleTagUserActive, Name: "活跃用户", Description: "活跃度达标解锁"},
-		{RoleTag: models.RoleTagUserVerified, Name: "认证用户", Description: "完成校内身份认证"},
-		{RoleTag: models.RoleTagOperator, Name: "运营", Description: "运营"},
-		{RoleTag: models.RoleTagAdmin, Name: "管理", Description: "管理"},
+		{RoleTag: constant.RoleTagUserBasic, Name: "基本用户", Description: "默认角色"},
+		{RoleTag: constant.RoleTagUserActive, Name: "活跃用户", Description: "活跃度达标解锁"},
+		{RoleTag: constant.RoleTagUserVerified, Name: "认证用户", Description: "完成校内身份认证"},
+		{RoleTag: constant.RoleTagOperator, Name: "运营", Description: "运营"},
+		{RoleTag: constant.RoleTagAdmin, Name: "管理", Description: "管理"},
 	}
 
 	permissionSeeds := []models.Permission{
-		{PermissionTag: models.PermissionUserGet, Name: "用户资料查看", Description: ""},
-		{PermissionTag: models.PermissionUserUpdate, Name: "用户资料修改", Description: ""},
-		{PermissionTag: models.PermissionOSSTokenGet, Name: "获取OSS Token", Description: ""},
-		{PermissionTag: models.PermissionReviewCreate, Name: "发布点评", Description: ""},
-		{PermissionTag: models.PermissionReviewGetSelf, Name: "查看本人点评", Description: ""},
-		{PermissionTag: models.PermissionCourseTableGet, Name: "查看课表", Description: ""},
-		{PermissionTag: models.PermissionCourseTableClassSearch, Name: "搜索班级", Description: ""},
-		{PermissionTag: models.PermissionCourseTableClassUpdate, Name: "更新本人班级", Description: ""},
-		{PermissionTag: models.PermissionCourseTableClassUpdateAll, Name: "管理员更新班级", Description: ""},
-		{PermissionTag: models.PermissionCourseTableUpdate, Name: "更新个人课表", Description: ""},
-		{PermissionTag: models.PermissionFailRate, Name: "挂科率查询", Description: ""},
-		{PermissionTag: models.PermissionPointGet, Name: "积分查看", Description: ""},
-		{PermissionTag: models.PermissionPointSpend, Name: "积分消费", Description: ""},
-		{PermissionTag: models.PermissionPointManage, Name: "积分管理", Description: ""},
-		{PermissionTag: models.PermissionContributionGet, Name: "投稿查看", Description: ""},
-		{PermissionTag: models.PermissionContributionCreate, Name: "投稿创建", Description: ""},
-		{PermissionTag: models.PermissionCountdown, Name: "倒数日", Description: ""},
-		{PermissionTag: models.PermissionStudyTask, Name: "学习任务", Description: ""},
-		{PermissionTag: models.PermissionMaterialGet, Name: "资料查看", Description: ""},
-		{PermissionTag: models.PermissionMaterialRate, Name: "资料评分", Description: ""},
-		{PermissionTag: models.PermissionMaterialDownload, Name: "资料下载", Description: ""},
-		{PermissionTag: models.PermissionMaterialCategoryGet, Name: "资料分类查看", Description: ""},
-		{PermissionTag: models.PermissionQuestion, Name: "刷题访问", Description: ""},
-		{PermissionTag: models.PermissionPomodoro, Name: "番茄钟", Description: ""},
-		{PermissionTag: models.PermissionDictionary, Name: "每日一词", Description: ""},
+		{PermissionTag: constant.PermissionUserGet, Name: "用户资料查看", Description: ""},
+		{PermissionTag: constant.PermissionUserUpdate, Name: "用户资料修改", Description: ""},
+		{PermissionTag: constant.PermissionOSSTokenGet, Name: "获取OSS Token", Description: ""},
+		{PermissionTag: constant.PermissionReviewCreate, Name: "发布点评", Description: ""},
+		{PermissionTag: constant.PermissionReviewGetSelf, Name: "查看本人点评", Description: ""},
+		{PermissionTag: constant.PermissionCourseTableGet, Name: "查看课表", Description: ""},
+		{PermissionTag: constant.PermissionCourseTableClassSearch, Name: "搜索班级", Description: ""},
+		{PermissionTag: constant.PermissionCourseTableClassUpdate, Name: "更新本人班级", Description: ""},
+		{PermissionTag: constant.PermissionCourseTableClassUpdateAll, Name: "管理员更新班级", Description: ""},
+		{PermissionTag: constant.PermissionCourseTableUpdate, Name: "更新个人课表", Description: ""},
+		{PermissionTag: constant.PermissionFailRate, Name: "挂科率查询", Description: ""},
+		{PermissionTag: constant.PermissionPointGet, Name: "积分查看", Description: ""},
+		{PermissionTag: constant.PermissionPointSpend, Name: "积分消费", Description: ""},
+		{PermissionTag: constant.PermissionPointManage, Name: "积分管理", Description: ""},
+		{PermissionTag: constant.PermissionContributionGet, Name: "投稿查看", Description: ""},
+		{PermissionTag: constant.PermissionContributionCreate, Name: "投稿创建", Description: ""},
+		{PermissionTag: constant.PermissionCountdown, Name: "倒数日", Description: ""},
+		{PermissionTag: constant.PermissionStudyTask, Name: "学习任务", Description: ""},
+		{PermissionTag: constant.PermissionMaterialGet, Name: "资料查看", Description: ""},
+		{PermissionTag: constant.PermissionMaterialRate, Name: "资料评分", Description: ""},
+		{PermissionTag: constant.PermissionMaterialDownload, Name: "资料下载", Description: ""},
+		{PermissionTag: constant.PermissionMaterialCategoryGet, Name: "资料分类查看", Description: ""},
+		{PermissionTag: constant.PermissionQuestion, Name: "刷题访问", Description: ""},
+		{PermissionTag: constant.PermissionPomodoro, Name: "番茄钟", Description: ""},
+		{PermissionTag: constant.PermissionDictionary, Name: "每日一词", Description: ""},
 
-		{PermissionTag: models.PermissionReviewManage, Name: "点评管理", Description: ""},
-		{PermissionTag: models.PermissionCourseTableManage, Name: "课表管理", Description: ""},
-		{PermissionTag: models.PermissionHeroManage, Name: "英雄榜管理", Description: ""},
-		{PermissionTag: models.PermissionConfigManage, Name: "配置管理", Description: ""},
-		{PermissionTag: models.PermissionContributionManage, Name: "投稿管理", Description: ""},
-		{PermissionTag: models.PermissionNotificationGet, Name: "通知后台查看", Description: ""},
-		{PermissionTag: models.PermissionNotificationCreate, Name: "通知创建", Description: ""},
-		{PermissionTag: models.PermissionNotificationPublish, Name: "通知发布", Description: ""},
-		{PermissionTag: models.PermissionNotificationUpdate, Name: "通知更新", Description: ""},
-		{PermissionTag: models.PermissionNotificationApprove, Name: "通知审核", Description: ""},
-		{PermissionTag: models.PermissionNotificationSchedule, Name: "通知排期", Description: ""},
-		{PermissionTag: models.PermissionNotificationPin, Name: "通知置顶/撤销", Description: ""},
-		{PermissionTag: models.PermissionNotificationDelete, Name: "通知删除", Description: ""},
-		{PermissionTag: models.PermissionNotificationPublishAdmin, Name: "通知直发", Description: ""},
-		{PermissionTag: models.PermissionNotificationCategoryManage, Name: "通知分类管理", Description: ""},
-		{PermissionTag: models.PermissionFeatureManage, Name: "功能管理", Description: ""},
-		{PermissionTag: models.PermissionUserManage, Name: "用户管理", Description: ""},
-		{PermissionTag: models.PermissionMaterialManage, Name: "资料管理", Description: ""},
+		{PermissionTag: constant.PermissionReviewManage, Name: "点评管理", Description: ""},
+		{PermissionTag: constant.PermissionCourseTableManage, Name: "课表管理", Description: ""},
+		{PermissionTag: constant.PermissionHeroManage, Name: "英雄榜管理", Description: ""},
+		{PermissionTag: constant.PermissionConfigManage, Name: "配置管理", Description: ""},
+		{PermissionTag: constant.PermissionContributionManage, Name: "投稿管理", Description: ""},
+		{PermissionTag: constant.PermissionNotificationGet, Name: "通知后台查看", Description: ""},
+		{PermissionTag: constant.PermissionNotificationCreate, Name: "通知创建", Description: ""},
+		{PermissionTag: constant.PermissionNotificationPublish, Name: "通知发布", Description: ""},
+		{PermissionTag: constant.PermissionNotificationUpdate, Name: "通知更新", Description: ""},
+		{PermissionTag: constant.PermissionNotificationApprove, Name: "通知审核", Description: ""},
+		{PermissionTag: constant.PermissionNotificationSchedule, Name: "通知排期", Description: ""},
+		{PermissionTag: constant.PermissionNotificationPin, Name: "通知置顶/撤销", Description: ""},
+		{PermissionTag: constant.PermissionNotificationDelete, Name: "通知删除", Description: ""},
+		{PermissionTag: constant.PermissionNotificationPublishAdmin, Name: "通知直发", Description: ""},
+		{PermissionTag: constant.PermissionNotificationCategoryManage, Name: "通知分类管理", Description: ""},
+		{PermissionTag: constant.PermissionFeatureManage, Name: "功能管理", Description: ""},
+		{PermissionTag: constant.PermissionUserManage, Name: "用户管理", Description: ""},
+		{PermissionTag: constant.PermissionMaterialManage, Name: "资料管理", Description: ""},
 	}
 
 	roleBindings := map[string][]string{
 		// 基础用户：常规读写
-		models.RoleTagUserBasic: {
-			models.PermissionUserGet,
-			models.PermissionUserUpdate,
-			models.PermissionOSSTokenGet,
-			models.PermissionReviewCreate,
-			models.PermissionReviewGetSelf,
-			models.PermissionCourseTableGet,
-			models.PermissionCourseTableClassSearch,
-			models.PermissionCourseTableClassUpdate,
-			models.PermissionCourseTableUpdate,
-			models.PermissionFailRate,
-			models.PermissionPointGet,
-			models.PermissionPointSpend,
-			models.PermissionContributionGet,
-			models.PermissionContributionCreate,
-			models.PermissionCountdown,
-			models.PermissionStudyTask,
-			models.PermissionMaterialGet,
-			models.PermissionMaterialRate,
-			models.PermissionMaterialDownload,
-			models.PermissionMaterialCategoryGet,
-			models.PermissionQuestion,
-			models.PermissionPomodoro,
-			models.PermissionDictionary,
+		constant.RoleTagUserBasic: {
+			constant.PermissionUserGet,
+			constant.PermissionUserUpdate,
+			constant.PermissionOSSTokenGet,
+			constant.PermissionReviewCreate,
+			constant.PermissionReviewGetSelf,
+			constant.PermissionCourseTableGet,
+			constant.PermissionCourseTableClassSearch,
+			constant.PermissionCourseTableClassUpdate,
+			constant.PermissionCourseTableUpdate,
+			constant.PermissionFailRate,
+			constant.PermissionPointGet,
+			constant.PermissionPointSpend,
+			constant.PermissionContributionGet,
+			constant.PermissionContributionCreate,
+			constant.PermissionCountdown,
+			constant.PermissionStudyTask,
+			constant.PermissionMaterialGet,
+			constant.PermissionMaterialRate,
+			constant.PermissionMaterialDownload,
+			constant.PermissionMaterialCategoryGet,
+			constant.PermissionQuestion,
+			constant.PermissionPomodoro,
+			constant.PermissionDictionary,
 		},
-		models.RoleTagUserActive: {
-			models.PermissionCourseTableClassUpdateAll,
+		constant.RoleTagUserActive: {
+			constant.PermissionCourseTableClassUpdateAll,
 		},
 		// 运营：
-		models.RoleTagOperator: {
-			models.PermissionContributionManage,
-			models.PermissionNotificationGet,
-			models.PermissionNotificationCreate,
-			models.PermissionNotificationPublish,
-			models.PermissionNotificationUpdate,
-			models.PermissionNotificationApprove,
-			models.PermissionNotificationSchedule,
+		constant.RoleTagOperator: {
+			constant.PermissionContributionManage,
+			constant.PermissionNotificationGet,
+			constant.PermissionNotificationCreate,
+			constant.PermissionNotificationPublish,
+			constant.PermissionNotificationUpdate,
+			constant.PermissionNotificationApprove,
+			constant.PermissionNotificationSchedule,
 		},
 	}
 
@@ -262,7 +263,7 @@ func (s *RBACService) ListRolesWithUsers(ctx context.Context) ([]models.Role, ma
 		roleUserCountMap[role.ID] = int(count)
 
 		// 只为非 basic_user 角色获取用户ID列表
-		if role.RoleTag != models.RoleTagUserBasic {
+		if role.RoleTag != constant.RoleTagUserBasic {
 			var userIDs []uint
 			if err := s.db.WithContext(ctx).
 				Model(&models.UserRole{}).
@@ -463,7 +464,7 @@ func (s *RBACService) GetUserPermissionSnapshot(ctx context.Context, userID uint
 
 	isAdmin := false
 	for _, tag := range roleTags {
-		if tag == models.RoleTagAdmin {
+		if tag == constant.RoleTagAdmin {
 			isAdmin = true
 			break
 		}

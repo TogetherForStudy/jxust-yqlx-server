@@ -8,8 +8,10 @@ import (
 
 // WechatLoginResponse 微信登录响应
 type WechatLoginResponse struct {
-	Token    string              `json:"token"` // jwt token
-	UserInfo UserProfileResponse `json:"user_info"`
+	Token                string              `json:"token"` // access token
+	RefreshToken         string              `json:"refresh_token"`
+	AccessTokenExpiresAt int64               `json:"access_token_expires_at"`
+	UserInfo             UserProfileResponse `json:"user_info"`
 }
 
 // WechatSession 微信session信息
@@ -37,4 +39,22 @@ type UserProfileResponse struct {
 	Status    models.UserStatus `json:"status"`
 	CreatedAt time.Time         `json:"created_at"`
 	UpdatedAt time.Time         `json:"updated_at"`
+}
+
+type AuthSessionSummary struct {
+	SID           string `json:"sid"`
+	DeviceType    string `json:"device_type"`
+	ClientType    string `json:"client_type"`
+	IssuedAt      int64  `json:"issued_at"`
+	LastRefreshAt int64  `json:"last_refresh_at"`
+	ExpiresAt     int64  `json:"expires_at"`
+}
+
+type UserAuthDetailResponse struct {
+	UserInfo       UserProfileResponse  `json:"user_info"`
+	BlockType      string               `json:"block_type,omitempty"`
+	BlockReason    string               `json:"block_reason,omitempty"`
+	BlockExpiresAt int64                `json:"block_expires_at,omitempty"`
+	SessionCount   int                  `json:"session_count"`
+	Devices        []AuthSessionSummary `json:"devices"`
 }

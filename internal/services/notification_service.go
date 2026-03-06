@@ -8,6 +8,7 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 	json "github.com/bytedance/sonic"
 	"gorm.io/gorm"
@@ -68,7 +69,7 @@ func (s *NotificationService) UpdateNotification(ctx context.Context, notificati
 	}
 
 	// 权限校验：管理员无限制，运营人员只能修改草稿状态且是自己创建的通知
-	if !utils.IsAdmin(ctx) && !utils.HasUserRole(ctx, models.RoleTagOperator) {
+	if !utils.IsAdmin(ctx) && !utils.HasUserRole(ctx, constant.RoleTagOperator) {
 		if notification.PublisherID != userID {
 			return nil, errors.New("无权限修改")
 		}
@@ -720,7 +721,7 @@ func (s *NotificationService) generateApprovalSummary(ctx context.Context, notif
 
 	// 获取所有管理员和运营人员
 	var allReviewers []models.User
-	allReviewers, err = s.rbacService.GetUsersByRoleTags(ctx, []string{models.RoleTagAdmin, models.RoleTagOperator})
+	allReviewers, err = s.rbacService.GetUsersByRoleTags(ctx, []string{constant.RoleTagAdmin, constant.RoleTagOperator})
 	if err != nil {
 		return nil, err
 	}

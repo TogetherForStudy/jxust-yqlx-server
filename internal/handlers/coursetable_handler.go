@@ -174,6 +174,62 @@ func (h *CourseTableHandler) EditCourseCell(c *gin.Context) {
 	helper.SuccessResponse(c, "编辑成功")
 }
 
+// GetBindCount 获取当前用户的课表绑定次数
+// @Summary 获取课表已绑定次数
+// @Description 返回当前用户更换班级的已使用次数
+// @Tags 课程表
+// @Produce json
+// @Success 200 {object} helper.Response{data=map[string]int}
+// @Failure 401 {object} helper.Response
+// @Router /api/v0/coursetable/bind-count [get]
+func (h *CourseTableHandler) GetBindCount(c *gin.Context) {
+	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
+
+	count, err := h.courseTableService.GetUserBindCount(c, userID)
+	if err != nil {
+		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	helper.SuccessResponse(c, gin.H{"bind_count": count})
+}
+
+// ResetSchedule 重置用户个人课表
+// @Summary 重置个人课表
+// @Description 删除当前用户在指定学期的个人编辑课表数据，恢复为班级默认课表
+// @Tags 课程表
+// @Accept json
+// @Produce json
+// @Param semester query string true "学期"
+// @Success 200 {object} helper.Response
+// @Failure 400 {object} helper.Response
+// @Failure 401 {object} helper.Response
+// @Router /api/v0/coursetable/schedule [delete]
+func (h *CourseTableHandler) ResetSchedule(c *gin.Context) {
+	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		return
+	}
+
+	semester := c.Query("semester")
+	if semester == "" {
+		helper.ValidateResponse(c, "参数验证失败: semester 不能为空")
+		return
+	}
+
+	if err := h.courseTableService.ResetUserSchedule(c, userID, semester); err != nil {
+		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	helper.SuccessResponse(c, "个人课表重置成功")
+}
+
 // ResetUserBindCountToOne 管理员重置用户绑定次数为1
 // @Summary 管理员重置用户绑定次数为1
 // @Description 仅管理员可用，将指定用户的绑定次数置为1

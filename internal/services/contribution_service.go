@@ -9,6 +9,7 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
 	json "github.com/bytedance/sonic"
@@ -62,7 +63,7 @@ func (s *ContributionService) GetContributions(ctx context.Context, userID uint,
 
 	// 普通用户只能看自己的投稿
 	userRoleTags := utils.GetUserRoles(ctx)
-	if !slices.Contains(userRoleTags, models.RoleTagOperator) && !slices.Contains(userRoleTags, models.RoleTagAdmin) {
+	if !slices.Contains(userRoleTags, constant.RoleTagOperator) && !slices.Contains(userRoleTags, constant.RoleTagAdmin) {
 		query = query.Where("user_id = ?", userID)
 	} else if req.UserID != nil {
 		// 管理员可以按用户ID过滤
@@ -128,7 +129,7 @@ func (s *ContributionService) GetContributionByID(ctx context.Context, contribut
 
 	// 普通用户试图请求其他ID时候禁止
 	userRoleTags := utils.GetUserRoles(ctx)
-	if !slices.Contains(userRoleTags, models.RoleTagOperator) && !slices.Contains(userRoleTags, models.RoleTagAdmin) && contribution.UserID != userID {
+	if !slices.Contains(userRoleTags, constant.RoleTagOperator) && !slices.Contains(userRoleTags, constant.RoleTagAdmin) && contribution.UserID != userID {
 		return nil, errors.New("无权限")
 	}
 

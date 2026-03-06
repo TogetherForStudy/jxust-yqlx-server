@@ -915,6 +915,34 @@ curl -X GET \
   -H "Authorization: Bearer <YOUR_JWT_TOKEN>"
 ```
 
+### 番茄钟 (Pomodoro)
+
+#### 增加番茄钟次数 (需认证)
+```http
+POST /api/v0/pomodoro/increment
+Authorization: Bearer <JWT_TOKEN>
+
+Result: { "message": "番茄钟次数已增加" }
+```
+
+#### 获取番茄钟排名 (需认证)
+```http
+GET /api/v0/pomodoro/ranking
+Authorization: Bearer <JWT_TOKEN>
+
+Result: []response.PomodoroRankingItem
+```
+
+### 词典 / 随机取词 (Dictionary)
+
+#### 随机获取一个词 (需认证)
+```http
+GET /api/v0/dictionary/word
+Authorization: Bearer <JWT_TOKEN>
+
+Result: models.Dictionary
+```
+
 ## 数据模型说明
 
 ### 通知状态 (NotificationStatus)
@@ -1049,5 +1077,50 @@ curl -X GET \
   "is_overdue": false,
   "created_at": "2024-01-15T21:00:00Z",
   "updated_at": "2024-01-15T21:00:00Z"
+}
+```
+
+#### 番茄钟排名项 (PomodoroRankingItem)
+```json
+{
+  "rank": 1,
+  "nickname": "学霸",
+  "pomodoro_count": 100
+}
+```
+
+#### 词典单词 (Dictionary)
+```json
+{
+  "id": 1,
+  "word": "apple",
+  "phonetic_uk": "/ˈæp.əl/",
+  "phonetic_us": "/ˈæp.əl/",
+  "trans": [
+    {
+      "pos": "n.",
+      "tran": "苹果"
+    }
+  ],
+  "sentences": [
+    {
+      "s": "I eat an apple every day.",
+      "t": "我每天吃一个苹果。"
+    }
+  ],
+  "phrases": [
+    {
+      "p": "apple pie",
+      "t": "苹果派"
+    }
+  ],
+  "synos": ["fruit"],
+  "rel_words": [
+    {
+      "pos": "adj.",
+      "words": ["appley"]
+    }
+  ],
+  "source": "CET4"
 }
 ```
