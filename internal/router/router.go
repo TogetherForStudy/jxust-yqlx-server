@@ -37,7 +37,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		}
 	}
 
-	authService := services.NewAuthService(db, cfg, rbacService)
+	authService := services.NewAuthService(db, cfg, rbacService, ca)
 	pointsService := services.NewPointsService(db)
 	reviewService := services.NewReviewService(db, pointsService)
 	courseTableService := services.NewCourseTableService(db)
@@ -98,7 +98,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	mcpGroup := api.Group("/mcp")
 	{
 		mcpGroup.Use(middleware.RequestID())
-		mcpGroup.Use(middleware.AuthMiddleware(cfg))
+		mcpGroup.Use(middleware.AuthMiddleware(cfg, ca))
 		mcpHandler := handlers.NewMCPHandler(
 			heroService,
 			notificationService,
@@ -118,6 +118,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		auth := v0.Group("/auth")
 		{
 			auth.POST("/wechat-login", authHandler.WechatLogin)
+			auth.POST("/refresh", authHandler.RefreshToken)
 			if os.Getenv(constant.ENV_GIN_MODE) != "release" {
 				auth.POST("/mock-wechat-login", authHandler.MockWechatLogin)
 			}
@@ -143,15 +144,21 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 		// 需要认证的路由
 		authorized := v0.Group("/")
-		authorized.Use(middleware.AuthMiddleware(cfg))
+		authorized.Use(middleware.AuthMiddleware(cfg, ca))
 		authorized.Use(middleware.RequestRecordMiddleware(db, pointsService)) // 通用请求记录中间件（每日登录、在线人数统计）
 		{
+			authProtected := authorized.Group("/auth")
+			{
+				authProtected.POST("/logout", authHandler.Logout)
+				authProtected.POST("/logout-all", authHandler.LogoutAll)
+			}
+
 			// 用户（需认证）
 			user := authorized.Group("/user")
 			{
 				user.GET("/profile", middleware.RequirePermission(rbacService, constant.PermissionUserGet), authHandler.GetProfile)
 				user.PUT("/profile", middleware.RequirePermission(rbacService, constant.PermissionUserUpdate), authHandler.UpdateProfile)
-				user.GET("/features", middleware.RequirePermission(rbacService, constant.PermissionUserGet), featureHandler.GetUserFeatures)    // 获取用户功能列表
+				user.GET("/features", middleware.RequirePermission(rbacService, constant.PermissionUserGet), featureHandler.GetUserFeatures)     // 获取用户功能列表
 				user.GET("/login-days", middleware.RequirePermission(rbacService, constant.PermissionUserGet), userActivityHandler.GetLoginDays) // 获取过去100天登录天数
 			}
 			// OSS/CDN Token （需认证）
@@ -179,12 +186,12 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			// 课程表（需认证）
 			courseTable := authorized.Group("/coursetable")
 			{
-				courseTable.GET("/", middleware.RequirePermission(rbacService, constant.PermissionCourseTableGet), courseTableHandler.GetCourseTable)                  // 获取用户课程表
-				courseTable.GET("/search", middleware.RequirePermission(rbacService, constant.PermissionCourseTableClassSearch), courseTableHandler.SearchClasses)     // 搜索班级
-				courseTable.GET("/bind-count", middleware.RequirePermission(rbacService, constant.PermissionCourseTableGet), courseTableHandler.GetBindCount)          // 获取课表已绑定次数
-				courseTable.PUT("/class", middleware.RequirePermission(rbacService, constant.PermissionCourseTableClassUpdate), courseTableHandler.UpdateUserClass)    // 更新用户班级
-				courseTable.PUT("/", middleware.RequirePermission(rbacService, constant.PermissionCourseTableUpdate), courseTableHandler.EditCourseCell)               // 编辑个人课表的单个格子
-				courseTable.DELETE("/schedule", middleware.RequirePermission(rbacService, constant.PermissionCourseTableUpdate), courseTableHandler.ResetSchedule)     // 重置个人课表
+				courseTable.GET("/", middleware.RequirePermission(rbacService, constant.PermissionCourseTableGet), courseTableHandler.GetCourseTable)               // 获取用户课程表
+				courseTable.GET("/search", middleware.RequirePermission(rbacService, constant.PermissionCourseTableClassSearch), courseTableHandler.SearchClasses)  // 搜索班级
+				courseTable.GET("/bind-count", middleware.RequirePermission(rbacService, constant.PermissionCourseTableGet), courseTableHandler.GetBindCount)       // 获取课表已绑定次数
+				courseTable.PUT("/class", middleware.RequirePermission(rbacService, constant.PermissionCourseTableClassUpdate), courseTableHandler.UpdateUserClass) // 更新用户班级
+				courseTable.PUT("/", middleware.RequirePermission(rbacService, constant.PermissionCourseTableUpdate), courseTableHandler.EditCourseCell)            // 编辑个人课表的单个格子
+				courseTable.DELETE("/schedule", middleware.RequirePermission(rbacService, constant.PermissionCourseTableUpdate), courseTableHandler.ResetSchedule)  // 重置个人课表
 
 				// 管理员
 				adminCourseTable := courseTable.Group("")
@@ -417,6 +424,10 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			userFeatureAdmin := authorized.Group("/admin/users")
 			userFeatureAdmin.Use(middleware.RequirePermission(rbacService, constant.PermissionUserManage))
 			{
+				userFeatureAdmin.GET("/:id", authHandler.GetUserDetail)
+				userFeatureAdmin.POST("/:id/kick", authHandler.KickUser)
+				userFeatureAdmin.POST("/:id/ban", authHandler.BanUser)
+				userFeatureAdmin.POST("/:id/unban", authHandler.UnbanUser)
 				userFeatureAdmin.GET("/:id/features", featureHandler.GetUserFeatureDetails) // 查看用户功能权限详情
 			}
 

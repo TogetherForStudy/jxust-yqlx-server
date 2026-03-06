@@ -5,6 +5,15 @@ type WechatLoginRequest struct {
 	Code string `json:"code" binding:"required"`
 }
 
+type RefreshTokenRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
+}
+
+type BanUserRequest struct {
+	DurationSeconds int64  `json:"duration_seconds" binding:"omitempty,min=0"`
+	Reason          string `json:"reason"`
+}
+
 // UpdateProfileRequest 更新用户资料请求
 type UpdateProfileRequest struct {
 	Nickname  *string `json:"nickname"`
@@ -19,5 +28,5 @@ type UpdateProfileRequest struct {
 
 // MockWechatLoginRequest 模拟微信登录请求
 type MockWechatLoginRequest struct {
-	TestUser string `json:"test_user" binding:"required"` // 测试用户类型: normal, admin, new_user
+	TestUser string `json:"test_user" binding:"required"` // 测试用户类型: basic, active, verified, operator, admin
 }

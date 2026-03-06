@@ -1,18 +1,22 @@
 package middleware
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	rediscache "github.com/redis/go-redis/v9"
 )
 
 // CORS 跨域中间件
@@ -37,18 +41,14 @@ func CORS() gin.HandlerFunc {
 // Logger 结构化日志中间件
 func Logger() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 记录请求开始时间
 		start := time.Now()
 		query := c.Request.URL.RawQuery
 
-		// 处理请求
 		c.Next()
 
-		// 计算请求处理时长
 		latency := time.Since(start)
 		statusCode := c.Writer.Status()
 
-		// 检查是否有错误标记（由ErrorResponse/ValidateResponse设置）
 		hasError, _ := c.Get("response_has_error")
 		bodyStatusCode := 0
 		if val, exists := c.Get("response_status_code"); exists {
@@ -57,7 +57,6 @@ func Logger() gin.HandlerFunc {
 			}
 		}
 
-		// 构建结构化日志字段
 		logFields := map[string]any{
 			"action":      "http_request",
 			"message":     "HTTP request processed",
@@ -66,30 +65,21 @@ func Logger() gin.HandlerFunc {
 			"latency":     latency.String(),
 			"body_size":   c.Writer.Size(),
 		}
-
-		// 添加查询参数（如果存在）
 		if query != "" {
 			logFields["query"] = query
 		}
-
-		// 添加错误信息（如果存在）
 		if len(c.Errors) > 0 {
 			logFields["errors"] = c.Errors.String()
 		}
-
-		// 添加body中的StatusCode（如果存在且不为0）
 		if bodyStatusCode != 0 {
 			logFields["body_status_code"] = bodyStatusCode
 		}
 
-		// 如果HTTP状态码不是200，或者有错误标记，记录详细信息
 		shouldLogDetails := statusCode != http.StatusOK || hasError == true
 		if shouldLogDetails {
 			logFields["body_message"], _ = c.Get("body_message")
 		}
 
-		// 根据HTTP状态码和body中的StatusCode选择日志级别
-		// 优先检查bodyStatusCode，如果它表示错误则按它的级别记录
 		effectiveStatusCode := statusCode
 		if bodyStatusCode >= 400 {
 			effectiveStatusCode = bodyStatusCode
@@ -109,43 +99,117 @@ func Logger() gin.HandlerFunc {
 }
 
 // AuthMiddleware JWT认证中间件
-func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
+func AuthMiddleware(cfg *config.Config, ca cache.Cache) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 检查Bearer前缀
+		if ca == nil {
+			helper.ErrorResponse(c, http.StatusServiceUnavailable, "鉴权缓存未初始化")
+			c.Abort()
+			return
+		}
+
 		tokenString := helper.GetAuthorizationToken(c)
 		if tokenString == "" {
+			logAuthRejected(c, "missing_authorization", 0, "")
 			helper.ErrorResponse(c, http.StatusUnauthorized, "无效的 Authorization 头")
 			c.Abort()
 			return
 		}
 
-		// 解析JWT token
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-			}
-			return []byte(cfg.JWTSecret), nil
-		})
-
-		if err != nil || !token.Valid {
+		claims, err := utils.ParseToken(tokenString, cfg.JWTSecret)
+		if err != nil {
+			logAuthRejected(c, "invalid_token", 0, "")
 			helper.ErrorResponse(c, http.StatusUnauthorized, "无效的 Token")
 			c.Abort()
 			return
 		}
-
-		// 获取用户信息
-		if claims, ok := token.Claims.(jwt.MapClaims); ok {
-			userID := uint(claims["user_id"].(float64))
-
-			c.Set("user_id", userID)
-		} else {
+		if claims.TokenType != constant.AuthTokenTypeAccess {
+			logAuthRejected(c, "invalid_token_type", claims.UserID, claims.SID)
+			helper.ErrorResponse(c, http.StatusUnauthorized, "Token 类型无效")
+			c.Abort()
+			return
+		}
+		if claims.UserID == 0 || claims.SID == "" || claims.JTI == "" || claims.IssuedAt == nil {
+			logAuthRejected(c, "invalid_claims", claims.UserID, claims.SID)
 			helper.ErrorResponse(c, http.StatusUnauthorized, "无效的 Token Claims")
 			c.Abort()
 			return
 		}
 
+		blocked, err := ca.Exists(c.Request.Context(), fmt.Sprintf(constant.AuthBlockedKeyFormat, claims.UserID))
+		if err != nil {
+			helper.ErrorResponse(c, http.StatusServiceUnavailable, "鉴权状态读取失败")
+			c.Abort()
+			return
+		}
+		if blocked {
+			logAuthRejected(c, "blocked_user", claims.UserID, claims.SID)
+			helper.ErrorResponse(c, http.StatusUnauthorized, "用户账号已被封禁")
+			c.Abort()
+			return
+		}
+
+		revokedSession, err := ca.Exists(c.Request.Context(), fmt.Sprintf(constant.AuthRevokedSessionKeyFormat, claims.SID))
+		if err != nil {
+			helper.ErrorResponse(c, http.StatusServiceUnavailable, "鉴权状态读取失败")
+			c.Abort()
+			return
+		}
+		if revokedSession {
+			logAuthRejected(c, "revoked_session", claims.UserID, claims.SID)
+			helper.ErrorResponse(c, http.StatusUnauthorized, "当前会话已失效")
+			c.Abort()
+			return
+		}
+
+		revokedBeforeStr, err := ca.Get(c.Request.Context(), fmt.Sprintf(constant.AuthRevokedBeforeKeyFormat, claims.UserID))
+		if err != nil && !errors.Is(err, rediscache.Nil) {
+			helper.ErrorResponse(c, http.StatusServiceUnavailable, "鉴权状态读取失败")
+			c.Abort()
+			return
+		}
+		if err == nil && revokedBeforeStr != "" {
+			revokedBefore, parseErr := strconv.ParseInt(revokedBeforeStr, 10, 64)
+			if parseErr != nil {
+				helper.ErrorResponse(c, http.StatusServiceUnavailable, "鉴权状态解析失败")
+				c.Abort()
+				return
+			}
+			if claims.IssuedAt.Unix() <= revokedBefore {
+				logAuthRejected(c, "revoked_before", claims.UserID, claims.SID)
+				helper.ErrorResponse(c, http.StatusUnauthorized, "当前会话已失效")
+				c.Abort()
+				return
+			}
+		}
+
+		c.Set("user_id", claims.UserID)
+		c.Set(constant.AuthContextSessionID, claims.SID)
+		c.Set(constant.AuthContextTokenJTI, claims.JTI)
+		c.Set(constant.AuthContextTokenIAT, claims.IssuedAt.Unix())
+
+		ctx := logger.EnrichContext(c.Request.Context(), map[string]any{
+			"request_id": helper.GetRequestID(c),
+			"user_id":    claims.UserID,
+		})
+		c.Request = c.Request.WithContext(ctx)
+
 		c.Next()
 	}
+}
+
+func logAuthRejected(c *gin.Context, reasonCode string, userID uint, sid string) {
+	fields := map[string]any{
+		"action":      "auth_request_rejected",
+		"message":     "request rejected by auth middleware",
+		"reason_code": reasonCode,
+	}
+	if userID > 0 {
+		fields["user_id"] = userID
+	}
+	if sid != "" {
+		fields["sid"] = sid
+	}
+	logger.WarnGin(c, fields)
 }
 
 func RequestID() gin.HandlerFunc {
@@ -155,7 +219,13 @@ func RequestID() gin.HandlerFunc {
 			requestID = uuid.NewString()
 			c.Request.Header.Set("X-Request-ID", requestID)
 		}
+		c.Header("X-Request-ID", requestID)
 		c.Set(constant.RequestID, requestID)
+
+		ctx := logger.EnrichContext(c.Request.Context(), map[string]any{
+			"request_id": requestID,
+		})
+		c.Request = c.Request.WithContext(ctx)
 		c.Next()
 	}
 }
