@@ -58,6 +58,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	statService := services.NewStatService()
 	dictionaryService := services.NewDictionaryService(db)
 	chatService := services.NewChatService(db, cfg)
+	userActivityService := services.NewUserActivityService(db, rbacService)
 
 	// 初始化处理器
 	rbacHandler := handlers.NewRBACHandler(rbacService)
@@ -81,6 +82,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	statHandler := handlers.NewStatHandler(statService)
 	dictionaryHandler := handlers.NewDictionaryHandler(dictionaryService)
 	chatHandler := handlers.NewChatHandler(chatService)
+	userActivityHandler := handlers.NewUserActivityHandler(userActivityService)
 
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
@@ -150,7 +152,8 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			{
 				user.GET("/profile", middleware.RequirePermission(rbacService, models.PermissionUserGet), authHandler.GetProfile)
 				user.PUT("/profile", middleware.RequirePermission(rbacService, models.PermissionUserUpdate), authHandler.UpdateProfile)
-				user.GET("/features", middleware.RequirePermission(rbacService, models.PermissionUserGet), featureHandler.GetUserFeatures) // 获取用户功能列表
+				user.GET("/features", middleware.RequirePermission(rbacService, models.PermissionUserGet), featureHandler.GetUserFeatures)    // 获取用户功能列表
+				user.GET("/login-days", middleware.RequirePermission(rbacService, models.PermissionUserGet), userActivityHandler.GetLoginDays) // 获取过去100天登录天数
 			}
 			// OSS/CDN Token （需认证）
 			oss := authorized.Group("/oss")
@@ -177,10 +180,12 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			// 课程表（需认证）
 			courseTable := authorized.Group("/coursetable")
 			{
-				courseTable.GET("/", middleware.RequirePermission(rbacService, models.PermissionCourseTableGet), courseTableHandler.GetCourseTable)               // 获取用户课程表
-				courseTable.GET("/search", middleware.RequirePermission(rbacService, models.PermissionCourseTableClassSearch), courseTableHandler.SearchClasses)  // 搜索班级
-				courseTable.PUT("/class", middleware.RequirePermission(rbacService, models.PermissionCourseTableClassUpdate), courseTableHandler.UpdateUserClass) // 更新用户班级
-				courseTable.PUT("/", middleware.RequirePermission(rbacService, models.PermissionCourseTableUpdate), courseTableHandler.EditCourseCell)            // 编辑个人课表的单个格子
+				courseTable.GET("/", middleware.RequirePermission(rbacService, models.PermissionCourseTableGet), courseTableHandler.GetCourseTable)                  // 获取用户课程表
+				courseTable.GET("/search", middleware.RequirePermission(rbacService, models.PermissionCourseTableClassSearch), courseTableHandler.SearchClasses)     // 搜索班级
+				courseTable.GET("/bind-count", middleware.RequirePermission(rbacService, models.PermissionCourseTableGet), courseTableHandler.GetBindCount)          // 获取课表已绑定次数
+				courseTable.PUT("/class", middleware.RequirePermission(rbacService, models.PermissionCourseTableClassUpdate), courseTableHandler.UpdateUserClass)    // 更新用户班级
+				courseTable.PUT("/", middleware.RequirePermission(rbacService, models.PermissionCourseTableUpdate), courseTableHandler.EditCourseCell)               // 编辑个人课表的单个格子
+				courseTable.DELETE("/schedule", middleware.RequirePermission(rbacService, models.PermissionCourseTableUpdate), courseTableHandler.ResetSchedule)     // 重置个人课表
 
 				// 管理员
 				adminCourseTable := courseTable.Group("")

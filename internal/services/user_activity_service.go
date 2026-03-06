@@ -22,6 +22,20 @@ func NewUserActivityService(db *gorm.DB, rbacService *RBACService) *UserActivity
 	}
 }
 
+// GetUserLoginDays 获取用户在过去指定天数内的登录天数
+func (s *UserActivityService) GetUserLoginDays(ctx context.Context, userID uint, pastDays int) (int64, error) {
+	cutoff := time.Now().AddDate(0, 0, -pastDays)
+
+	var count int64
+	if err := s.db.WithContext(ctx).
+		Model(&models.UserActivity{}).
+		Where("user_id = ? AND date >= ?", userID, cutoff.Format("2006-01-02")).
+		Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 // UpdateActiveUserRoles 更新活跃用户角色
 // 规则：100天内有25天访问次数，授予活跃角色；不满足条件则取消活跃角色
 func (s *UserActivityService) UpdateActiveUserRoles(ctx context.Context) error {

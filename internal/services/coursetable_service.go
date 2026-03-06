@@ -299,6 +299,43 @@ func (s *CourseTableService) UpdateUserClass(ctx context.Context, userID uint, c
 	})
 }
 
+// GetUserBindCount 获取当前用户的课表绑定次数
+func (s *CourseTableService) GetUserBindCount(ctx context.Context, userID uint) (int, error) {
+	var br models.BindRecord
+	if err := s.db.WithContext(ctx).Where("user_id = ?", userID).First(&br).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("查询绑定记录失败: %v", err)
+	}
+	return br.BindCount, nil
+}
+
+// ResetUserSchedule 重置用户个人课表（删除个人编辑的数据条目）
+func (s *CourseTableService) ResetUserSchedule(ctx context.Context, userID uint, semester string) error {
+	var user models.User
+	if err := s.db.WithContext(ctx).Where("id = ?", userID).First(&user).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return fmt.Errorf("用户不存在")
+		}
+		return fmt.Errorf("查询用户信息失败: %v", err)
+	}
+	if user.ClassID == "" {
+		return fmt.Errorf("用户尚未设置班级信息")
+	}
+
+	result := s.db.WithContext(ctx).
+		Where("user_id = ? AND class_id = ? AND semester = ?", userID, user.ClassID, semester).
+		Delete(&models.ScheduleUser{})
+	if result.Error != nil {
+		return fmt.Errorf("重置个人课表失败: %v", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("未找到个人课表数据")
+	}
+	return nil
+}
+
 // ResetUserBindCountToOne 将指定用户的绑定次数置为1（管理员操作）
 func (s *CourseTableService) ResetUserBindCountToOne(ctx context.Context, targetUserID uint) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
