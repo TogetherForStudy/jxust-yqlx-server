@@ -10,6 +10,7 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
 	json "github.com/bytedance/sonic"
@@ -65,7 +66,7 @@ func (s *AuthService) WechatLogin(ctx context.Context, code string) (*response.W
 
 	// 确保默认角色
 	if s.rbac != nil {
-		if err := s.rbac.EnsureUserHasRoleByTag(ctx, user.ID, models.RoleTagUserBasic); err != nil {
+		if err := s.rbac.EnsureUserHasRoleByTag(ctx, user.ID, constant.RoleTagUserBasic); err != nil {
 			return nil, fmt.Errorf("同步用户角色失败: %w", err)
 		}
 	}
@@ -245,21 +246,21 @@ func (s *AuthService) MockWechatLogin(ctx context.Context, testUser string) (*re
 	// 同步角色绑定，所有用户都分配 UserBasic，admin 不需多角色，active/verified/operator 再额外分配具体角色
 	if s.rbac != nil {
 		// 必须绑定 UserBasic 角色
-		if err := s.rbac.EnsureUserHasRoleByTag(ctx, user.ID, models.RoleTagUserBasic); err != nil {
+		if err := s.rbac.EnsureUserHasRoleByTag(ctx, user.ID, constant.RoleTagUserBasic); err != nil {
 			return nil, fmt.Errorf("同步测试用户基础角色失败: %w", err)
 		}
 
 		switch testUser {
 		case "active":
-			if err := s.rbac.EnsureUserHasRoleByTag(ctx, user.ID, models.RoleTagUserActive); err != nil {
+			if err := s.rbac.EnsureUserHasRoleByTag(ctx, user.ID, constant.RoleTagUserActive); err != nil {
 				return nil, fmt.Errorf("同步测试用户 active 角色失败: %w", err)
 			}
 		case "verified":
-			if err := s.rbac.EnsureUserHasRoleByTag(ctx, user.ID, models.RoleTagUserVerified); err != nil {
+			if err := s.rbac.EnsureUserHasRoleByTag(ctx, user.ID, constant.RoleTagUserVerified); err != nil {
 				return nil, fmt.Errorf("同步测试用户 verified 角色失败: %w", err)
 			}
 		case "operator":
-			if err := s.rbac.EnsureUserHasRoleByTag(ctx, user.ID, models.RoleTagOperator); err != nil {
+			if err := s.rbac.EnsureUserHasRoleByTag(ctx, user.ID, constant.RoleTagOperator); err != nil {
 				return nil, fmt.Errorf("同步测试用户 operator 角色失败: %w", err)
 			}
 		}
@@ -336,11 +337,11 @@ func (s *AuthService) mapRoleTagToLegacyRole(ctx context.Context, userID uint) i
 	hasOperator := false
 
 	for _, tag := range snap.RoleTags {
-		if tag == models.RoleTagAdmin {
+		if tag == constant.RoleTagAdmin {
 			hasAdmin = true
 			break // admin优先级最高，找到就返回
 		}
-		if tag == models.RoleTagOperator {
+		if tag == constant.RoleTagOperator {
 			hasOperator = true
 		}
 	}

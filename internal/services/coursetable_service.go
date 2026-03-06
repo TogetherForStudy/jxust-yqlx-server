@@ -6,6 +6,7 @@ import (
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
 	json "github.com/bytedance/sonic"
@@ -244,7 +245,7 @@ func (s *CourseTableService) UpdateUserClass(ctx context.Context, userID uint, c
 		}
 
 		// 检查是否有全量班级更新权限或是管理员，若无则执行绑定次数限制
-		isPrivileged := utils.IsAdmin(ctx) || utils.HasPermission(ctx, models.PermissionCourseTableClassUpdateAll)
+		isPrivileged := utils.IsAdmin(ctx) || utils.HasPermission(ctx, constant.PermissionCourseTableClassUpdateAll)
 
 		// 普通权限用户限制2次绑定（基于 bind_count）
 		if !isPrivileged {

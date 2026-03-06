@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 
 	"gorm.io/gorm"
@@ -76,7 +77,7 @@ func (s *UserActivityService) UpdateActiveUserRoles(ctx context.Context) error {
 	// 获取活跃角色ID
 	var activeRole models.Role
 	if err := s.db.WithContext(ctx).
-		Where("role_tag = ?", models.RoleTagUserActive).
+		Where("role_tag = ?", constant.RoleTagUserActive).
 		First(&activeRole).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			logger.WarnCtx(ctx, map[string]any{
