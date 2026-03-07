@@ -1,16 +1,27 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"sync"
 	"time"
 
-	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 	"github.com/caarlos0/env/v11"
+	"github.com/joho/godotenv"
 	"gopkg.in/yaml.v3"
 )
 
+const configFileName = "yqlx-config.yaml"
+
+type Runtime struct {
+	RunningLevel string `yaml:"running_level" env:"ENV_RUNNING_LEVEL" envDefault:"info"`
+	LogFormat    string `yaml:"log_format" env:"ENV_LOG_FORMAT" envDefault:""`
+	GinMode      string `yaml:"gin_mode" env:"GIN_MODE" envDefault:"debug"`
+}
+
 type Config struct {
+	Runtime `yaml:",inline"`
+
 	Database `yaml:"database"`
 	Redis    `yaml:"redis"`
 	MinIO    `yaml:"minio"`
@@ -43,27 +54,21 @@ type Config struct {
 
 // GlobalConfig is a singleton instance of Config that can be accessed globally.
 var GlobalConfig = sync.OnceValue[*Config](func() *Config {
-	var cfg Config
-	_, err := os.Stat("yqlx-config.yaml")
-	if err == nil {
-		// Load from yaml file if exists
-		file, err := os.Open("yqlx-config.yaml")
-		if err != nil {
-			panic("Failed to open config file: " + err.Error())
-		}
-		defer file.Close()
-		err = yaml.NewDecoder(file).Decode(&cfg)
-		if err != nil {
-			panic("Failed to parse config file: " + err.Error())
-		}
-		logger.Info("Loading configuration from yqlx-config.yaml")
-		return &cfg
+	cfg := &Config{}
+	if err := load(cfg); err != nil {
+		panic(err.Error())
 	}
-	if err := env.Parse(&cfg); err != nil {
-		panic("Failed to parse environment variables: " + err.Error())
+	return cfg
+})
+
+// GlobalRuntime is a singleton instance of Runtime used by low-level packages that
+// need process settings without requiring the full application config.
+var GlobalRuntime = sync.OnceValue[*Runtime](func() *Runtime {
+	cfg := &Runtime{}
+	if err := load(cfg); err != nil {
+		panic(err.Error())
 	}
-	logger.Info("Loading configuration from environment variables")
-	return &cfg
+	return cfg
 })
 
 type Database struct {
@@ -99,3 +104,37 @@ type LLM struct {
 //
 //	If the configuration has already been initialized, it returns the existing instance.
 var NewConfig = GlobalConfig
+
+// NewRuntime initializes and returns runtime-only configuration.
+var NewRuntime = GlobalRuntime
+
+var loadDotEnvOnce sync.Once
+
+func load[T any](cfg *T) error {
+	loadDotEnvOnce.Do(func() {
+		_ = godotenv.Load()
+	})
+
+	info, err := os.Stat(configFileName)
+	if err == nil {
+		if info.IsDir() {
+			return fmt.Errorf("config path %q is a directory", configFileName)
+		}
+		file, err := os.Open(configFileName)
+		if err != nil {
+			return fmt.Errorf("failed to open config file: %w", err)
+		}
+		defer file.Close()
+		if err := yaml.NewDecoder(file).Decode(cfg); err != nil {
+			return fmt.Errorf("failed to parse config file: %w", err)
+		}
+		return nil
+	}
+	if !os.IsNotExist(err) {
+		return fmt.Errorf("failed to stat config file: %w", err)
+	}
+	if err := env.Parse(cfg); err != nil {
+		return fmt.Errorf("failed to parse environment variables: %w", err)
+	}
+	return nil
+}

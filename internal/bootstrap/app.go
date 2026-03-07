@@ -12,11 +12,9 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/router"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/scheduler"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/worker"
-	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 
 	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 	"gorm.io/gorm"
 )
 
@@ -32,10 +30,6 @@ type App struct {
 // New 按依赖顺序初始化所有组件并返回 App 实例。
 // 任何关键组件初始化失败都会通过 logger.Fatalf 终止进程。
 func New() *App {
-	if err := godotenv.Load(); err != nil {
-		logger.Warnf(".env file not found: %v", err)
-	}
-
 	cfg := config.NewConfig()
 
 	db, err := database.NewDatabase(cfg)
@@ -80,7 +74,7 @@ func New() *App {
 
 // Run 启动HTTP服务器并阻塞等待关闭信号，收到信号后执行优雅关闭。
 func (a *App) Run() {
-	if os.Getenv(constant.ENV_GIN_MODE) == "release" {
+	if a.cfg.GinMode == gin.ReleaseMode {
 		gin.SetMode(gin.ReleaseMode)
 	}
 

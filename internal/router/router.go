@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"os"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers"
@@ -127,7 +126,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		{
 			auth.POST("/wechat-login", authHandler.WechatLogin)
 			auth.POST("/refresh", authHandler.RefreshToken)
-			if os.Getenv(constant.ENV_GIN_MODE) != "release" {
+			if cfg.GinMode != gin.ReleaseMode {
 				auth.POST("/mock-wechat-login", authHandler.MockWechatLogin)
 			}
 		}
