@@ -34,7 +34,10 @@ func NewQuestionService(db *gorm.DB) *QuestionService {
 func (s *QuestionService) GetProjectByID(ctx context.Context, projectID uint) (*models.QuestionProject, error) {
 	var project models.QuestionProject
 	if err := s.db.WithContext(ctx).First(&project, projectID).Error; err != nil {
-		return nil, err
+		if err == gorm.ErrRecordNotFound {
+			return nil, apperr.New(constant.CommonNotFound)
+		}
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	return &project, nil
 }
@@ -46,7 +49,7 @@ func (s *QuestionService) GetProjects(ctx context.Context, userID uint) ([]respo
 	if err := s.db.WithContext(ctx).Where("is_active = ?", true).
 		Order("sort ASC, created_at DESC").
 		Find(&projects).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("获取项目列表失败: %w", err))
 	}
 
 	var result []response.QuestionProjectResponse
@@ -56,7 +59,7 @@ func (s *QuestionService) GetProjects(ctx context.Context, userID uint) ([]respo
 		if err := s.db.WithContext(ctx).Model(&models.Question{}).
 			Where("project_id = ? AND is_active = ? AND parent_id IS NULL", project.ID, true).
 			Pluck("id", &questionIDs).Error; err != nil {
-			return nil, err
+			return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("获取项目题目列表失败: %w", err))
 		}
 
 		// 题目数量
@@ -105,7 +108,7 @@ func (s *QuestionService) GetProjects(ctx context.Context, userID uint) ([]respo
 						Where("question_id IN ?", questionIDs).
 						Select("COALESCE(SUM(study_count + practice_count), 0)").
 						Scan(&usageCount).Error; err != nil {
-						return nil, err
+						return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("获取项目刷题统计失败: %w", err))
 					}
 				}
 				// 从数据库初始化Redis：将查询到的值写入Redis（包括0值，避免每次都查询数据库）
@@ -121,7 +124,7 @@ func (s *QuestionService) GetProjects(ctx context.Context, userID uint) ([]respo
 					Where("question_id IN ?", questionIDs).
 					Select("COALESCE(SUM(study_count + practice_count), 0)").
 					Scan(&usageCount).Error; err != nil {
-					return nil, err
+					return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("获取项目刷题统计失败: %w", err))
 				}
 			}
 		}
@@ -138,7 +141,7 @@ func (s *QuestionService) GetProjects(ctx context.Context, userID uint) ([]respo
 func (s *QuestionService) GetQuestions(ctx context.Context, userID uint, req *request.GetQuestionRequest) (*response.QuestionListResponse, error) {
 	// 更新项目使用次数
 	if err := s.updateProjectUsage(ctx, userID, req.ProjectID); err != nil {
-		return nil, fmt.Errorf("更新项目使用记录失败: %w", err)
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("更新项目使用记录失败: %w", err))
 	}
 
 	// 获取项目下所有启用的主题目/独立题（parent_id 为 null）的ID
@@ -156,7 +159,7 @@ func (s *QuestionService) GetQuestions(ctx context.Context, userID uint, req *re
 	}
 
 	if err := query.Pluck("id", &questionIDs).Error; err != nil {
-		return nil, fmt.Errorf("获取题目列表失败: %w", err)
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("获取题目列表失败: %w", err))
 	}
 
 	return &response.QuestionListResponse{
@@ -206,7 +209,10 @@ func (s *QuestionService) toQuestionResponseWithUsage(question *models.Question,
 func (s *QuestionService) getQuestionByID(ctx context.Context, questionID uint) (*models.Question, error) {
 	var question models.Question
 	if err := s.db.WithContext(ctx).Preload("SubQuestions", "is_active = ?", true).First(&question, questionID).Error; err != nil {
-		return nil, err
+		if err == gorm.ErrRecordNotFound {
+			return nil, apperr.New(constant.QuestionNotFound)
+		}
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	return &question, nil
 }
@@ -216,7 +222,7 @@ func (s *QuestionService) GetQuestionByID(ctx context.Context, userID, questionI
 	// 获取题目
 	question, err := s.getQuestionByID(ctx, questionID)
 	if err != nil {
-		return nil, apperr.New(constant.QuestionNotFound)
+		return nil, err
 	}
 
 	// 检查题目是否启用
@@ -260,7 +266,7 @@ func (s *QuestionService) RecordStudy(ctx context.Context, userID uint, req *req
 	// 验证题目存在
 	question, err := s.getQuestionByID(ctx, req.QuestionID)
 	if err != nil {
-		return apperr.New(constant.QuestionNotFound)
+		return err
 	}
 
 	now := time.Now()
@@ -299,7 +305,7 @@ func (s *QuestionService) SubmitPractice(ctx context.Context, userID uint, req *
 	// 验证题目存在
 	question, err := s.getQuestionByID(ctx, req.QuestionID)
 	if err != nil {
-		return apperr.New(constant.QuestionNotFound)
+		return err
 	}
 
 	now := time.Now()

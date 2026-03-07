@@ -34,7 +34,7 @@ func (s *ContributionService) CreateContribution(ctx context.Context, userID uin
 	// 序列化分类
 	categoriesJSON, err := json.Marshal(req.Categories)
 	if err != nil {
-		return err
+		return apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 创建投稿
@@ -47,7 +47,7 @@ func (s *ContributionService) CreateContribution(ctx context.Context, userID uin
 	}
 
 	if err := s.db.WithContext(ctx).Create(&contribution).Error; err != nil {
-		return err
+		return apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	return nil
@@ -77,7 +77,7 @@ func (s *ContributionService) GetContributions(ctx context.Context, userID uint,
 
 	// 获取总数
 	if err := query.Count(&total).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 分页查询并预加载关联关系
@@ -93,7 +93,7 @@ func (s *ContributionService) GetContributions(ctx context.Context, userID uint,
 		}).
 		Preload("Notification").
 		Find(&contributions).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	// 转换为响应格式
 	var contributionResponses []response.ContributionResponse
@@ -124,7 +124,7 @@ func (s *ContributionService) GetContributionByID(ctx context.Context, contribut
 		if err == gorm.ErrRecordNotFound {
 			return nil, apperr.New(constant.ContributionNotFound)
 		}
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 普通用户试图请求其他ID时候禁止
@@ -145,7 +145,7 @@ func (s *ContributionService) ReviewContribution(ctx context.Context, contributi
 		if err == gorm.ErrRecordNotFound {
 			return apperr.New(constant.ContributionNotFound)
 		}
-		return err
+		return apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 检查状态
@@ -199,7 +199,7 @@ func (s *ContributionService) ReviewContribution(ctx context.Context, contributi
 				// 使用原分类
 				var originalCategories []int
 				if err := json.Unmarshal(contribution.Categories, &originalCategories); err != nil {
-					return err
+					return apperr.Wrap(constant.CommonInternal, err)
 				}
 				notificationReq.Categories = originalCategories
 			}
@@ -207,7 +207,7 @@ func (s *ContributionService) ReviewContribution(ctx context.Context, contributi
 			// 创建通知（使用投稿类型）
 			categoriesJSON, err := json.Marshal(notificationReq.Categories)
 			if err != nil {
-				return err
+				return apperr.Wrap(constant.CommonInternal, err)
 			}
 
 			notification := models.Notification{
@@ -222,7 +222,7 @@ func (s *ContributionService) ReviewContribution(ctx context.Context, contributi
 			}
 
 			if err := tx.Create(&notification).Error; err != nil {
-				return err
+				return apperr.Wrap(constant.CommonInternal, err)
 			}
 
 			updates["notification_id"] = notification.ID
@@ -236,7 +236,7 @@ func (s *ContributionService) ReviewContribution(ctx context.Context, contributi
 			}
 		}
 
-		return tx.Model(&contribution).Updates(updates).Error
+		return apperr.Wrap(constant.CommonInternal, tx.Model(&contribution).Updates(updates).Error)
 	})
 }
 
@@ -247,7 +247,7 @@ func (s *ContributionService) GetUserContributionStats(ctx context.Context, user
 	// 总投稿数
 	var totalCount int64
 	if err := s.db.WithContext(ctx).Model(&models.UserContribution{}).Where("user_id = ?", userID).Count(&totalCount).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	stats["total_count"] = totalCount
 
@@ -256,7 +256,7 @@ func (s *ContributionService) GetUserContributionStats(ctx context.Context, user
 	if err := s.db.WithContext(ctx).Model(&models.UserContribution{}).
 		Where("user_id = ? AND status = ?", userID, models.UserContributionStatusPending).
 		Count(&pendingCount).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	stats["pending_count"] = pendingCount
 
@@ -265,7 +265,7 @@ func (s *ContributionService) GetUserContributionStats(ctx context.Context, user
 	if err := s.db.WithContext(ctx).Model(&models.UserContribution{}).
 		Where("user_id = ? AND status = ?", userID, models.UserContributionStatusApproved).
 		Count(&approvedCount).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	stats["approved_count"] = approvedCount
 
@@ -274,7 +274,7 @@ func (s *ContributionService) GetUserContributionStats(ctx context.Context, user
 	if err := s.db.WithContext(ctx).Model(&models.UserContribution{}).
 		Where("user_id = ? AND status = ?", userID, models.UserContributionStatusRejected).
 		Count(&rejectedCount).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	stats["rejected_count"] = rejectedCount
 
@@ -284,7 +284,7 @@ func (s *ContributionService) GetUserContributionStats(ctx context.Context, user
 		Where("user_id = ? AND status = ?", userID, models.UserContributionStatusApproved).
 		Select("COALESCE(SUM(points_awarded), 0)").
 		Scan(&totalPoints).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	stats["total_points"] = totalPoints
 
@@ -297,28 +297,28 @@ func (s *ContributionService) GetAdminContributionStats(ctx context.Context) (*r
 
 	// 总投稿数
 	if err := s.db.WithContext(ctx).Model(&models.UserContribution{}).Count(&stats.TotalCount).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 待审核数
 	if err := s.db.WithContext(ctx).Model(&models.UserContribution{}).
 		Where("status = ?", models.UserContributionStatusPending).
 		Count(&stats.PendingCount).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 已采纳数
 	if err := s.db.WithContext(ctx).Model(&models.UserContribution{}).
 		Where("status = ?", models.UserContributionStatusApproved).
 		Count(&stats.ApprovedCount).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 已拒绝数
 	if err := s.db.WithContext(ctx).Model(&models.UserContribution{}).
 		Where("status = ?", models.UserContributionStatusRejected).
 		Count(&stats.RejectedCount).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 总发放积分
@@ -326,7 +326,7 @@ func (s *ContributionService) GetAdminContributionStats(ctx context.Context) (*r
 		Where("status = ?", models.UserContributionStatusApproved).
 		Select("COALESCE(SUM(points_awarded), 0)").
 		Scan(&stats.TotalPoints).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	return stats, nil
@@ -338,7 +338,7 @@ func (s *ContributionService) convertToResponse(ctx context.Context, contributio
 	var categoryIDs []uint
 	if len(contribution.Categories) > 0 {
 		if err := json.Unmarshal(contribution.Categories, &categoryIDs); err != nil {
-			return nil, err
+			return nil, apperr.Wrap(constant.CommonInternal, err)
 		}
 	}
 
@@ -425,7 +425,7 @@ func (s *ContributionService) getCategoriesByIDs(ctx context.Context, categoryID
 
 	var categories []models.NotificationCategory
 	if err := s.db.WithContext(ctx).Where("id IN ?", interfaceIDs).Find(&categories).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	var responses []response.NotificationCategoryResponse

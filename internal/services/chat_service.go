@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -101,7 +100,7 @@ func (s *ChatService) initRAGFlowMCP(ctx context.Context) (*client.Client, error
 			"error":  err.Error(),
 			"url":    s.cfg.LLM.RAGFlowMCPURL,
 		})
-		return nil, fmt.Errorf("failed to create ragflow mcp client: %w", err)
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to create ragflow mcp client: %w", err))
 	}
 	err = mcpClient.Start(ctx)
 	if err != nil {
@@ -110,7 +109,7 @@ func (s *ChatService) initRAGFlowMCP(ctx context.Context) (*client.Client, error
 			"stage":  "start_client",
 			"error":  err.Error(),
 		})
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to start ragflow mcp client: %w", err))
 	}
 	_, err = mcpClient.Initialize(ctx, mcp.InitializeRequest{})
 	if err != nil {
@@ -119,7 +118,7 @@ func (s *ChatService) initRAGFlowMCP(ctx context.Context) (*client.Client, error
 			"stage":  "initialize",
 			"error":  err.Error(),
 		})
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to initialize ragflow mcp client: %w", err))
 	}
 	return mcpClient, nil
 }
@@ -137,7 +136,7 @@ func (s *ChatService) CreateConversation(ctx context.Context, userID uint, title
 			"user_id": userID,
 			"error":   err.Error(),
 		})
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to create conversation: %w", err))
 	}
 
 	return conv, nil
@@ -165,7 +164,7 @@ func (s *ChatService) ListConversations(ctx context.Context, userID uint, page, 
 			"user_id": userID,
 			"error":   err.Error(),
 		})
-		return nil, 0, err
+		return nil, 0, apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to count conversations: %w", err))
 	}
 
 	if err := s.db.WithContext(ctx).
@@ -179,7 +178,7 @@ func (s *ChatService) ListConversations(ctx context.Context, userID uint, page, 
 			"user_id": userID,
 			"error":   err.Error(),
 		})
-		return nil, 0, err
+		return nil, 0, apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to list conversations: %w", err))
 	}
 
 	return conversations, total, nil
@@ -213,7 +212,10 @@ func (s *ChatService) getOwnedConversation(ctx context.Context, userID, conversa
 			"conversation_id": conversationID,
 			"error":           err.Error(),
 		})
-		return nil, err
+		if err == gorm.ErrRecordNotFound {
+			return nil, apperr.New(constant.ConversationNotFound)
+		}
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to get conversation: %w", err))
 	}
 
 	if data, err := json.Marshal(&conv); err == nil {
@@ -258,7 +260,7 @@ func (s *ChatService) DeleteConversation(ctx context.Context, userID, conversati
 			"conversation_id": conversationID,
 			"error":           result.Error.Error(),
 		})
-		return result.Error
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to delete conversation: %w", result.Error))
 	}
 
 	if result.RowsAffected == 0 {
@@ -289,7 +291,7 @@ func (s *ChatService) UpdateConversation(ctx context.Context, userID, conversati
 			"conversation_id": conversationID,
 			"error":           result.Error.Error(),
 		})
-		return result.Error
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to update conversation: %w", result.Error))
 	}
 
 	if result.RowsAffected == 0 {
@@ -339,7 +341,7 @@ func (s *ChatService) GetMessages(ctx context.Context, userID, conversationID ui
 				"conversation_id": conversationID,
 				"error":           err.Error(),
 			})
-			return nil, fmt.Errorf("failed to unmarshal messages: %w", err)
+			return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to unmarshal messages: %w", err))
 		}
 	}
 
@@ -354,7 +356,7 @@ func (s *ChatService) GetMessages(ctx context.Context, userID, conversationID ui
 				"conversation_id": conversationID,
 				"error":           err.Error(),
 			})
-			return nil, err
+			return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to cache messages: %w", err))
 		}
 	}
 
@@ -372,7 +374,7 @@ func (s *ChatService) SaveMessages(ctx context.Context, userID, conversationID u
 			"messages":        messages,
 			"error":           err.Error(),
 		})
-		return fmt.Errorf("failed to marshal messages: %w", err)
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to marshal messages: %w", err))
 	}
 
 	// 更新数据库
@@ -391,7 +393,7 @@ func (s *ChatService) SaveMessages(ctx context.Context, userID, conversationID u
 			"conversation_id": conversationID,
 			"error":           err.Error(),
 		})
-		return err
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to save messages to db: %w", err))
 	}
 
 	// 更新缓存
@@ -406,7 +408,7 @@ func (s *ChatService) SaveMessages(ctx context.Context, userID, conversationID u
 			"messages":        messages,
 			"error":           err.Error(),
 		})
-		return err
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to cache messages: %w", err))
 	}
 
 	s.deleteConversationInfoCache(ctx, userID, conversationID)
@@ -431,7 +433,7 @@ func (s *ChatService) prepareUserMcpClient(ctx context.Context, userID uint, use
 			"user_id": userID,
 			"error":   err.Error(),
 		})
-		return nil, errors.New(msg)
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("%s", msg))
 	}
 	if err := yqlxMcpClient.Start(ctx); err != nil {
 		logger.ErrorCtx(ctx, map[string]any{
@@ -440,7 +442,7 @@ func (s *ChatService) prepareUserMcpClient(ctx context.Context, userID uint, use
 			"user_id": userID,
 			"error":   err.Error(),
 		})
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to start user mcp client: %w", err))
 	}
 	_, err = yqlxMcpClient.Initialize(ctx, mcp.InitializeRequest{})
 	if err != nil {
@@ -450,7 +452,7 @@ func (s *ChatService) prepareUserMcpClient(ctx context.Context, userID uint, use
 			"user_id": userID,
 			"error":   err.Error(),
 		})
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to initialize user mcp client: %w", err))
 	}
 	// 初始化 RAGFlow MCP 工具
 	// todo: sessionId 应该是每个用户唯一的，可以用 userID 或者其他方式生成
@@ -462,7 +464,7 @@ func (s *ChatService) prepareUserMcpClient(ctx context.Context, userID uint, use
 			"user_id": userID,
 			"error":   err.Error(),
 		})
-		return nil, fmt.Errorf("failed to init ragflow mcp: %w", err)
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to init ragflow mcp: %w", err))
 	}
 	m := map[string]*client.Client{
 		"yqlx":    yqlxMcpClient,
@@ -717,7 +719,7 @@ func (s *ChatService) createChatModel(ctx context.Context) (einomodel.ToolCallin
 			"action": "create_chat_model",
 			"error":  err.Error(),
 		})
-		return nil, fmt.Errorf("failed to create chat model: %w", err)
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to create chat model: %w", err))
 	}
 	return model, nil
 }
@@ -746,7 +748,7 @@ func (s *ChatService) createAgent(ctx context.Context, tools []einotool.BaseTool
 			"action": "create_agent",
 			"error":  err.Error(),
 		})
-		return nil, fmt.Errorf("failed to create agent: %w", err)
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to create agent: %w", err))
 	}
 	return agent, nil
 }
@@ -764,7 +766,7 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 			"conversation_id": conversationID,
 			"error":           err.Error(),
 		})
-		return nil, nil, fmt.Errorf("failed to get conversation: %w", err)
+		return nil, nil, err
 	}
 
 	// 获取完整的会话消息（使用缓存，不存在则从数据库构建）
@@ -776,7 +778,7 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 			"conversation_id": conversationID,
 			"error":           err.Error(),
 		})
-		return nil, nil, fmt.Errorf("failed to get messages: %w", err)
+		return nil, nil, err
 	}
 
 	var allTools []einotool.BaseTool
@@ -858,7 +860,7 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 				"checkpoint_id":   checkpointID,
 				"error":           err.Error(),
 			})
-			return nil, nil, fmt.Errorf("failed to resume agent: %w", err)
+			return nil, nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to resume agent: %w", err))
 		}
 		startEventType = "resume_start"
 		logger.InfoCtx(ctx, map[string]any{

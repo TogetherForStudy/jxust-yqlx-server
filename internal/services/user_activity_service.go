@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
@@ -66,7 +67,7 @@ func (s *UserActivityService) UpdateActiveUserRoles(ctx context.Context) error {
 		Scan(&activeUsers).Error
 
 	if err != nil {
-		return err
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("统计活跃用户失败：%w", err))
 	}
 
 	logger.InfoCtx(ctx, map[string]any{
@@ -87,7 +88,7 @@ func (s *UserActivityService) UpdateActiveUserRoles(ctx context.Context) error {
 			})
 			return nil
 		}
-		return err
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询活跃角色失败：%w", err))
 	}
 
 	// 获取所有当前拥有活跃角色的用户
@@ -95,7 +96,7 @@ func (s *UserActivityService) UpdateActiveUserRoles(ctx context.Context) error {
 	if err := s.db.WithContext(ctx).
 		Where("role_id = ?", activeRole.ID).
 		Find(&currentActiveUsers).Error; err != nil {
-		return err
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询当前活跃角色用户失败：%w", err))
 	}
 
 	currentActiveUserMap := make(map[uint]bool)
