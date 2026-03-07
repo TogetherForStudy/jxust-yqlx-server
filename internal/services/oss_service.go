@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 )
 
 // OSSService 负责生成又拍云/自建 CDN 的 Token 防盗链参数
@@ -23,10 +25,10 @@ func NewOSSService(cfg *config.Config) *OSSService {
 // 算法参考: https://help.upyun.com/knowledge-base/cdn-token-limite/
 func (s *OSSService) GenerateToken(uri string, ttlSeconds int64) (token string, expireAt int64, signedURL string, err error) {
 	if uri == "" || !strings.HasPrefix(uri, "/") {
-		return "", 0, "", fmt.Errorf("uri 必须以 / 开头，并且不可为空")
+		return "", 0, "", apperr.New(constant.URIInvalid)
 	}
 	if s.cfg.UpyunTokenSecret == "" {
-		return "", 0, "", fmt.Errorf("未配置 UPYUN_TOKEN_SECRET")
+		return "", 0, "", apperr.New(constant.TokenSecretMissing)
 	}
 
 	if ttlSeconds <= 0 {

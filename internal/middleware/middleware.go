@@ -51,19 +51,22 @@ func Logger() gin.HandlerFunc {
 
 		hasError, _ := c.Get("response_has_error")
 		bodyStatusCode := 0
-		if val, exists := c.Get("response_status_code"); exists {
+		if val, exists := c.Get("response_biz_code"); exists {
 			if code, ok := val.(int); ok {
 				bodyStatusCode = code
+			}
+			if code, ok := val.(constant.ResCode); ok {
+				bodyStatusCode = int(code)
 			}
 		}
 
 		logFields := map[string]any{
-			"action":      "http_request",
-			"message":     "HTTP request processed",
-			"status_code": statusCode,
-			"latency_ms":  latency.Milliseconds(),
-			"latency":     latency.String(),
-			"body_size":   c.Writer.Size(),
+			"action":        "http_request",
+			"message":       "HTTP request processed",
+			"http_status":   statusCode,
+			"latency_ms":    latency.Milliseconds(),
+			"latency":       latency.String(),
+			"response_size": c.Writer.Size(),
 		}
 		if query != "" {
 			logFields["query"] = query
@@ -72,26 +75,23 @@ func Logger() gin.HandlerFunc {
 			logFields["errors"] = c.Errors.String()
 		}
 		if bodyStatusCode != 0 {
-			logFields["body_status_code"] = bodyStatusCode
+			logFields["biz_code"] = bodyStatusCode
 		}
 
 		shouldLogDetails := statusCode != http.StatusOK || hasError == true
 		if shouldLogDetails {
-			logFields["body_message"], _ = c.Get("body_message")
-		}
-
-		effectiveStatusCode := statusCode
-		if bodyStatusCode >= 400 {
-			effectiveStatusCode = bodyStatusCode
+			logFields["biz_message"], _ = c.Get("body_message")
 		}
 
 		switch {
-		case effectiveStatusCode >= 500:
+		case statusCode >= 500:
 			logger.ErrorGin(c, logFields)
-		case effectiveStatusCode >= 400:
+		case statusCode >= 400:
 			logger.WarnGin(c, logFields)
-		case effectiveStatusCode >= 300:
+		case statusCode >= 300:
 			logger.InfoGin(c, logFields)
+		case hasError == true:
+			logger.WarnGin(c, logFields)
 		default:
 			logger.InfoGin(c, logFields)
 		}
@@ -102,7 +102,7 @@ func Logger() gin.HandlerFunc {
 func AuthMiddleware(cfg *config.Config, ca cache.Cache) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if ca == nil {
-			helper.ErrorResponse(c, http.StatusServiceUnavailable, "鉴权缓存未初始化")
+			helper.HandleErrCode(c, constant.AuthCacheUnavailable)
 			c.Abort()
 			return
 		}
@@ -110,7 +110,7 @@ func AuthMiddleware(cfg *config.Config, ca cache.Cache) gin.HandlerFunc {
 		tokenString := helper.GetAuthorizationToken(c)
 		if tokenString == "" {
 			logAuthRejected(c, "missing_authorization", 0, "")
-			helper.ErrorResponse(c, http.StatusUnauthorized, "无效的 Authorization 头")
+			helper.HandleErrCode(c, constant.AuthInvalidAuthorizationHeader)
 			c.Abort()
 			return
 		}
@@ -118,65 +118,65 @@ func AuthMiddleware(cfg *config.Config, ca cache.Cache) gin.HandlerFunc {
 		claims, err := utils.ParseToken(tokenString, cfg.JWTSecret)
 		if err != nil {
 			logAuthRejected(c, "invalid_token", 0, "")
-			helper.ErrorResponse(c, http.StatusUnauthorized, "无效的 Token")
+			helper.HandleErrCode(c, constant.AuthInvalidToken)
 			c.Abort()
 			return
 		}
 		if claims.TokenType != constant.AuthTokenTypeAccess {
 			logAuthRejected(c, "invalid_token_type", claims.UserID, claims.SID)
-			helper.ErrorResponse(c, http.StatusUnauthorized, "Token 类型无效")
+			helper.HandleErrCode(c, constant.AuthInvalidTokenType)
 			c.Abort()
 			return
 		}
 		if claims.UserID == 0 || claims.SID == "" || claims.JTI == "" || claims.IssuedAt == nil {
 			logAuthRejected(c, "invalid_claims", claims.UserID, claims.SID)
-			helper.ErrorResponse(c, http.StatusUnauthorized, "无效的 Token Claims")
+			helper.HandleErrCode(c, constant.AuthInvalidTokenClaims)
 			c.Abort()
 			return
 		}
 
 		blocked, err := ca.Exists(c.Request.Context(), fmt.Sprintf(constant.AuthBlockedKeyFormat, claims.UserID))
 		if err != nil {
-			helper.ErrorResponse(c, http.StatusServiceUnavailable, "鉴权状态读取失败")
+			helper.HandleErrCode(c, constant.AuthStateReadFailed)
 			c.Abort()
 			return
 		}
 		if blocked {
 			logAuthRejected(c, "blocked_user", claims.UserID, claims.SID)
-			helper.ErrorResponse(c, http.StatusUnauthorized, "用户账号已被封禁")
+			helper.HandleErrCode(c, constant.AuthAccountBlocked)
 			c.Abort()
 			return
 		}
 
 		revokedSession, err := ca.Exists(c.Request.Context(), fmt.Sprintf(constant.AuthRevokedSessionKeyFormat, claims.SID))
 		if err != nil {
-			helper.ErrorResponse(c, http.StatusServiceUnavailable, "鉴权状态读取失败")
+			helper.HandleErrCode(c, constant.AuthStateReadFailed)
 			c.Abort()
 			return
 		}
 		if revokedSession {
 			logAuthRejected(c, "revoked_session", claims.UserID, claims.SID)
-			helper.ErrorResponse(c, http.StatusUnauthorized, "当前会话已失效")
+			helper.HandleErrCode(c, constant.AuthSessionInvalid)
 			c.Abort()
 			return
 		}
 
 		revokedBeforeStr, err := ca.Get(c.Request.Context(), fmt.Sprintf(constant.AuthRevokedBeforeKeyFormat, claims.UserID))
 		if err != nil && !errors.Is(err, rediscache.Nil) {
-			helper.ErrorResponse(c, http.StatusServiceUnavailable, "鉴权状态读取失败")
+			helper.HandleErrCode(c, constant.AuthStateReadFailed)
 			c.Abort()
 			return
 		}
 		if err == nil && revokedBeforeStr != "" {
 			revokedBefore, parseErr := strconv.ParseInt(revokedBeforeStr, 10, 64)
 			if parseErr != nil {
-				helper.ErrorResponse(c, http.StatusServiceUnavailable, "鉴权状态解析失败")
+				helper.HandleErrCode(c, constant.AuthStateParseFailed)
 				c.Abort()
 				return
 			}
 			if claims.IssuedAt.Unix() <= revokedBefore {
 				logAuthRejected(c, "revoked_before", claims.UserID, claims.SID)
-				helper.ErrorResponse(c, http.StatusUnauthorized, "当前会话已失效")
+				helper.HandleErrCode(c, constant.AuthSessionInvalid)
 				c.Abort()
 				return
 			}
@@ -195,6 +195,18 @@ func AuthMiddleware(cfg *config.Config, ca cache.Cache) gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+func RecoveryJSON() gin.HandlerFunc {
+	return gin.CustomRecovery(func(c *gin.Context, recovered any) {
+		logger.ErrorGin(c, map[string]any{
+			"action":  "panic_recovered",
+			"message": "request panicked",
+			"panic":   fmt.Sprintf("%v", recovered),
+		})
+		helper.HandleErrCode(c, constant.CommonRequestPanicked)
+		c.Abort()
+	})
 }
 
 func logAuthRejected(c *gin.Context, reasonCode string, userID uint, sid string) {

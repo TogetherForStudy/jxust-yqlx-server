@@ -1,10 +1,9 @@
 package handlers
 
 import (
-	"net/http"
-
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 
 	"github.com/gin-gonic/gin"
 )
@@ -30,14 +29,14 @@ func NewUserActivityHandler(userActivityService *services.UserActivityService) *
 func (h *UserActivityHandler) GetLoginDays(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	const pastDays = 100
 	days, err := h.userActivityService.GetUserLoginDays(c, userID, pastDays)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, "查询登录天数失败")
+		helper.HandleError(c, err)
 		return
 	}
 

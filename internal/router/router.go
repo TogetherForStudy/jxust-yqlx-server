@@ -10,6 +10,7 @@ import (
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/middleware"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
@@ -21,13 +22,22 @@ import (
 )
 
 func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
-	r := gin.Default()
+	r := gin.New()
+	r.HandleMethodNotAllowed = true
 	ca := cache.GlobalCache
 
 	// 添加中间件
+	r.Use(middleware.RequestID())
 	r.Use(middleware.CORS())
 	r.Use(middleware.Logger())
-	r.Use(gin.Recovery())
+	r.Use(middleware.RecoveryJSON())
+
+	r.NoRoute(func(c *gin.Context) {
+		helper.HandleErrCode(c, constant.CommonRouteNotFound)
+	})
+	r.NoMethod(func(c *gin.Context) {
+		helper.HandleErrCode(c, constant.CommonMethodNotAllowed)
+	})
 
 	// 初始化服务
 	rbacService := services.NewRBACService(db)
@@ -97,7 +107,6 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	// MCP endpoint for LLM tool calling
 	mcpGroup := api.Group("/mcp")
 	{
-		mcpGroup.Use(middleware.RequestID())
 		mcpGroup.Use(middleware.AuthMiddleware(cfg, ca))
 		mcpHandler := handlers.NewMCPHandler(
 			heroService,
@@ -113,7 +122,6 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	}
 
 	v0 := api.Group("/v0")
-	v0.Use(middleware.RequestID())
 	{ // 认证相关路由
 		auth := v0.Group("/auth")
 		{

@@ -10,6 +10,7 @@ import (
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
@@ -267,7 +268,7 @@ func (s *ChatService) DeleteConversation(ctx context.Context, userID, conversati
 			"user_id":         userID,
 			"conversation_id": conversationID,
 		})
-		return errors.New("conversation not found")
+		return apperr.New(constant.ConversationNotFound)
 	}
 
 	s.deleteConversationAllCaches(ctx, userID, conversationID)
@@ -298,7 +299,7 @@ func (s *ChatService) UpdateConversation(ctx context.Context, userID, conversati
 			"user_id":         userID,
 			"conversation_id": conversationID,
 		})
-		return errors.New("conversation not found")
+		return apperr.New(constant.ConversationNotFound)
 	}
 
 	s.deleteConversationInfoCache(ctx, userID, conversationID)
@@ -784,7 +785,7 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 	// 新对话：合并新消息，加载工具
 	if !isResume {
 		if newMessage == nil {
-			return nil, nil, errors.New("message is required for new conversation")
+			return nil, nil, apperr.New(constant.ConversationMessageRequired)
 		}
 		messages = append(messages, newMessage)
 

@@ -2,11 +2,12 @@ package services
 
 import (
 	"context"
-	"errors"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
 	"gorm.io/gorm"
@@ -28,7 +29,7 @@ func (s *PointsService) GetUserPoints(ctx context.Context, userID uint) (*respon
 	err := s.db.WithContext(ctx).Select("id, nickname, points").First(&user, userID).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, errors.New("用户不存在")
+			return nil, apperr.New(constant.CommonUserNotFound)
 		}
 		return nil, err
 	}
@@ -143,12 +144,12 @@ func (s *PointsService) SpendPoints(ctx context.Context, userID uint, req *reque
 	// 获取用户信息
 	var user models.User
 	if err := s.db.WithContext(ctx).First(&user, userID).Error; err != nil {
-		return errors.New("用户不存在")
+		return apperr.New(constant.CommonUserNotFound)
 	}
 
 	// 检查积分是否足够
 	if user.Points < req.Points {
-		return errors.New("积分不足")
+		return apperr.New(constant.PointsInsufficient)
 	}
 
 	// 开启事务
@@ -271,7 +272,7 @@ func (s *PointsService) GrantPoints(ctx context.Context, userID uint, points int
 	var user models.User
 	if err := s.db.WithContext(ctx).First(&user, userID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return errors.New("用户不存在")
+			return apperr.New(constant.CommonUserNotFound)
 		}
 		return err
 	}
@@ -281,7 +282,7 @@ func (s *PointsService) GrantPoints(ctx context.Context, userID uint, points int
 		// 更新积分（支持正数和负数）
 		newPoints := int(user.Points) + points
 		if newPoints < 0 {
-			return errors.New("积分不足，无法扣除")
+			return apperr.New(constant.PointsInsufficient)
 		}
 
 		if err := tx.Model(&user).Update("points", newPoints).Error; err != nil {

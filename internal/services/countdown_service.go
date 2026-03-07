@@ -2,12 +2,13 @@ package services
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 
 	"gorm.io/gorm"
 )
@@ -27,7 +28,7 @@ func (s *CountdownService) CreateCountdown(ctx context.Context, userID uint, req
 	// 解析目标日期
 	targetDate, err := time.Parse("2006-01-02", req.TargetDate)
 	if err != nil {
-		return nil, errors.New("目标日期格式错误")
+		return nil, apperr.New(constant.CountdownTargetDateInvalid)
 	}
 
 	// 创建倒数日
@@ -39,7 +40,7 @@ func (s *CountdownService) CreateCountdown(ctx context.Context, userID uint, req
 	}
 
 	if err := s.db.WithContext(ctx).Create(&countdown).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	return &response.CountdownResponse{
@@ -62,7 +63,7 @@ func (s *CountdownService) GetCountdowns(ctx context.Context, userID uint) ([]re
 
 	// 查询数据
 	if err := query.Order("created_at DESC").Find(&countdowns).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 转换为响应格式
@@ -87,9 +88,9 @@ func (s *CountdownService) GetCountdownByID(ctx context.Context, countdownID uin
 	var countdown models.Countdown
 	if err := s.db.WithContext(ctx).Where("id = ? AND user_id = ?", countdownID, userID).First(&countdown).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, errors.New("倒数日不存在或无权限访问")
+			return nil, apperr.New(constant.CountdownNotAccessible)
 		}
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	return &response.CountdownResponse{
@@ -109,9 +110,9 @@ func (s *CountdownService) UpdateCountdown(ctx context.Context, countdownID uint
 	var countdown models.Countdown
 	if err := s.db.WithContext(ctx).Where("id = ? AND user_id = ?", countdownID, userID).First(&countdown).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, errors.New("倒数日不存在或无权限访问")
+			return nil, apperr.New(constant.CountdownNotAccessible)
 		}
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 更新字段
@@ -126,14 +127,14 @@ func (s *CountdownService) UpdateCountdown(ctx context.Context, countdownID uint
 	if req.TargetDate != nil && *req.TargetDate != "" {
 		targetDate, err := time.Parse("2006-01-02", *req.TargetDate)
 		if err != nil {
-			return nil, errors.New("目标日期格式错误")
+			return nil, apperr.New(constant.CountdownTargetDateInvalid)
 		}
 		updates["target_date"] = targetDate
 	}
 
 	if len(updates) > 0 {
 		if err := s.db.WithContext(ctx).Model(&countdown).Updates(updates).Error; err != nil {
-			return nil, err
+			return nil, apperr.Wrap(constant.CommonInternal, err)
 		}
 	}
 
@@ -146,11 +147,14 @@ func (s *CountdownService) DeleteCountdown(ctx context.Context, countdownID uint
 	var countdown models.Countdown
 	if err := s.db.WithContext(ctx).Where("id = ? AND user_id = ?", countdownID, userID).First(&countdown).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return errors.New("倒数日不存在或无权限访问")
+			return apperr.New(constant.CountdownNotAccessible)
 		}
-		return err
+		return apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 软删除
-	return s.db.WithContext(ctx).Delete(&countdown).Error
+	if err := s.db.WithContext(ctx).Delete(&countdown).Error; err != nil {
+		return apperr.Wrap(constant.CommonInternal, err)
+	}
+	return nil
 }

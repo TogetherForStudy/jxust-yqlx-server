@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/minio"
@@ -25,6 +27,23 @@ type S3Service struct {
 	rootBucketName string
 	host           string
 	scheme         string
+}
+
+func wrapStoreError(code constant.ResCode, err error) error {
+	if err == nil {
+		return nil
+	}
+	return apperr.Wrap(code, err)
+}
+
+func wrapStoreNotFound(err error, code constant.ResCode) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return apperr.New(constant.StoreFileNotFound)
+	}
+	return apperr.Wrap(code, err)
 }
 
 type S3ServiceInterface interface {
@@ -67,7 +86,7 @@ func (s *S3Service) AddObject(ctx context.Context, data io.ReadCloser,
 		UserTags:    tags,
 	})
 	if err != nil {
-		return "", err
+		return "", wrapStoreError(constant.StoreFileStoreFailed, err)
 	}
 
 	if tags == nil {
@@ -75,7 +94,7 @@ func (s *S3Service) AddObject(ctx context.Context, data io.ReadCloser,
 	}
 	tag, err := sonic.MarshalString(tags)
 	if err != nil {
-		return "", err
+		return "", wrapStoreError(constant.StoreFileStoreFailed, err)
 	}
 
 	s3Data := &models.S3Data{
@@ -91,7 +110,7 @@ func (s *S3Service) AddObject(ctx context.Context, data io.ReadCloser,
 	if err := s.db.WithContext(ctx).Create(s3Data).Error; err != nil {
 		// If database insertion fails, delete the object from S3 to maintain consistency.
 		_ = s.S3.DeleteObject(ctx, s.rootBucketName, objectKey)
-		return "", err
+		return "", wrapStoreError(constant.StoreFileStoreFailed, err)
 	}
 
 	return resourceID, nil
@@ -101,15 +120,15 @@ func (s *S3Service) AddObject(ctx context.Context, data io.ReadCloser,
 func (s *S3Service) DeleteObject(ctx context.Context, resourceID string) error {
 	var s3Data models.S3Data
 	if err := s.db.WithContext(ctx).Where("resource_id = ?", resourceID).First(&s3Data).Error; err != nil {
-		return err
+		return wrapStoreNotFound(err, constant.StoreFileDeleteFailed)
 	}
 
 	if err := s.S3.DeleteObject(ctx, s3Data.Bucket, s3Data.ObjectKey); err != nil {
-		return err
+		return wrapStoreError(constant.StoreFileDeleteFailed, err)
 	}
 
 	// Using transaction to delete S3Data and S3Resource
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&models.S3Data{}).
 			Where("resource_id = ?", resourceID).
 			Update("deleted_at", gorm.DeletedAt{Time: time.Now(), Valid: true}).Error; err != nil {
@@ -122,13 +141,17 @@ func (s *S3Service) DeleteObject(ctx context.Context, resourceID string) error {
 		}
 		return nil
 	})
+	if err != nil {
+		return wrapStoreError(constant.StoreFileDeleteFailed, err)
+	}
+	return nil
 }
 
 // ShareObject generates a presigned URL for an object.
 func (s *S3Service) ShareObject(ctx context.Context, openid, resourceID string, expires *time.Duration, download bool) (string, error) {
 	var s3Data models.S3Data
 	if err := s.db.WithContext(ctx).Where("resource_id = ?", resourceID).First(&s3Data).Error; err != nil {
-		return "", err
+		return "", wrapStoreNotFound(err, constant.StoreFileURLFailed)
 	}
 
 	if expires == nil || *expires == 0 {
@@ -143,7 +166,7 @@ func (s *S3Service) ShareObject(ctx context.Context, openid, resourceID string, 
 
 	presignedURL, err := s.S3.PresignedGetObject(ctx, s3Data.Bucket, s3Data.ObjectKey, *expires, reqParams)
 	if err != nil {
-		return "", err
+		return "", wrapStoreError(constant.StoreFileURLFailed, err)
 	}
 	logger.DebugCtx(ctx, map[string]any{
 		"action":      "generate_presigned_url",
@@ -167,7 +190,7 @@ func (s *S3Service) ShareObject(ctx context.Context, openid, resourceID string, 
 	}
 
 	if err := s.db.WithContext(ctx).Create(s3Resource).Error; err != nil {
-		return "", err
+		return "", wrapStoreError(constant.StoreFileURLFailed, err)
 	}
 
 	return publicURL, nil
@@ -177,7 +200,7 @@ func (s *S3Service) ShareObject(ctx context.Context, openid, resourceID string, 
 func (s *S3Service) ListObjects(ctx context.Context) ([]models.S3Data, error) {
 	var s3Data []models.S3Data
 	if err := s.db.WithContext(ctx).Find(&s3Data).Error; err != nil {
-		return nil, err
+		return nil, wrapStoreError(constant.StoreFileListFailed, err)
 	}
 	return s3Data, nil
 }
@@ -186,7 +209,7 @@ func (s *S3Service) ListObjects(ctx context.Context) ([]models.S3Data, error) {
 func (s *S3Service) ListExpiredObjects(ctx context.Context) ([]models.S3Resource, error) {
 	var s3Resources []models.S3Resource
 	if err := s.db.WithContext(ctx).Unscoped().Where("expired_at < ?", time.Now()).Find(&s3Resources).Error; err != nil {
-		return nil, err
+		return nil, wrapStoreError(constant.StoreExpiredFileListFailed, err)
 	}
 	return s3Resources, nil
 }
@@ -195,12 +218,12 @@ func (s *S3Service) ListExpiredObjects(ctx context.Context) ([]models.S3Resource
 func (s *S3Service) GetObject(ctx context.Context, resourceID string) (io.ReadCloser, *models.S3Data, error) {
 	var s3Data models.S3Data
 	if err := s.db.WithContext(ctx).Where("resource_id = ?", resourceID).First(&s3Data).Error; err != nil {
-		return nil, nil, err
+		return nil, nil, wrapStoreNotFound(err, constant.StoreFileStreamFailed)
 	}
 
 	obj, err := s.S3.GetObject(ctx, s3Data.Bucket, s3Data.ObjectKey)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, wrapStoreError(constant.StoreFileStreamFailed, err)
 	}
 	return obj, &s3Data, nil
 }

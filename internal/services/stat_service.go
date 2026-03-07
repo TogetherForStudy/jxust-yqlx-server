@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 )
 
 type StatService struct{}
@@ -19,7 +21,7 @@ func NewStatService() *StatService {
 // 不主动清理过期数据，只统计有效范围内的用户，过期数据不影响统计结果
 func (s *StatService) GetSystemOnlineCount(ctx context.Context) (int64, error) {
 	if cache.GlobalCache == nil {
-		return 0, fmt.Errorf("Redis缓存未初始化")
+		return 0, apperr.New(constant.StatServiceUnavailable)
 	}
 
 	key := "online:system"
@@ -31,7 +33,7 @@ func (s *StatService) GetSystemOnlineCount(ctx context.Context) (int64, error) {
 	// 统计最近1分钟内的用户数量（不清理过期数据，只统计有效范围）
 	count, err := cache.GlobalCache.ZCount(ctx, key, minScore, maxScore)
 	if err != nil {
-		return 0, fmt.Errorf("获取系统在线人数失败: %w", err)
+		return 0, apperr.Wrap(constant.StatServiceUnavailable, err)
 	}
 
 	return count, nil
@@ -43,7 +45,7 @@ func (s *StatService) GetSystemOnlineCount(ctx context.Context) (int64, error) {
 // 如果传入了userID（>0），则在统计前先更新该用户的在线状态
 func (s *StatService) GetProjectOnlineCount(ctx context.Context, projectID uint, userID ...uint) (int64, error) {
 	if cache.GlobalCache == nil {
-		return 0, fmt.Errorf("Redis缓存未初始化")
+		return 0, apperr.New(constant.StatServiceUnavailable)
 	}
 
 	key := fmt.Sprintf("online:project:%d", projectID)
@@ -62,7 +64,7 @@ func (s *StatService) GetProjectOnlineCount(ctx context.Context, projectID uint,
 	// 统计最近1分钟内的用户数量（不清理过期数据，只统计有效范围）
 	count, err := cache.GlobalCache.ZCount(ctx, key, minScore, maxScore)
 	if err != nil {
-		return 0, fmt.Errorf("获取项目在线人数失败: %w", err)
+		return 0, apperr.Wrap(constant.StatServiceUnavailable, err)
 	}
 
 	return count, nil

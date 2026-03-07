@@ -9,6 +9,7 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/worker/processors"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
@@ -215,12 +216,12 @@ func (s *QuestionService) GetQuestionByID(ctx context.Context, userID, questionI
 	// 获取题目
 	question, err := s.getQuestionByID(ctx, questionID)
 	if err != nil {
-		return nil, fmt.Errorf("题目不存在")
+		return nil, apperr.New(constant.QuestionNotFound)
 	}
 
 	// 检查题目是否启用
 	if !question.IsActive {
-		return nil, fmt.Errorf("题目已禁用")
+		return nil, apperr.New(constant.QuestionDisabled)
 	}
 
 	// 获取用户使用记录
@@ -259,7 +260,7 @@ func (s *QuestionService) RecordStudy(ctx context.Context, userID uint, req *req
 	// 验证题目存在
 	question, err := s.getQuestionByID(ctx, req.QuestionID)
 	if err != nil {
-		return fmt.Errorf("题目不存在")
+		return apperr.New(constant.QuestionNotFound)
 	}
 
 	now := time.Now()
@@ -298,7 +299,7 @@ func (s *QuestionService) SubmitPractice(ctx context.Context, userID uint, req *
 	// 验证题目存在
 	question, err := s.getQuestionByID(ctx, req.QuestionID)
 	if err != nil {
-		return fmt.Errorf("题目不存在")
+		return apperr.New(constant.QuestionNotFound)
 	}
 
 	now := time.Now()

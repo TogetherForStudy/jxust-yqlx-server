@@ -14,6 +14,7 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
@@ -58,7 +59,7 @@ func (s *AuthService) WechatLogin(ctx context.Context, code, userAgent string) (
 	}
 
 	if session.ErrCode != 0 {
-		err := fmt.Errorf("微信登录失败: %s", session.ErrMsg)
+		err := apperr.Wrap(constant.AuthWechatLoginFailed, fmt.Errorf("wechat errcode=%d errmsg=%s", session.ErrCode, session.ErrMsg))
 		logger.WarnCtx(ctx, map[string]any{
 			"action":  "auth_login_failed",
 			"message": "wechat session returned error",
@@ -84,7 +85,7 @@ func (s *AuthService) WechatLogin(ctx context.Context, code, userAgent string) (
 					"message": "failed to create user during wechat login",
 					"error":   err.Error(),
 				})
-				return nil, fmt.Errorf("创建用户失败: %w", err)
+				return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("创建用户失败: %w", err))
 			}
 		} else {
 			logger.ErrorCtx(ctx, map[string]any{
@@ -92,7 +93,7 @@ func (s *AuthService) WechatLogin(ctx context.Context, code, userAgent string) (
 				"message": "failed to query user during wechat login",
 				"error":   err.Error(),
 			})
-			return nil, fmt.Errorf("查询用户失败: %w", err)
+			return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询用户失败: %w", err))
 		}
 	}
 
@@ -126,19 +127,19 @@ func (s *AuthService) ensureDefaultRole(ctx context.Context, userID uint) error 
 		return nil
 	}
 	if err := s.rbac.EnsureUserHasRoleByTag(ctx, userID, constant.RoleTagUserBasic); err != nil {
-		return fmt.Errorf("同步用户角色失败: %w", err)
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("同步用户角色失败: %w", err))
 	}
 	return nil
 }
 
 func (s *AuthService) ensureUserLoginAllowed(ctx context.Context, user models.User) error {
 	if user.Status == models.UserStatusDisabled {
-		return fmt.Errorf("用户账号已被禁用")
+		return apperr.New(constant.AuthAccountDisabled)
 	}
 
 	blockInfo, err := s.getBlockInfo(ctx, user.ID)
 	if err != nil {
-		return err
+		return apperr.Wrap(constant.CommonInternal, err)
 	}
 	if blockInfo == nil {
 		return nil
@@ -149,11 +150,11 @@ func (s *AuthService) ensureUserLoginAllowed(ctx context.Context, user models.Us
 func blockedError(blockInfo *utils.AuthBlockInfo) error {
 	switch blockInfo.Type {
 	case constant.AuthBlockTypeKick:
-		return fmt.Errorf("账号已被下线，请稍后重试")
+		return apperr.New(constant.AuthAccountKicked)
 	case constant.AuthBlockTypeTempBan:
-		return fmt.Errorf("用户账号已被临时封禁")
+		return apperr.New(constant.AuthAccountTempBanned)
 	default:
-		return fmt.Errorf("用户账号已被禁用")
+		return apperr.New(constant.AuthAccountDisabled)
 	}
 }
 
@@ -171,7 +172,7 @@ func (s *AuthService) issueTokenPair(ctx context.Context, user *models.User, use
 	role := s.mapRoleTagToLegacyRole(ctx, user.ID)
 	if user.Role != role {
 		if err := s.db.WithContext(ctx).Model(user).Update("role", role).Error; err != nil {
-			return nil, fmt.Errorf("更新用户角色失败: %w", err)
+			return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("更新用户角色失败: %w", err))
 		}
 		user.Role = role
 	}
@@ -179,11 +180,11 @@ func (s *AuthService) issueTokenPair(ctx context.Context, user *models.User, use
 	sid := utils.NewSessionID()
 	accessToken, accessClaims, err := utils.GenerateAccessToken(user.ID, s.cfg.JWTSecret, role, s.accessTokenTTL(), sid)
 	if err != nil {
-		return nil, fmt.Errorf("生成 AccessToken 失败: %w", err)
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("生成 AccessToken 失败: %w", err))
 	}
 	refreshToken, refreshClaims, err := utils.GenerateRefreshToken(user.ID, s.refreshTokenSecret(), s.refreshTokenTTL(), sid)
 	if err != nil {
-		return nil, fmt.Errorf("生成 RefreshToken 失败: %w", err)
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("生成 RefreshToken 失败: %w", err))
 	}
 
 	deviceInfo := utils.ParseDeviceInfo(userAgent)
@@ -227,18 +228,18 @@ func (s *AuthService) issueTokenPair(ctx context.Context, user *models.User, use
 func (s *AuthService) storeSession(ctx context.Context, sid string, session utils.AuthSession) error {
 	sessionPayload, err := json.Marshal(session)
 	if err != nil {
-		return fmt.Errorf("序列化会话失败: %w", err)
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("序列化会话失败: %w", err))
 	}
 
 	ttl := s.refreshTokenTTL()
 	if err := s.cache.Set(ctx, fmt.Sprintf(constant.AuthSessionKeyFormat, sid), string(sessionPayload), &ttl); err != nil {
-		return fmt.Errorf("保存会话失败: %w", err)
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("保存会话失败: %w", err))
 	}
 	if err := s.cache.ZAdd(ctx, s.userSessionsIndexKey(session.UserID), float64(session.ExpiresAt), sid); err != nil {
-		return fmt.Errorf("保存用户会话索引失败: %w", err)
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("保存用户会话索引失败: %w", err))
 	}
 	if err := s.cache.Expire(ctx, s.userSessionsIndexKey(session.UserID), s.refreshTokenTTL()); err != nil {
-		return fmt.Errorf("更新用户会话索引过期时间失败: %w", err)
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("更新用户会话索引过期时间失败: %w", err))
 	}
 	if err := s.cleanupUserSessionIndex(ctx, session.UserID); err != nil {
 		logger.WarnCtx(ctx, map[string]any{
@@ -258,12 +259,12 @@ func (s *AuthService) getSession(ctx context.Context, sid string) (*utils.AuthSe
 		if isCacheMiss(err) {
 			return nil, nil
 		}
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	var session utils.AuthSession
 	if err := json.Unmarshal([]byte(payload), &session); err != nil {
-		return nil, fmt.Errorf("解析会话失败: %w", err)
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("解析会话失败: %w", err))
 	}
 	return &session, nil
 }
@@ -276,12 +277,12 @@ func (s *AuthService) loadUserSessions(ctx context.Context, userID uint) ([]auth
 	userSessionsKey := s.userSessionsIndexKey(userID)
 	now := time.Now().UTC().Unix()
 	if _, err := s.cache.ZRemRangeByScore(ctx, userSessionsKey, math.Inf(-1), float64(now)); err != nil && !isCacheMiss(err) {
-		return nil, fmt.Errorf("清理过期用户会话索引失败: %w", err)
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("清理过期用户会话索引失败: %w", err))
 	}
 
 	sids, err := s.cache.ZRangeByScore(ctx, userSessionsKey, float64(now+1), math.Inf(1))
 	if err != nil && !isCacheMiss(err) {
-		return nil, fmt.Errorf("读取用户会话列表失败: %w", err)
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("读取用户会话列表失败: %w", err))
 	}
 
 	records := make([]authSessionRecord, 0, len(sids))
@@ -303,7 +304,7 @@ func (s *AuthService) loadUserSessions(ctx context.Context, userID uint) ([]auth
 
 	if len(staleSIDs) > 0 {
 		if _, err := s.cache.ZRem(ctx, userSessionsKey, staleSIDs...); err != nil && !isCacheMiss(err) {
-			return nil, fmt.Errorf("清理失效用户会话索引失败: %w", err)
+			return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("清理失效用户会话索引失败: %w", err))
 		}
 	}
 	return records, nil
@@ -328,12 +329,12 @@ func (s *AuthService) getBlockInfo(ctx context.Context, userID uint) (*utils.Aut
 		if isCacheMiss(err) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("读取封禁状态失败: %w", err)
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("读取封禁状态失败: %w", err))
 	}
 
 	var blockInfo utils.AuthBlockInfo
 	if err := json.Unmarshal([]byte(payload), &blockInfo); err != nil {
-		return nil, fmt.Errorf("解析封禁状态失败: %w", err)
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("解析封禁状态失败: %w", err))
 	}
 	return &blockInfo, nil
 }
@@ -341,10 +342,10 @@ func (s *AuthService) getBlockInfo(ctx context.Context, userID uint) (*utils.Aut
 func (s *AuthService) setBlockInfo(ctx context.Context, userID uint, blockInfo utils.AuthBlockInfo, ttl time.Duration) error {
 	payload, err := json.Marshal(blockInfo)
 	if err != nil {
-		return fmt.Errorf("序列化封禁状态失败: %w", err)
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("序列化封禁状态失败: %w", err))
 	}
 	if err := s.cache.Set(ctx, fmt.Sprintf(constant.AuthBlockedKeyFormat, userID), string(payload), &ttl); err != nil {
-		return fmt.Errorf("写入封禁状态失败: %w", err)
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("写入封禁状态失败: %w", err))
 	}
 	return nil
 }
@@ -357,27 +358,33 @@ func (s *AuthService) clearBlockInfo(ctx context.Context, userID uint) error {
 		if isCacheMiss(err) {
 			return nil
 		}
-		return err
+		return apperr.Wrap(constant.CommonInternal, err)
 	}
 	return nil
 }
 
 func (s *AuthService) revokeCurrentSession(ctx context.Context, sid string) error {
 	ttl := s.accessTokenTTL()
-	return s.cache.Set(ctx, fmt.Sprintf(constant.AuthRevokedSessionKeyFormat, sid), "1", &ttl)
+	if err := s.cache.Set(ctx, fmt.Sprintf(constant.AuthRevokedSessionKeyFormat, sid), "1", &ttl); err != nil {
+		return apperr.Wrap(constant.CommonInternal, err)
+	}
+	return nil
 }
 
 func (s *AuthService) revokeAllAccessTokens(ctx context.Context, userID uint, at time.Time) error {
 	ttl := s.accessTokenTTL()
-	return s.cache.Set(ctx, fmt.Sprintf(constant.AuthRevokedBeforeKeyFormat, userID), strconv.FormatInt(at.Unix(), 10), &ttl)
+	if err := s.cache.Set(ctx, fmt.Sprintf(constant.AuthRevokedBeforeKeyFormat, userID), strconv.FormatInt(at.Unix(), 10), &ttl); err != nil {
+		return apperr.Wrap(constant.CommonInternal, err)
+	}
+	return nil
 }
 
 func (s *AuthService) deleteSession(ctx context.Context, userID uint, sid string) error {
 	if err := s.cache.Delete(ctx, fmt.Sprintf(constant.AuthSessionKeyFormat, sid)); err != nil && !isCacheMiss(err) {
-		return err
+		return apperr.Wrap(constant.CommonInternal, err)
 	}
 	if _, err := s.cache.ZRem(ctx, s.userSessionsIndexKey(userID), sid); err != nil && !isCacheMiss(err) {
-		return err
+		return apperr.Wrap(constant.CommonInternal, err)
 	}
 	return nil
 }
@@ -395,17 +402,17 @@ func (s *AuthService) revokeAllSessions(ctx context.Context, userID uint) (int, 
 	deleted := 0
 	for _, record := range records {
 		if err := s.cache.Delete(ctx, fmt.Sprintf(constant.AuthSessionKeyFormat, record.SID)); err != nil && !isCacheMiss(err) {
-			return deleted, fmt.Errorf("删除用户会话失败: %w", err)
+			return deleted, apperr.Wrap(constant.CommonInternal, fmt.Errorf("删除用户会话失败: %w", err))
 		}
 		deleted++
 	}
 	if err := s.cache.Delete(ctx, s.userSessionsIndexKey(userID)); err != nil && !isCacheMiss(err) {
-		return deleted, fmt.Errorf("删除用户会话索引失败: %w", err)
+		return deleted, apperr.Wrap(constant.CommonInternal, fmt.Errorf("删除用户会话索引失败: %w", err))
 	}
 
 	now := time.Now().UTC()
 	if err := s.revokeAllAccessTokens(ctx, userID, now); err != nil {
-		return deleted, fmt.Errorf("写入 access token 撤销标记失败: %w", err)
+		return deleted, apperr.Wrap(constant.CommonInternal, fmt.Errorf("写入 access token 撤销标记失败: %w", err))
 	}
 	return deleted, nil
 }
@@ -433,7 +440,7 @@ func (s *AuthService) refreshTokenSecret() string {
 
 func (s *AuthService) requireAuthCache() error {
 	if s.cache == nil {
-		return fmt.Errorf("Redis 鉴权缓存未初始化")
+		return apperr.New(constant.AuthCacheUnavailable)
 	}
 	return nil
 }
@@ -455,10 +462,10 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenString, user
 			"message": "invalid refresh token",
 			"error":   err.Error(),
 		})
-		return nil, fmt.Errorf("无效的 RefreshToken")
+		return nil, apperr.New(constant.AuthRefreshTokenInvalid)
 	}
 	if claims.TokenType != constant.AuthTokenTypeRefresh {
-		return nil, fmt.Errorf("RefreshToken 类型无效")
+		return nil, apperr.New(constant.AuthRefreshTokenTypeInvalid)
 	}
 
 	session, err := s.getSession(ctx, claims.SID)
@@ -466,7 +473,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenString, user
 		return nil, err
 	}
 	if session == nil || session.UserID != claims.UserID {
-		return nil, fmt.Errorf("RefreshToken 会话不存在")
+		return nil, apperr.New(constant.AuthRefreshTokenSessionNotFound)
 	}
 	if session.RefreshJTI != claims.JTI {
 		logger.WarnCtx(ctx, map[string]any{
@@ -476,12 +483,12 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenString, user
 			"sid":     claims.SID,
 			"jti":     claims.JTI,
 		})
-		return nil, fmt.Errorf("RefreshToken 已失效")
+		return nil, apperr.New(constant.AuthRefreshTokenExpired)
 	}
 
 	user, err := s.GetUserByID(ctx, claims.UserID)
 	if err != nil {
-		return nil, fmt.Errorf("用户不存在")
+		return nil, err
 	}
 	if err := s.ensureUserLoginAllowed(ctx, *user); err != nil {
 		return nil, err
@@ -504,18 +511,18 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenString, user
 	role := s.mapRoleTagToLegacyRole(ctx, user.ID)
 	if user.Role != role {
 		if err := s.db.WithContext(ctx).Model(user).Update("role", role).Error; err != nil {
-			return nil, fmt.Errorf("更新用户角色失败: %w", err)
+			return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("更新用户角色失败: %w", err))
 		}
 		user.Role = role
 	}
 
 	accessToken, accessClaims, err := utils.GenerateAccessToken(user.ID, s.cfg.JWTSecret, role, s.accessTokenTTL(), claims.SID)
 	if err != nil {
-		return nil, fmt.Errorf("生成 AccessToken 失败: %w", err)
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("生成 AccessToken 失败: %w", err))
 	}
 	newRefreshToken, refreshClaims, err := utils.GenerateRefreshToken(user.ID, s.refreshTokenSecret(), s.refreshTokenTTL(), claims.SID)
 	if err != nil {
-		return nil, fmt.Errorf("生成 RefreshToken 失败: %w", err)
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("生成 RefreshToken 失败: %w", err))
 	}
 
 	session.RefreshJTI = refreshClaims.JTI
@@ -556,23 +563,23 @@ func (s *AuthService) getWechatSession(ctx context.Context, code string) (*respo
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("创建请求失败: %w", err)
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("创建请求失败: %w", err))
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("请求微信API失败: %w", err)
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("请求微信API失败: %w", err))
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("读取响应失败: %w", err)
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("读取响应失败: %w", err))
 	}
 
 	var session response.WechatSession
 	if err := json.Unmarshal(body, &session); err != nil {
-		return nil, fmt.Errorf("解析响应失败: %w", err)
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("解析响应失败: %w", err))
 	}
 
 	return &session, nil
@@ -583,7 +590,10 @@ func (s *AuthService) GetUserByID(ctx context.Context, userID uint) (*models.Use
 	var user models.User
 	err := s.db.WithContext(ctx).First(&user, userID).Error
 	if err != nil {
-		return nil, err
+		if err == gorm.ErrRecordNotFound {
+			return nil, apperr.New(constant.CommonUserNotFound)
+		}
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	return &user, nil
 }
@@ -621,7 +631,10 @@ func (s *AuthService) UpdateUserProfile(ctx context.Context, userID uint, update
 	}
 
 	updates["updated_at"] = time.Now()
-	return s.db.WithContext(ctx).Model(&models.User{}).Where("id = ?", userID).Updates(updates).Error
+	if err := s.db.WithContext(ctx).Model(&models.User{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
+		return apperr.Wrap(constant.CommonInternal, err)
+	}
+	return nil
 }
 
 // MockWechatLogin 模拟微信小程序登录 - 仅用于测试
@@ -655,7 +668,7 @@ func (s *AuthService) MockWechatLogin(ctx context.Context, testUser, userAgent s
 		nickname = "测试运营"
 		avatar = "https://thirdwx.qlogo.cn/mmopen/vi_32/operator_avatar.png"
 	default:
-		return nil, fmt.Errorf("不支持的测试用户类型: %s", testUser)
+		return nil, apperr.New(constant.AuthUnsupportedTestUserType)
 	}
 
 	var user models.User
@@ -677,34 +690,34 @@ func (s *AuthService) MockWechatLogin(ctx context.Context, testUser, userAgent s
 				UpdatedAt: time.Now(),
 			}
 			if err := s.db.WithContext(ctx).Create(&user).Error; err != nil {
-				return nil, fmt.Errorf("创建测试用户失败: %w", err)
+				return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("创建测试用户失败: %w", err))
 			}
 		} else {
-			return nil, fmt.Errorf("查询用户失败: %w", err)
+			return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询用户失败: %w", err))
 		}
 	}
 
 	if s.rbac != nil {
 		if err := s.rbac.EnsureUserHasRoleByTag(ctx, user.ID, constant.RoleTagUserBasic); err != nil {
-			return nil, fmt.Errorf("同步测试用户基础角色失败: %w", err)
+			return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("同步测试用户基础角色失败: %w", err))
 		}
 
 		switch testUser {
 		case "active":
 			if err := s.rbac.EnsureUserHasRoleByTag(ctx, user.ID, constant.RoleTagUserActive); err != nil {
-				return nil, fmt.Errorf("同步测试用户 active 角色失败: %w", err)
+				return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("同步测试用户 active 角色失败: %w", err))
 			}
 		case "verified":
 			if err := s.rbac.EnsureUserHasRoleByTag(ctx, user.ID, constant.RoleTagUserVerified); err != nil {
-				return nil, fmt.Errorf("同步测试用户 verified 角色失败: %w", err)
+				return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("同步测试用户 verified 角色失败: %w", err))
 			}
 		case "operator":
 			if err := s.rbac.EnsureUserHasRoleByTag(ctx, user.ID, constant.RoleTagOperator); err != nil {
-				return nil, fmt.Errorf("同步测试用户 operator 角色失败: %w", err)
+				return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("同步测试用户 operator 角色失败: %w", err))
 			}
 		case "admin":
 			if err := s.rbac.EnsureUserHasRoleByTag(ctx, user.ID, constant.RoleTagAdmin); err != nil {
-				return nil, fmt.Errorf("同步测试用户 admin 角色失败: %w", err)
+				return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("同步测试用户 admin 角色失败: %w", err))
 			}
 		}
 	}
@@ -718,14 +731,14 @@ func (s *AuthService) Logout(ctx context.Context, userID uint, sid string) error
 	}
 
 	if sid == "" {
-		return fmt.Errorf("缺少会话信息")
+		return apperr.New(constant.AuthMissingSessionInfo)
 	}
 
 	if err := s.deleteSession(ctx, userID, sid); err != nil {
-		return fmt.Errorf("删除会话失败: %w", err)
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("删除会话失败: %w", err))
 	}
 	if err := s.revokeCurrentSession(ctx, sid); err != nil {
-		return fmt.Errorf("写入会话撤销标记失败: %w", err)
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("写入会话撤销标记失败: %w", err))
 	}
 
 	logger.InfoCtx(ctx, map[string]any{
@@ -802,7 +815,7 @@ func (s *AuthService) BanUser(ctx context.Context, operatorUserID, targetUserID 
 		blockTTL = time.Duration(durationSeconds) * time.Second
 	} else if user.Status != models.UserStatusDisabled {
 		if err := s.db.WithContext(ctx).Model(user).Update("status", models.UserStatusDisabled).Error; err != nil {
-			return deleted, fmt.Errorf("更新用户状态失败: %w", err)
+			return deleted, apperr.Wrap(constant.CommonInternal, fmt.Errorf("更新用户状态失败: %w", err))
 		}
 		user.Status = models.UserStatusDisabled
 	}
@@ -839,11 +852,11 @@ func (s *AuthService) UnbanUser(ctx context.Context, operatorUserID, targetUserI
 	}
 
 	if err := s.clearBlockInfo(ctx, targetUserID); err != nil {
-		return fmt.Errorf("清除封禁状态失败: %w", err)
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("清除封禁状态失败: %w", err))
 	}
 	if user.Status == models.UserStatusDisabled {
 		if err := s.db.WithContext(ctx).Model(user).Update("status", models.UserStatusNormal).Error; err != nil {
-			return fmt.Errorf("恢复用户状态失败: %w", err)
+			return apperr.Wrap(constant.CommonInternal, fmt.Errorf("恢复用户状态失败: %w", err))
 		}
 	}
 

@@ -7,6 +7,8 @@ import (
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
 	"gorm.io/gorm"
@@ -30,7 +32,7 @@ func (s *ReviewService) CreateReview(ctx context.Context, userID uint, req *requ
 	var existingReview models.TeacherReview
 	err := s.db.WithContext(ctx).Where("user_id = ? AND teacher_name = ? AND course_name = ?", userID, req.TeacherName, req.CourseName).First(&existingReview).Error
 	if err == nil {
-		return fmt.Errorf("您已经评价过该教师的这门课程")
+		return apperr.New(constant.ReviewDuplicate)
 	} else if err != gorm.ErrRecordNotFound {
 		return fmt.Errorf("检查评价记录失败: %w", err)
 	}
@@ -134,12 +136,15 @@ func (s *ReviewService) ApproveReview(ctx context.Context, reviewID uint, adminN
 	// 获取评价信息
 	var review models.TeacherReview
 	if err := s.db.WithContext(ctx).First(&review, reviewID).Error; err != nil {
-		return fmt.Errorf("评价不存在: %w", err)
+		if err == gorm.ErrRecordNotFound {
+			return apperr.New(constant.ReviewNotFound)
+		}
+		return fmt.Errorf("查询评价失败: %w", err)
 	}
 
 	// 检查是否已经审核通过
 	if review.Status == models.TeacherReviewStatusApproved {
-		return fmt.Errorf("评价已审核通过，无需重复审核")
+		return apperr.New(constant.ReviewApproved)
 	}
 
 	// 开启事务

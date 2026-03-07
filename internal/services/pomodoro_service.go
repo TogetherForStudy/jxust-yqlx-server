@@ -5,6 +5,8 @@ import (
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 
 	"gorm.io/gorm"
 )
@@ -21,8 +23,11 @@ func NewPomodoroService(db *gorm.DB) *PomodoroService {
 
 // IncrementPomodoroCount 增加番茄钟次数
 func (s *PomodoroService) IncrementPomodoroCount(ctx context.Context, userID uint) error {
-	return s.db.WithContext(ctx).Model(&models.User{}).Where("id = ?", userID).
-		UpdateColumn("pomodoro_count", gorm.Expr("pomodoro_count + ?", 1)).Error
+	if err := s.db.WithContext(ctx).Model(&models.User{}).Where("id = ?", userID).
+		UpdateColumn("pomodoro_count", gorm.Expr("pomodoro_count + ?", 1)).Error; err != nil {
+		return apperr.Wrap(constant.CommonInternal, err)
+	}
+	return nil
 }
 
 // GetPomodoroRanking 获取番茄钟排名（前20名）
@@ -36,7 +41,7 @@ func (s *PomodoroService) GetPomodoroRanking(ctx context.Context) ([]response.Po
 		Scan(&results).Error
 
 	if err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 为每个结果计算排名

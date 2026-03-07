@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"net/http"
-
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
 	"github.com/gin-gonic/gin"
@@ -20,7 +18,7 @@ func NewDictionaryHandler(service *services.DictionaryService) *DictionaryHandle
 func (h *DictionaryHandler) GetRandomWord(c *gin.Context) {
 	word, err := h.service.GetRandomWord(c)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, "获取随机单词失败")
+		helper.HandleError(c, err)
 		return
 	}
 

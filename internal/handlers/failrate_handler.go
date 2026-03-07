@@ -1,12 +1,11 @@
 package handlers
 
 import (
-	"net/http"
-
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,7 +22,7 @@ func NewFailRateHandler(service *services.FailRateService) *FailRateHandler {
 func (h *FailRateHandler) SearchFailRate(c *gin.Context) {
 	var req request.SearchFailRateRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
@@ -36,7 +35,7 @@ func (h *FailRateHandler) SearchFailRate(c *gin.Context) {
 
 	list, total, err := h.service.Search(c, req.Keyword, req.Page, req.Size)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, "查询失败")
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -63,7 +62,7 @@ func (h *FailRateHandler) SearchFailRate(c *gin.Context) {
 func (h *FailRateHandler) RandFailRate(c *gin.Context) {
 	list, err := h.service.Rand(c, 10)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, "查询失败")
+		helper.HandleError(c, err)
 		return
 	}
 

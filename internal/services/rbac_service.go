@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
@@ -147,19 +148,19 @@ func (s *RBACService) SeedDefaults(ctx context.Context) error {
 		err := s.db.WithContext(ctx).Where("role_tag = ?", role.RoleTag).First(&existing).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			if err := s.db.WithContext(ctx).Create(&role).Error; err != nil {
-				return fmt.Errorf("初始化角色失败: %w", err)
+				return apperr.Wrap(constant.CommonInternal, fmt.Errorf("初始化角色失败: %w", err))
 			}
 			continue
 		}
 		if err != nil {
-			return err
+			return apperr.Wrap(constant.CommonInternal, err)
 		}
 		if existing.Name != role.Name || existing.Description != role.Description {
 			if err := s.db.WithContext(ctx).Model(&existing).Updates(map[string]any{
 				"name":        role.Name,
 				"description": role.Description,
 			}).Error; err != nil {
-				return fmt.Errorf("更新角色信息失败: %w", err)
+				return apperr.Wrap(constant.CommonInternal, fmt.Errorf("更新角色信息失败: %w", err))
 			}
 		}
 	}
@@ -170,19 +171,19 @@ func (s *RBACService) SeedDefaults(ctx context.Context) error {
 		err := s.db.WithContext(ctx).Where("permission_tag = ?", perm.PermissionTag).First(&existing).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			if err := s.db.WithContext(ctx).Create(&perm).Error; err != nil {
-				return fmt.Errorf("初始化权限失败: %w", err)
+				return apperr.Wrap(constant.CommonInternal, fmt.Errorf("初始化权限失败: %w", err))
 			}
 			continue
 		}
 		if err != nil {
-			return err
+			return apperr.Wrap(constant.CommonInternal, err)
 		}
 		if existing.Name != perm.Name || existing.Description != perm.Description {
 			if err := s.db.WithContext(ctx).Model(&existing).Updates(map[string]any{
 				"name":        perm.Name,
 				"description": perm.Description,
 			}).Error; err != nil {
-				return fmt.Errorf("更新权限信息失败: %w", err)
+				return apperr.Wrap(constant.CommonInternal, fmt.Errorf("更新权限信息失败: %w", err))
 			}
 		}
 	}
@@ -196,7 +197,7 @@ func (s *RBACService) bindRolePermissions(ctx context.Context, bindings map[stri
 	for roleTag, permTags := range bindings {
 		var role models.Role
 		if err := s.db.WithContext(ctx).Where("role_tag = ?", roleTag).First(&role).Error; err != nil {
-			return fmt.Errorf("查询角色失败[%s]: %w", roleTag, err)
+			return apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询角色失败[%s]: %w", roleTag, err))
 		}
 
 		var perms []models.Permission
@@ -204,13 +205,13 @@ func (s *RBACService) bindRolePermissions(ctx context.Context, bindings map[stri
 			if err := s.db.WithContext(ctx).
 				Where("permission_tag IN ?", permTags).
 				Find(&perms).Error; err != nil {
-				return fmt.Errorf("查询权限失败: %w", err)
+				return apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询权限失败: %w", err))
 			}
 		}
 
 		if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 			if err := tx.Where("role_id = ?", role.ID).Delete(&models.RolePermission{}).Error; err != nil {
-				return err
+				return apperr.Wrap(constant.CommonInternal, err)
 			}
 			for _, perm := range perms {
 				rp := models.RolePermission{
@@ -219,12 +220,12 @@ func (s *RBACService) bindRolePermissions(ctx context.Context, bindings map[stri
 				}
 				if err := tx.Where("role_id = ? AND permission_id = ?", role.ID, perm.ID).
 					FirstOrCreate(&rp).Error; err != nil {
-					return err
+					return apperr.Wrap(constant.CommonInternal, err)
 				}
 			}
 			return nil
 		}); err != nil {
-			return fmt.Errorf("绑定角色权限失败[%s]: %w", roleTag, err)
+			return apperr.Wrap(constant.CommonInternal, fmt.Errorf("绑定角色权限失败[%s]: %w", roleTag, err))
 		}
 	}
 	return nil
@@ -234,7 +235,7 @@ func (s *RBACService) bindRolePermissions(ctx context.Context, bindings map[stri
 func (s *RBACService) ListRoles(ctx context.Context) ([]models.Role, error) {
 	var roles []models.Role
 	if err := s.db.WithContext(ctx).Find(&roles).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	return roles, nil
 }
@@ -244,7 +245,7 @@ func (s *RBACService) ListRolesWithUsers(ctx context.Context) ([]models.Role, ma
 	// 获取所有角色
 	var roles []models.Role
 	if err := s.db.WithContext(ctx).Find(&roles).Error; err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 构建角色ID到用户数量和用户ID列表的映射
@@ -258,7 +259,7 @@ func (s *RBACService) ListRolesWithUsers(ctx context.Context) ([]models.Role, ma
 			Model(&models.UserRole{}).
 			Where("role_id = ?", role.ID).
 			Count(&count).Error; err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, apperr.Wrap(constant.CommonInternal, err)
 		}
 		roleUserCountMap[role.ID] = int(count)
 
@@ -269,7 +270,7 @@ func (s *RBACService) ListRolesWithUsers(ctx context.Context) ([]models.Role, ma
 				Model(&models.UserRole{}).
 				Where("role_id = ?", role.ID).
 				Pluck("user_id", &userIDs).Error; err != nil {
-				return nil, nil, nil, err
+				return nil, nil, nil, apperr.Wrap(constant.CommonInternal, err)
 			}
 			roleUserIDsMap[role.ID] = userIDs
 		}
@@ -282,7 +283,7 @@ func (s *RBACService) ListRolesWithUsers(ctx context.Context) ([]models.Role, ma
 func (s *RBACService) ListPermissions(ctx context.Context) ([]models.Permission, error) {
 	var perms []models.Permission
 	if err := s.db.WithContext(ctx).Find(&perms).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	return perms, nil
 }
@@ -292,19 +293,19 @@ func (s *RBACService) GetRolesWithPermissions(ctx context.Context) ([]models.Rol
 	// 获取所有角色
 	var roles []models.Role
 	if err := s.db.WithContext(ctx).Find(&roles).Error; err != nil {
-		return nil, nil, err
+		return nil, nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 获取所有角色-权限关联
 	var rolePermissions []models.RolePermission
 	if err := s.db.WithContext(ctx).Find(&rolePermissions).Error; err != nil {
-		return nil, nil, err
+		return nil, nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 获取所有权限
 	var permissions []models.Permission
 	if err := s.db.WithContext(ctx).Find(&permissions).Error; err != nil {
-		return nil, nil, err
+		return nil, nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 构建权限ID到权限对象的映射
@@ -326,12 +327,18 @@ func (s *RBACService) GetRolesWithPermissions(ctx context.Context) ([]models.Rol
 
 // CreateRole 创建角色
 func (s *RBACService) CreateRole(ctx context.Context, role *models.Role) error {
-	return s.db.WithContext(ctx).Create(role).Error
+	if err := s.db.WithContext(ctx).Create(role).Error; err != nil {
+		return apperr.Wrap(constant.CommonInternal, err)
+	}
+	return nil
 }
 
 // UpdateRole 更新角色
 func (s *RBACService) UpdateRole(ctx context.Context, id uint, updates map[string]any) error {
-	return s.db.WithContext(ctx).Model(&models.Role{}).Where("id = ?", id).Updates(updates).Error
+	if err := s.db.WithContext(ctx).Model(&models.Role{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		return apperr.Wrap(constant.CommonInternal, err)
+	}
+	return nil
 }
 
 // DeleteRole 删除角色并清理关联
@@ -342,17 +349,17 @@ func (s *RBACService) DeleteRole(ctx context.Context, id uint) error {
 			Select("user_id").
 			Where("role_id = ?", id).
 			Find(&userIDs).Error; err != nil {
-			return err
+			return apperr.Wrap(constant.CommonInternal, err)
 		}
 
 		if err := tx.Where("role_id = ?", id).Delete(&models.RolePermission{}).Error; err != nil {
-			return err
+			return apperr.Wrap(constant.CommonInternal, err)
 		}
 		if err := tx.Where("role_id = ?", id).Delete(&models.UserRole{}).Error; err != nil {
-			return err
+			return apperr.Wrap(constant.CommonInternal, err)
 		}
 		if err := tx.Delete(&models.Role{}, id).Error; err != nil {
-			return err
+			return apperr.Wrap(constant.CommonInternal, err)
 		}
 		for _, uid := range userIDs {
 			s.invalidateUserCache(uid)
@@ -363,14 +370,17 @@ func (s *RBACService) DeleteRole(ctx context.Context, id uint) error {
 
 // CreatePermission 创建权限
 func (s *RBACService) CreatePermission(ctx context.Context, perm *models.Permission) error {
-	return s.db.WithContext(ctx).Create(perm).Error
+	if err := s.db.WithContext(ctx).Create(perm).Error; err != nil {
+		return apperr.Wrap(constant.CommonInternal, err)
+	}
+	return nil
 }
 
 // UpdateRolePermissions 重置角色拥有的权限列表
 func (s *RBACService) UpdateRolePermissions(ctx context.Context, roleID uint, permissionIDs []uint) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("role_id = ?", roleID).Delete(&models.RolePermission{}).Error; err != nil {
-			return err
+			return apperr.Wrap(constant.CommonInternal, err)
 		}
 		for _, pid := range permissionIDs {
 			rp := models.RolePermission{
@@ -378,7 +388,7 @@ func (s *RBACService) UpdateRolePermissions(ctx context.Context, roleID uint, pe
 				PermissionID: pid,
 			}
 			if err := tx.Create(&rp).Error; err != nil {
-				return err
+				return apperr.Wrap(constant.CommonInternal, err)
 			}
 		}
 
@@ -400,7 +410,7 @@ func (s *RBACService) UpdateRolePermissions(ctx context.Context, roleID uint, pe
 func (s *RBACService) UpdateUserRoles(ctx context.Context, userID uint, roleIDs []uint) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("user_id = ?", userID).Delete(&models.UserRole{}).Error; err != nil {
-			return err
+			return apperr.Wrap(constant.CommonInternal, err)
 		}
 		for _, rid := range roleIDs {
 			rel := models.UserRole{
@@ -408,7 +418,7 @@ func (s *RBACService) UpdateUserRoles(ctx context.Context, userID uint, roleIDs 
 				RoleID: rid,
 			}
 			if err := tx.Create(&rel).Error; err != nil {
-				return err
+				return apperr.Wrap(constant.CommonInternal, err)
 			}
 		}
 		s.invalidateUserCache(userID)
@@ -420,7 +430,7 @@ func (s *RBACService) UpdateUserRoles(ctx context.Context, userID uint, roleIDs 
 func (s *RBACService) EnsureUserHasRoleByTag(ctx context.Context, userID uint, roleTag string) error {
 	var role models.Role
 	if err := s.db.WithContext(ctx).Where("role_tag = ?", roleTag).First(&role).Error; err != nil {
-		return err
+		return apperr.Wrap(constant.CommonInternal, err)
 	}
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var rel models.UserRole
@@ -431,10 +441,10 @@ func (s *RBACService) EnsureUserHasRoleByTag(ctx context.Context, userID uint, r
 				RoleID: role.ID,
 			}
 			if err := tx.Create(&rel).Error; err != nil {
-				return err
+				return apperr.Wrap(constant.CommonInternal, err)
 			}
 		} else if err != nil {
-			return err
+			return apperr.Wrap(constant.CommonInternal, err)
 		}
 		s.invalidateUserCache(userID)
 		return nil
@@ -459,7 +469,7 @@ func (s *RBACService) GetUserPermissionSnapshot(ctx context.Context, userID uint
 		Joins("JOIN user_roles ur ON ur.role_id = roles.id").
 		Where("ur.user_id = ?", userID).
 		Find(&roleTags).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	isAdmin := false
@@ -478,7 +488,7 @@ func (s *RBACService) GetUserPermissionSnapshot(ctx context.Context, userID uint
 		Joins("JOIN user_roles ur ON ur.role_id = rp.role_id").
 		Where("ur.user_id = ?", userID).
 		Find(&permissionTags).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	snap := &UserPermissionSnapshot{
@@ -501,7 +511,7 @@ func (s *RBACService) GetUserPermissionSnapshot(ctx context.Context, userID uint
 func (s *RBACService) CheckPermission(ctx context.Context, userID uint, permissionTag string) (bool, error) {
 	snap, err := s.GetUserPermissionSnapshot(ctx, userID)
 	if err != nil {
-		return false, err
+		return false, apperr.Wrap(constant.CommonInternal, err)
 	}
 	if snap.IsAdmin {
 		return true, nil
@@ -518,7 +528,7 @@ func (s *RBACService) CheckPermission(ctx context.Context, userID uint, permissi
 func (s *RBACService) GetUserRoleTags(ctx context.Context, userID uint) ([]string, error) {
 	snap, err := s.GetUserPermissionSnapshot(ctx, userID)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	return snap.RoleTags, nil
 }
@@ -536,7 +546,7 @@ func (s *RBACService) CheckUserRole(ctx context.Context, userID uint, role strin
 func (s *RBACService) GetUserPermissions(ctx context.Context, userID uint) ([]string, error) {
 	snap, err := s.GetUserPermissionSnapshot(ctx, userID)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	return snap.PermissionTags, nil
 }
@@ -557,7 +567,7 @@ func (s *RBACService) GetUsersByRoleTags(ctx context.Context, roleTags []string)
 		Find(&users).Error
 
 	if err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	return users, nil
@@ -574,11 +584,11 @@ func (s *RBACService) GrantRole(ctx context.Context, userID uint, roleID uint) e
 				RoleID: roleID,
 			}
 			if err := tx.Create(&rel).Error; err != nil {
-				return err
+				return apperr.Wrap(constant.CommonInternal, err)
 			}
 			s.invalidateUserCache(userID)
 		} else if err != nil {
-			return err
+			return apperr.Wrap(constant.CommonInternal, err)
 		}
 		return nil
 	})
@@ -588,7 +598,7 @@ func (s *RBACService) GrantRole(ctx context.Context, userID uint, roleID uint) e
 func (s *RBACService) RevokeRole(ctx context.Context, userID uint, roleID uint) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("user_id = ? AND role_id = ?", userID, roleID).Delete(&models.UserRole{}).Error; err != nil {
-			return err
+			return apperr.Wrap(constant.CommonInternal, err)
 		}
 		s.invalidateUserCache(userID)
 		return nil

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 
@@ -141,7 +142,7 @@ func (s *FeatureService) GrantFeatureToUser(ctx context.Context, userID, granted
 	err := s.db.WithContext(ctx).Where("feature_key = ?", featureKey).First(&feature).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return fmt.Errorf("功能不存在")
+			return apperr.New(constant.FeatureNotFound)
 		}
 		return err
 	}
@@ -151,7 +152,7 @@ func (s *FeatureService) GrantFeatureToUser(ctx context.Context, userID, granted
 	err = s.db.WithContext(ctx).Where("id = ?", userID).First(&user).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return fmt.Errorf("用户不存在")
+			return apperr.New(constant.CommonUserNotFound)
 		}
 		return err
 	}
@@ -191,7 +192,7 @@ func (s *FeatureService) BatchGrantFeatureToUsers(ctx context.Context, userIDs [
 	err := s.db.WithContext(ctx).Where("feature_key = ?", featureKey).First(&feature).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return fmt.Errorf("功能不存在")
+			return apperr.New(constant.FeatureNotFound)
 		}
 		return err
 	}
@@ -236,6 +237,9 @@ func (s *FeatureService) GetFeature(ctx context.Context, featureKey string) (*mo
 	var feature models.Feature
 	err := s.db.WithContext(ctx).Where("feature_key = ?", featureKey).First(&feature).Error
 	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, apperr.New(constant.FeatureNotFound)
+		}
 		return nil, err
 	}
 	return &feature, nil
@@ -247,7 +251,7 @@ func (s *FeatureService) CreateFeature(ctx context.Context, feature *models.Feat
 	var existing models.Feature
 	err := s.db.WithContext(ctx).Where("feature_key = ?", feature.FeatureKey).First(&existing).Error
 	if err == nil {
-		return fmt.Errorf("功能标识已存在")
+		return apperr.New(constant.FeatureIdentifierExists)
 	}
 	if err != gorm.ErrRecordNotFound {
 		return err

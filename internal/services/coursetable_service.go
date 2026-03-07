@@ -6,6 +6,7 @@ import (
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
@@ -35,14 +36,14 @@ func (s *CourseTableService) GetUserCourseTableWithVersion(ctx context.Context, 
 	var user models.User
 	if err := s.db.WithContext(ctx).Where("id = ?", userID).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("用户不存在")
+			return nil, apperr.New(constant.CommonUserNotFound)
 		}
-		return nil, fmt.Errorf("查询用户信息失败: %v", err)
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询用户信息失败: %w", err))
 	}
 
 	// 检查用户是否设置了班级ID
 	if user.ClassID == "" {
-		return nil, fmt.Errorf("用户尚未设置班级信息")
+		return nil, apperr.New(constant.CourseTableClassNotSet)
 	}
 
 	// 获取最新的数据修改时间和数据
@@ -78,16 +79,16 @@ func (s *CourseTableService) getLatestCourseData(ctx context.Context, userID uin
 	if err := s.db.WithContext(ctx).Where("user_id = ? AND class_id = ? AND semester = ?", userID, classID, semester).First(&userSchedule).Error; err == nil {
 		return userSchedule.UpdatedAt.Unix(), userSchedule.Schedule, userSchedule.ClassID, nil
 	} else if err != gorm.ErrRecordNotFound {
-		return 0, nil, "", fmt.Errorf("查询用户个性课表失败: %v", err)
+		return 0, nil, "", apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询用户个性课表失败: %w", err))
 	}
 
 	// 查询班级默认课表
 	var courseTable models.CourseTable
 	if err := s.db.WithContext(ctx).Where("class_id = ? AND semester = ?", classID, semester).First(&courseTable).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return 0, nil, "", fmt.Errorf("未找到该班级在指定学期的课程表")
+			return 0, nil, "", apperr.New(constant.CourseTableScheduleNotFound)
 		}
-		return 0, nil, "", fmt.Errorf("查询课程表失败: %v", err)
+		return 0, nil, "", apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询课程表失败: %w", err))
 	}
 
 	return courseTable.UpdatedAt.Unix(), courseTable.CourseData, courseTable.ClassID, nil
@@ -99,12 +100,12 @@ func (s *CourseTableService) EditUserCourseCell(ctx context.Context, userID uint
 	var user models.User
 	if err := s.db.WithContext(ctx).Where("id = ?", userID).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return fmt.Errorf("用户不存在")
+			return apperr.New(constant.CommonUserNotFound)
 		}
-		return fmt.Errorf("查询用户信息失败: %v", err)
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询用户信息失败: %w", err))
 	}
 	if user.ClassID == "" {
-		return fmt.Errorf("用户尚未设置班级信息")
+		return apperr.New(constant.CourseTableClassNotSet)
 	}
 
 	// 查询或初始化个人课表
@@ -115,24 +116,24 @@ func (s *CourseTableService) EditUserCourseCell(ctx context.Context, userID uint
 			var courseTable models.CourseTable
 			if e := s.db.WithContext(ctx).Where("class_id = ? AND semester = ?", user.ClassID, semester).First(&courseTable).Error; e != nil {
 				if e == gorm.ErrRecordNotFound {
-					return fmt.Errorf("未找到该班级在指定学期的课程表")
+					return apperr.New(constant.CourseTableScheduleNotFound)
 				}
-				return fmt.Errorf("查询课程表失败: %v", e)
+				return apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询课程表失败: %w", e))
 			}
 
 			var scheduleMap map[string]any
 			if e := json.Unmarshal(courseTable.CourseData, &scheduleMap); e != nil {
-				return fmt.Errorf("解析课程表失败: %v", e)
+				return apperr.Wrap(constant.CommonInternal, fmt.Errorf("解析课程表失败: %w", e))
 			}
 			var cellValue any
 			if e := json.Unmarshal(value, &cellValue); e != nil {
-				return fmt.Errorf("解析提交的格子数据失败: %v", e)
+				return apperr.Wrap(constant.CommonInternal, fmt.Errorf("解析提交的格子数据失败: %w", e))
 			}
 			scheduleMap[index] = cellValue
 
 			bytesData, e := json.Marshal(scheduleMap)
 			if e != nil {
-				return fmt.Errorf("序列化课程表失败: %v", e)
+				return apperr.Wrap(constant.CommonInternal, fmt.Errorf("序列化课程表失败: %w", e))
 			}
 			newSchedule := models.ScheduleUser{
 				UserID:   userID,
@@ -141,32 +142,32 @@ func (s *CourseTableService) EditUserCourseCell(ctx context.Context, userID uint
 				Schedule: datatypes.JSON(bytesData),
 			}
 			if e := s.db.WithContext(ctx).Create(&newSchedule).Error; e != nil {
-				return fmt.Errorf("创建用户个性课表失败: %v", e)
+				return apperr.Wrap(constant.CommonInternal, fmt.Errorf("创建用户个性课表失败: %w", e))
 			}
 			return nil
 		}
-		return fmt.Errorf("查询用户个性课表失败: %v", err)
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询用户个性课表失败: %w", err))
 	}
 
 	// 已存在个人课表，更新指定格子
 	var scheduleMap map[string]any
 	if e := json.Unmarshal(userSchedule.Schedule, &scheduleMap); e != nil {
-		return fmt.Errorf("解析用户个性课表失败: %v", e)
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("解析用户个性课表失败: %w", e))
 	}
 	var cellValue any
 	if e := json.Unmarshal(value, &cellValue); e != nil {
-		return fmt.Errorf("解析提交的格子数据失败: %v", e)
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("解析提交的格子数据失败: %w", e))
 	}
 	scheduleMap[index] = cellValue
 
 	bytesData, e := json.Marshal(scheduleMap)
 	if e != nil {
-		return fmt.Errorf("序列化课程表失败: %v", e)
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("序列化课程表失败: %w", e))
 	}
 	if e := s.db.WithContext(ctx).Model(&models.ScheduleUser{}).
 		Where("user_id = ? AND class_id = ? AND semester = ?", userID, user.ClassID, semester).
 		Updates(map[string]any{"schedule": datatypes.JSON(bytesData), "class_id": user.ClassID}).Error; e != nil {
-		return fmt.Errorf("更新用户个性课表失败: %v", e)
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("更新用户个性课表失败: %w", e))
 	}
 	return nil
 }
@@ -188,7 +189,7 @@ func (s *CourseTableService) SearchClasses(ctx context.Context, keyword string, 
 		Where("class_id LIKE ?", "%"+keyword+"%").
 		Distinct("class_id").
 		Count(&total).Error; err != nil {
-		return nil, fmt.Errorf("查询班级总数失败: %v", err)
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询班级总数失败: %w", err))
 	}
 
 	// 查询班级列表（去重）
@@ -199,7 +200,7 @@ func (s *CourseTableService) SearchClasses(ctx context.Context, keyword string, 
 		Offset(offset).
 		Limit(size).
 		Find(&courseTables).Error; err != nil {
-		return nil, fmt.Errorf("查询班级列表失败: %v", err)
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询班级列表失败: %w", err))
 	}
 
 	// 转换为响应格式
@@ -226,9 +227,9 @@ func (s *CourseTableService) UpdateUserClass(ctx context.Context, userID uint, c
 		var user models.User
 		if e := tx.Where("id = ?", userID).First(&user).Error; e != nil {
 			if e == gorm.ErrRecordNotFound {
-				return fmt.Errorf("用户不存在")
+				return apperr.New(constant.CommonUserNotFound)
 			}
-			return fmt.Errorf("查询用户信息失败: %v", e)
+			return apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询用户信息失败: %w", e))
 		}
 
 		// 查询绑定记录（仅用于读取 bind_count，未找到视为0）
@@ -238,7 +239,7 @@ func (s *CourseTableService) UpdateUserClass(ctx context.Context, userID uint, c
 			if e == gorm.ErrRecordNotFound {
 				hasRecord = false
 			} else {
-				return fmt.Errorf("查询绑定记录失败: %v", e)
+				return apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询绑定记录失败: %w", e))
 			}
 		} else {
 			hasRecord = true
@@ -254,17 +255,17 @@ func (s *CourseTableService) UpdateUserClass(ctx context.Context, userID uint, c
 				bindCount = br.BindCount
 			}
 			if bindCount >= 2 {
-				return fmt.Errorf("仅可绑定2次")
+				return apperr.New(constant.CourseTableBindLimitReached)
 			}
 		}
 
 		// 检查班级存在
 		var exists int64
 		if e := tx.Model(&models.CourseTable{}).Where("class_id = ?", classID).Count(&exists).Error; e != nil {
-			return fmt.Errorf("查询班级信息失败: %v", e)
+			return apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询班级信息失败: %w", e))
 		}
 		if exists == 0 {
-			return fmt.Errorf("指定的班级不存在")
+			return apperr.New(constant.CourseTableClassNotFound)
 		}
 
 		// 如果班级未变化，不增加绑定次数
@@ -274,7 +275,7 @@ func (s *CourseTableService) UpdateUserClass(ctx context.Context, userID uint, c
 
 		// 更新用户班级
 		if e := tx.Model(&models.User{}).Where("id = ?", userID).Update("class_id", classID).Error; e != nil {
-			return fmt.Errorf("更新用户班级失败: %v", e)
+			return apperr.Wrap(constant.CommonInternal, fmt.Errorf("更新用户班级失败: %w", e))
 		}
 
 		// 成功绑定：创建或更新绑定记录（仅变更 bind_count）
@@ -284,7 +285,7 @@ func (s *CourseTableService) UpdateUserClass(ctx context.Context, userID uint, c
 				Updates(map[string]any{
 					"bind_count": gorm.Expr("bind_count + 1"),
 				}).Error; e != nil {
-				return fmt.Errorf("更新绑定次数失败: %v", e)
+				return apperr.Wrap(constant.CommonInternal, fmt.Errorf("更新绑定次数失败: %w", e))
 			}
 		} else {
 			newRecord := models.BindRecord{
@@ -292,7 +293,7 @@ func (s *CourseTableService) UpdateUserClass(ctx context.Context, userID uint, c
 				BindCount: 1,
 			}
 			if e := tx.Create(&newRecord).Error; e != nil {
-				return fmt.Errorf("创建绑定记录失败: %v", e)
+				return apperr.Wrap(constant.CommonInternal, fmt.Errorf("创建绑定记录失败: %w", e))
 			}
 		}
 
@@ -307,7 +308,7 @@ func (s *CourseTableService) GetUserBindCount(ctx context.Context, userID uint) 
 		if err == gorm.ErrRecordNotFound {
 			return 0, nil
 		}
-		return 0, fmt.Errorf("查询绑定记录失败: %v", err)
+		return 0, apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询绑定记录失败: %w", err))
 	}
 	return br.BindCount, nil
 }
@@ -317,22 +318,22 @@ func (s *CourseTableService) ResetUserSchedule(ctx context.Context, userID uint,
 	var user models.User
 	if err := s.db.WithContext(ctx).Where("id = ?", userID).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return fmt.Errorf("用户不存在")
+			return apperr.New(constant.CommonUserNotFound)
 		}
-		return fmt.Errorf("查询用户信息失败: %v", err)
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询用户信息失败: %w", err))
 	}
 	if user.ClassID == "" {
-		return fmt.Errorf("用户尚未设置班级信息")
+		return apperr.New(constant.CourseTableClassNotSet)
 	}
 
 	result := s.db.WithContext(ctx).
 		Where("user_id = ? AND class_id = ? AND semester = ?", userID, user.ClassID, semester).
 		Delete(&models.ScheduleUser{})
 	if result.Error != nil {
-		return fmt.Errorf("重置个人课表失败: %v", result.Error)
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("重置个人课表失败: %w", result.Error))
 	}
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("未找到个人课表数据")
+		return apperr.New(constant.CourseTablePersonalScheduleNotFound)
 	}
 	return nil
 }
@@ -343,13 +344,13 @@ func (s *CourseTableService) ResetUserBindCountToOne(ctx context.Context, target
 		var br models.BindRecord
 		if err := tx.Where("user_id = ?", targetUserID).First(&br).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
-				return fmt.Errorf("查询绑定记录失败: %v", err)
+				return apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询绑定记录失败: %w", err))
 			}
 		}
 		if err := tx.Model(&models.BindRecord{}).
 			Where("user_id = ?", targetUserID).
 			Update("bind_count", 1).Error; err != nil {
-			return fmt.Errorf("更新绑定次数失败: %v", err)
+			return apperr.Wrap(constant.CommonInternal, fmt.Errorf("更新绑定次数失败: %w", err))
 		}
 		return nil
 	})

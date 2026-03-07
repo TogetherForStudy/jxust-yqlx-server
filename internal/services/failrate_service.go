@@ -5,6 +5,8 @@ import (
 	"math/rand"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
 	"gorm.io/gorm"
@@ -29,7 +31,7 @@ func (s *FailRateService) Search(ctx context.Context, keyword string, page, size
 	}
 
 	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
+		return nil, 0, apperr.Wrap(constant.FailRateQueryFailed, err)
 	}
 
 	pagination := utils.GetPagination(page, size)
@@ -37,7 +39,7 @@ func (s *FailRateService) Search(ctx context.Context, keyword string, page, size
 		Offset(pagination.Offset).
 		Limit(pagination.Size).
 		Find(&list).Error; err != nil {
-		return nil, 0, err
+		return nil, 0, apperr.Wrap(constant.FailRateQueryFailed, err)
 	}
 
 	return list, total, nil
@@ -52,14 +54,14 @@ func (s *FailRateService) Rand(ctx context.Context, limit int) ([]models.FailRat
 	// 1. 获取总记录数
 	var total int64
 	if err := s.db.WithContext(ctx).Model(&models.FailRate{}).Count(&total).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.FailRateQueryFailed, err)
 	}
 
 	// 如果总数不够，直接返回所有记录
 	if total <= int64(limit) {
 		var list []models.FailRate
 		if err := s.db.WithContext(ctx).Model(&models.FailRate{}).Find(&list).Error; err != nil {
-			return nil, err
+			return nil, apperr.Wrap(constant.FailRateQueryFailed, err)
 		}
 		return list, nil
 	}
@@ -80,7 +82,7 @@ func (s *FailRateService) Rand(ctx context.Context, limit int) ([]models.FailRat
 			Offset(offset).
 			Limit(1).
 			Find(&item).Error; err != nil {
-			return nil, err
+			return nil, apperr.Wrap(constant.FailRateQueryFailed, err)
 		}
 		list = append(list, item)
 	}

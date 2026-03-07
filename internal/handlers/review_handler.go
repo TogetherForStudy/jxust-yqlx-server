@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -10,6 +9,7 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 )
 
 type ReviewHandler struct {
@@ -36,18 +36,18 @@ func NewReviewHandler(reviewService *services.ReviewService) *ReviewHandler {
 func (h *ReviewHandler) CreateReview(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	var req request.CreateReviewRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	if err := h.reviewService.CreateReview(c.Request.Context(), userID, &req); err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -69,7 +69,7 @@ func (h *ReviewHandler) CreateReview(c *gin.Context) {
 func (h *ReviewHandler) GetReviewsByTeacher(c *gin.Context) {
 	teacherName := c.Query("teacher_name")
 	if teacherName == "" {
-		helper.ValidateResponse(c, "请提供教师姓名")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
@@ -78,7 +78,7 @@ func (h *ReviewHandler) GetReviewsByTeacher(c *gin.Context) {
 
 	reviews, total, err := h.reviewService.GetReviewsByTeacher(c, teacherName, page, size)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, "获取评价失败")
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -100,7 +100,7 @@ func (h *ReviewHandler) GetReviewsByTeacher(c *gin.Context) {
 func (h *ReviewHandler) GetUserReviews(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
@@ -109,7 +109,7 @@ func (h *ReviewHandler) GetUserReviews(c *gin.Context) {
 
 	reviews, total, err := h.reviewService.GetUserReviews(c.Request.Context(), userID, page, size)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, "获取评价记录失败")
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -138,7 +138,7 @@ func (h *ReviewHandler) GetReviews(c *gin.Context) {
 
 	reviews, total, err := h.reviewService.GetReviews(c, page, size, teacherName, models.TeacherReviewStatus(status))
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, "获取评价列表失败")
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -165,18 +165,18 @@ type ApproveReviewRequest struct {
 func (h *ReviewHandler) ApproveReview(c *gin.Context) {
 	reviewID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		helper.ValidateResponse(c, "无效的评价ID")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	var req ApproveReviewRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "请提供管理员备注")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	if err := h.reviewService.ApproveReview(c, uint(reviewID), req.AdminNote); err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, "审核失败")
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -198,23 +198,23 @@ func (h *ReviewHandler) ApproveReview(c *gin.Context) {
 func (h *ReviewHandler) RejectReview(c *gin.Context) {
 	reviewID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		helper.ValidateResponse(c, "无效的评价ID")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	var req ApproveReviewRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "请提供拒绝理由")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	if req.AdminNote == "" {
-		helper.ValidateResponse(c, "请提供拒绝理由")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	if err := h.reviewService.RejectReview(c, uint(reviewID), req.AdminNote); err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, "审核失败")
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -235,12 +235,12 @@ func (h *ReviewHandler) RejectReview(c *gin.Context) {
 func (h *ReviewHandler) DeleteReview(c *gin.Context) {
 	reviewID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		helper.ValidateResponse(c, "无效的评价ID")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	if err := h.reviewService.DeleteReview(c, uint(reviewID)); err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, "删除失败")
+		helper.HandleError(c, err)
 		return
 	}
 

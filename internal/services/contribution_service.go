@@ -2,13 +2,13 @@ package services
 
 import (
 	"context"
-	"errors"
 	"slices"
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
@@ -122,7 +122,7 @@ func (s *ContributionService) GetContributionByID(ctx context.Context, contribut
 		return db.Select("id, nickname")
 	}).Preload("Notification").WithContext(ctx).First(&contribution, contributionID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, errors.New("投稿不存在")
+			return nil, apperr.New(constant.ContributionNotFound)
 		}
 		return nil, err
 	}
@@ -130,7 +130,7 @@ func (s *ContributionService) GetContributionByID(ctx context.Context, contribut
 	// 普通用户试图请求其他ID时候禁止
 	userRoleTags := utils.GetUserRoles(ctx)
 	if !slices.Contains(userRoleTags, constant.RoleTagOperator) && !slices.Contains(userRoleTags, constant.RoleTagAdmin) && contribution.UserID != userID {
-		return nil, errors.New("无权限")
+		return nil, apperr.New(constant.ContributionForbidden)
 	}
 
 	return s.convertToResponse(ctx, &contribution)
@@ -143,14 +143,14 @@ func (s *ContributionService) ReviewContribution(ctx context.Context, contributi
 	var contribution models.UserContribution
 	if err := s.db.WithContext(ctx).First(&contribution, contributionID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return errors.New("投稿不存在")
+			return apperr.New(constant.ContributionNotFound)
 		}
 		return err
 	}
 
 	// 检查状态
 	if contribution.Status != models.UserContributionStatusPending {
-		return errors.New("只能审核待审核状态的投稿")
+		return apperr.New(constant.ContributionReviewStatusInvalid)
 	}
 
 	// 开启事务

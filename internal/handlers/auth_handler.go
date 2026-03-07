@@ -3,13 +3,14 @@ package handlers
 import (
 	"errors"
 	"io"
-	"net/http"
 	"strconv"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 
 	"github.com/gin-gonic/gin"
@@ -31,13 +32,13 @@ func NewAuthHandler(authService *services.AuthService, rbacService *services.RBA
 func (h *AuthHandler) WechatLogin(c *gin.Context) {
 	var req request.WechatLoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
 	result, err := h.authService.WechatLogin(c.Request.Context(), req.Code, c.Request.UserAgent())
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -48,13 +49,13 @@ func (h *AuthHandler) WechatLogin(c *gin.Context) {
 func (h *AuthHandler) MockWechatLogin(c *gin.Context) {
 	var req request.MockWechatLoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
 	result, err := h.authService.MockWechatLogin(c.Request.Context(), req.TestUser, c.Request.UserAgent())
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -64,13 +65,13 @@ func (h *AuthHandler) MockWechatLogin(c *gin.Context) {
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	var req request.RefreshTokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
 	result, err := h.authService.RefreshToken(c.Request.Context(), req.RefreshToken, c.Request.UserAgent())
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusUnauthorized, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -80,13 +81,13 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 func (h *AuthHandler) Logout(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	sid := helper.GetAuthSessionID(c)
 	if err := h.authService.Logout(c.Request.Context(), userID, sid); err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -96,13 +97,13 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 func (h *AuthHandler) LogoutAll(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	deleted, err := h.authService.LogoutAll(c.Request.Context(), userID)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -113,13 +114,13 @@ func (h *AuthHandler) LogoutAll(c *gin.Context) {
 func (h *AuthHandler) GetProfile(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	user, err := h.authService.GetUserByID(c.Request.Context(), userID)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusNotFound, "用户不存在")
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -161,13 +162,13 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	var req request.UpdateProfileRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
@@ -198,7 +199,7 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	}
 
 	if err := h.authService.UpdateUserProfile(c.Request.Context(), userID, updates); err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, "更新失败")
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -208,14 +209,14 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 func (h *AuthHandler) KickUser(c *gin.Context) {
 	targetUserID, err := parsePathUserID(c)
 	if err != nil {
-		helper.ValidateResponse(c, err.Error())
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
 	operatorUserID := helper.GetUserID(c)
 	deleted, err := h.authService.KickUser(c.Request.Context(), operatorUserID, targetUserID)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -225,20 +226,20 @@ func (h *AuthHandler) KickUser(c *gin.Context) {
 func (h *AuthHandler) BanUser(c *gin.Context) {
 	targetUserID, err := parsePathUserID(c)
 	if err != nil {
-		helper.ValidateResponse(c, err.Error())
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
 	var req request.BanUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
 	operatorUserID := helper.GetUserID(c)
 	deleted, err := h.authService.BanUser(c.Request.Context(), operatorUserID, targetUserID, req.DurationSeconds, req.Reason)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -248,13 +249,13 @@ func (h *AuthHandler) BanUser(c *gin.Context) {
 func (h *AuthHandler) UnbanUser(c *gin.Context) {
 	targetUserID, err := parsePathUserID(c)
 	if err != nil {
-		helper.ValidateResponse(c, err.Error())
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
 	operatorUserID := helper.GetUserID(c)
 	if err := h.authService.UnbanUser(c.Request.Context(), operatorUserID, targetUserID); err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -264,13 +265,13 @@ func (h *AuthHandler) UnbanUser(c *gin.Context) {
 func (h *AuthHandler) GetUserDetail(c *gin.Context) {
 	targetUserID, err := parsePathUserID(c)
 	if err != nil {
-		helper.ValidateResponse(c, err.Error())
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
 	result, err := h.authService.GetUserAuthDetail(c.Request.Context(), targetUserID)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 

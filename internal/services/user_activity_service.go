@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 
@@ -32,7 +33,7 @@ func (s *UserActivityService) GetUserLoginDays(ctx context.Context, userID uint,
 		Model(&models.UserActivity{}).
 		Where("user_id = ? AND date >= ?", userID, cutoff.Format("2006-01-02")).
 		Count(&count).Error; err != nil {
-		return 0, err
+		return 0, apperr.Wrap(constant.UserActivityQueryFailed, err)
 	}
 	return count, nil
 }

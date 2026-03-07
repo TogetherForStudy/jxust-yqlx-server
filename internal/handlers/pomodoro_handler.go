@@ -1,10 +1,9 @@
 package handlers
 
 import (
-	"net/http"
-
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,13 +22,13 @@ func NewPomodoroHandler(pomodoroService *services.PomodoroService) *PomodoroHand
 func (h *PomodoroHandler) Increment(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	err := h.pomodoroService.IncrementPomodoroCount(c, userID)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -40,7 +39,7 @@ func (h *PomodoroHandler) Increment(c *gin.Context) {
 func (h *PomodoroHandler) GetRanking(c *gin.Context) {
 	result, err := h.pomodoroService.GetPomodoroRanking(c)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 

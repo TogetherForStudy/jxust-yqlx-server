@@ -2,10 +2,11 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
 	"gorm.io/gorm"
@@ -26,7 +27,7 @@ func (s *HeroService) Create(ctx context.Context, name string, sort int, isShow 
 		return nil, err
 	}
 	if cnt > 0 {
-		return nil, fmt.Errorf("名称已存在")
+		return nil, apperr.New(constant.HeroNameExists)
 	}
 
 	hero := &models.Hero{
@@ -49,7 +50,7 @@ func (s *HeroService) Update(ctx context.Context, id uint, name string, sort *in
 		return err
 	}
 	if cnt > 0 {
-		return fmt.Errorf("名称已存在")
+		return apperr.New(constant.HeroNameExists)
 	}
 	updates := map[string]any{
 		"name":       name,
@@ -72,7 +73,7 @@ func (s *HeroService) Get(ctx context.Context, id uint) (*models.Hero, error) {
 	var m models.Hero
 	if err := s.db.WithContext(ctx).First(&m, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("未找到")
+			return nil, apperr.New(constant.HeroNotFound)
 		}
 		return nil, err
 	}

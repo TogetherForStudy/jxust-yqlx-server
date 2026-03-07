@@ -1,12 +1,12 @@
 package handlers
 
 import (
-	"net/http"
 	"strconv"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 
 	"github.com/gin-gonic/gin"
 )
@@ -25,19 +25,19 @@ func NewStudyTaskHandler(studyTaskService *services.StudyTaskService) *StudyTask
 func (h *StudyTaskHandler) CreateStudyTask(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	var req request.CreateStudyTaskRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	result, err := h.studyTaskService.CreateStudyTask(c, userID, &req)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -48,13 +48,13 @@ func (h *StudyTaskHandler) CreateStudyTask(c *gin.Context) {
 func (h *StudyTaskHandler) GetStudyTasks(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	var req request.GetStudyTasksRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 	// 设置默认分页参数
@@ -75,7 +75,7 @@ func (h *StudyTaskHandler) GetStudyTasks(c *gin.Context) {
 
 	result, err := h.studyTaskService.GetStudyTasks(c, userID, &req)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -86,24 +86,20 @@ func (h *StudyTaskHandler) GetStudyTasks(c *gin.Context) {
 func (h *StudyTaskHandler) GetStudyTaskByID(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, "无效的任务ID")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	result, err := h.studyTaskService.GetStudyTaskByID(c, uint(id), userID)
 	if err != nil {
-		if err.Error() == "学习任务不存在或无权限访问" {
-			helper.ErrorResponse(c, http.StatusNotFound, err.Error())
-			return
-		}
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -114,26 +110,26 @@ func (h *StudyTaskHandler) GetStudyTaskByID(c *gin.Context) {
 func (h *StudyTaskHandler) UpdateStudyTask(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, "无效的任务ID")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	var req request.UpdateStudyTaskRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	result, err := h.studyTaskService.UpdateStudyTask(c, uint(id), userID, &req)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -144,20 +140,20 @@ func (h *StudyTaskHandler) UpdateStudyTask(c *gin.Context) {
 func (h *StudyTaskHandler) DeleteStudyTask(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, "无效的任务ID")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	err = h.studyTaskService.DeleteStudyTask(c, uint(id), userID)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -168,13 +164,13 @@ func (h *StudyTaskHandler) DeleteStudyTask(c *gin.Context) {
 func (h *StudyTaskHandler) GetStudyTaskStats(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	result, err := h.studyTaskService.GetStudyTaskStats(c, userID)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -185,7 +181,7 @@ func (h *StudyTaskHandler) GetStudyTaskStats(c *gin.Context) {
 func (h *StudyTaskHandler) GetCompletedTasks(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
@@ -203,7 +199,7 @@ func (h *StudyTaskHandler) GetCompletedTasks(c *gin.Context) {
 
 	result, err := h.studyTaskService.GetCompletedTasks(c, userID, page, size)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
