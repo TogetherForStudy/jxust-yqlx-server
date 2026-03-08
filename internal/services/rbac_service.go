@@ -68,6 +68,7 @@ func (s *RBACService) SeedDefaults(ctx context.Context) error {
 		{PermissionTag: constant.PermissionPointGet, Name: "积分查看", Description: ""},
 		{PermissionTag: constant.PermissionPointSpend, Name: "积分消费", Description: ""},
 		{PermissionTag: constant.PermissionPointManage, Name: "积分管理", Description: ""},
+		{PermissionTag: constant.PermissionStatisticGet, Name: "统计查看", Description: ""},
 		{PermissionTag: constant.PermissionContributionGet, Name: "投稿查看", Description: ""},
 		{PermissionTag: constant.PermissionContributionCreate, Name: "投稿创建", Description: ""},
 		{PermissionTag: constant.PermissionCountdown, Name: "倒数日", Description: ""},
@@ -79,13 +80,15 @@ func (s *RBACService) SeedDefaults(ctx context.Context) error {
 		{PermissionTag: constant.PermissionQuestion, Name: "刷题访问", Description: ""},
 		{PermissionTag: constant.PermissionPomodoro, Name: "番茄钟", Description: ""},
 		{PermissionTag: constant.PermissionDictionary, Name: "每日一词", Description: ""},
+		{PermissionTag: constant.PermissionChatStudy, Name: "学习对话", Description: ""},
+		{PermissionTag: constant.PermissionNotificationGet, Name: "通知查看", Description: ""},
 
 		{PermissionTag: constant.PermissionReviewManage, Name: "点评管理", Description: ""},
 		{PermissionTag: constant.PermissionCourseTableManage, Name: "课表管理", Description: ""},
 		{PermissionTag: constant.PermissionHeroManage, Name: "英雄榜管理", Description: ""},
 		{PermissionTag: constant.PermissionConfigManage, Name: "配置管理", Description: ""},
 		{PermissionTag: constant.PermissionContributionManage, Name: "投稿管理", Description: ""},
-		{PermissionTag: constant.PermissionNotificationGet, Name: "通知后台查看", Description: ""},
+		{PermissionTag: constant.PermissionNotificationGetAdmin, Name: "通知后台查看", Description: ""},
 		{PermissionTag: constant.PermissionNotificationCreate, Name: "通知创建", Description: ""},
 		{PermissionTag: constant.PermissionNotificationPublish, Name: "通知发布", Description: ""},
 		{PermissionTag: constant.PermissionNotificationUpdate, Name: "通知更新", Description: ""},
@@ -98,6 +101,12 @@ func (s *RBACService) SeedDefaults(ctx context.Context) error {
 		{PermissionTag: constant.PermissionFeatureManage, Name: "功能管理", Description: ""},
 		{PermissionTag: constant.PermissionUserManage, Name: "用户管理", Description: ""},
 		{PermissionTag: constant.PermissionMaterialManage, Name: "资料管理", Description: ""},
+		{PermissionTag: constant.PermissionS3Manage, Name: "S3管理", Description: ""},
+	}
+
+	allPermissionTags := make([]string, 0, len(permissionSeeds))
+	for _, perm := range permissionSeeds {
+		allPermissionTags = append(allPermissionTags, perm.PermissionTag)
 	}
 
 	roleBindings := map[string][]string{
@@ -115,6 +124,7 @@ func (s *RBACService) SeedDefaults(ctx context.Context) error {
 			constant.PermissionFailRate,
 			constant.PermissionPointGet,
 			constant.PermissionPointSpend,
+			constant.PermissionStatisticGet,
 			constant.PermissionContributionGet,
 			constant.PermissionContributionCreate,
 			constant.PermissionCountdown,
@@ -123,23 +133,28 @@ func (s *RBACService) SeedDefaults(ctx context.Context) error {
 			constant.PermissionMaterialRate,
 			constant.PermissionMaterialDownload,
 			constant.PermissionMaterialCategoryGet,
+			constant.PermissionNotificationGet,
 			constant.PermissionQuestion,
 			constant.PermissionPomodoro,
 			constant.PermissionDictionary,
+			constant.PermissionChatStudy,
 		},
 		constant.RoleTagUserActive: {
 			constant.PermissionCourseTableClassUpdateAll,
 		},
+		constant.RoleTagUserVerified: {},
 		// 运营：
 		constant.RoleTagOperator: {
 			constant.PermissionContributionManage,
-			constant.PermissionNotificationGet,
+			constant.PermissionNotificationGetAdmin,
 			constant.PermissionNotificationCreate,
 			constant.PermissionNotificationPublish,
 			constant.PermissionNotificationUpdate,
 			constant.PermissionNotificationApprove,
 			constant.PermissionNotificationSchedule,
 		},
+		// 管理：拥有全部权限
+		constant.RoleTagAdmin: allPermissionTags,
 	}
 
 	// 创建/更新角色

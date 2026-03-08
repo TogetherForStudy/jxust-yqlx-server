@@ -201,7 +201,7 @@ func (h *StoreHandler) GetFileURL(c *gin.Context) {
 	resourceID := c.Param("resource_id")
 	expires := time.Duration(req.Expires) * time.Minute
 	if req.Expires == 0 {
-		expires = constant.DefaultExpired
+		expires = constant.DefaultPresignedURLExpiration
 	}
 	openid := helper.GetOpenID(c)
 	if openid == "" {

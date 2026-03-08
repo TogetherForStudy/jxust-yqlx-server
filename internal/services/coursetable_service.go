@@ -255,7 +255,9 @@ func (s *CourseTableService) UpdateUserClass(ctx context.Context, userID uint, c
 				bindCount = br.BindCount
 			}
 			if bindCount >= 2 {
-				return apperr.New(constant.CourseTableBindLimitReached)
+				err := apperr.New(constant.CourseTableBindLimitReached)
+				err.Message = fmt.Sprintf("账号（%d）被限制仅能绑定2次，如需重置请联系客服", userID)
+				return err
 			}
 		}
 

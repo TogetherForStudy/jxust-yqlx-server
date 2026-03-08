@@ -357,6 +357,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			// 番茄钟（需认证）
 			pomodoro := authorized.Group("/pomodoro")
 			{
+				pomodoro.GET("/count", middleware.RequirePermission(rbacService, constant.PermissionPomodoro), pomodoroHandler.GetCount)         // 获取当前用户次数
 				pomodoro.POST("/increment", middleware.RequirePermission(rbacService, constant.PermissionPomodoro), pomodoroHandler.Increment) // 增加次数
 				pomodoro.GET("/ranking", middleware.RequirePermission(rbacService, constant.PermissionPomodoro), pomodoroHandler.GetRanking)   // 获取排名
 			}

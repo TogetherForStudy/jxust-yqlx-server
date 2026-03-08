@@ -50,7 +50,10 @@ func (s *ReviewService) CreateReview(ctx context.Context, userID uint, req *requ
 		UpdatedAt:   time.Now(),
 	}
 
-	return apperr.Wrap(constant.CommonInternal, s.db.WithContext(ctx).Create(review).Error)
+	if err := s.db.WithContext(ctx).Create(review).Error; err != nil {
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("创建评价失败: %w", err))
+	}
+	return nil
 }
 
 // GetReviews 获取评价列表

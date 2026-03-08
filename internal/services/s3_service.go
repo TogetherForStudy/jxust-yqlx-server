@@ -155,7 +155,7 @@ func (s *S3Service) ShareObject(ctx context.Context, openid, resourceID string, 
 	}
 
 	if expires == nil || *expires == 0 {
-		expiredAt := constant.DefaultExpired
+		expiredAt := constant.DefaultPresignedURLExpiration
 		expires = &expiredAt
 	}
 

@@ -35,6 +35,23 @@ func (h *PomodoroHandler) Increment(c *gin.Context) {
 	helper.SuccessResponse(c, gin.H{"message": "番茄钟次数已增加"})
 }
 
+// GetCount 获取当前用户番茄钟次数
+func (h *PomodoroHandler) GetCount(c *gin.Context) {
+	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
+		return
+	}
+
+	count, err := h.pomodoroService.GetPomodoroCount(c, userID)
+	if err != nil {
+		helper.HandleError(c, err)
+		return
+	}
+
+	helper.SuccessResponse(c, gin.H{"pomodoro_count": count})
+}
+
 // GetRanking 获取番茄钟排名
 func (h *PomodoroHandler) GetRanking(c *gin.Context) {
 	result, err := h.pomodoroService.GetPomodoroRanking(c)
