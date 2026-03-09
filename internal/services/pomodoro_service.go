@@ -50,7 +50,7 @@ func (s *PomodoroService) GetPomodoroCount(ctx context.Context, userID uint) (ui
 func (s *PomodoroService) GetPomodoroRanking(ctx context.Context) ([]response.PomodoroRankingItem, error) {
 	var results []response.PomodoroRankingItem
 	err := s.db.WithContext(ctx).Model(&models.User{}).
-		Select("nickname, pomodoro_count").
+		Select("id AS rank, nickname, pomodoro_count").
 		Where("pomodoro_count > 0").
 		Order("pomodoro_count DESC").
 		Limit(20).
@@ -58,11 +58,6 @@ func (s *PomodoroService) GetPomodoroRanking(ctx context.Context) ([]response.Po
 
 	if err != nil {
 		return nil, apperr.Wrap(constant.CommonInternal, err)
-	}
-
-	// 为每个结果计算排名
-	for i := range results {
-		results[i].Rank = i + 1
 	}
 
 	return results, nil
