@@ -85,7 +85,10 @@ func (s *ReviewService) GetReviews(ctx context.Context, page, size int, teacherN
 		Limit(pagination.Size).
 		Find(&reviews).Error
 
-	return reviews, total, apperr.Wrap(constant.CommonInternal, err)
+	if err != nil {
+		return nil, 0, apperr.Wrap(constant.CommonInternal, err)
+	}
+	return reviews, total, nil
 }
 
 // GetReviewsByTeacher 获取指定教师的评价
@@ -108,7 +111,10 @@ func (s *ReviewService) GetReviewsByTeacher(ctx context.Context, teacherName str
 		Limit(pagination.Size).
 		Find(&reviews).Error
 
-	return reviews, total, apperr.Wrap(constant.CommonInternal, err)
+	if err != nil {
+		return nil, 0, apperr.Wrap(constant.CommonInternal, err)
+	}
+	return reviews, total, nil
 }
 
 // GetUserReviews 获取用户的评价记录
@@ -131,7 +137,10 @@ func (s *ReviewService) GetUserReviews(ctx context.Context, userID uint, page, s
 		Limit(pagination.Size).
 		Find(&reviews).Error
 
-	return reviews, total, apperr.Wrap(constant.CommonInternal, err)
+	if err != nil {
+		return nil, 0, apperr.Wrap(constant.CommonInternal, err)
+	}
+	return reviews, total, nil
 }
 
 // ApproveReview 审核通过评价

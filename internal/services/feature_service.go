@@ -229,7 +229,11 @@ func (s *FeatureService) RevokeFeatureFromUser(ctx context.Context, userID uint,
 func (s *FeatureService) ListFeatures(ctx context.Context) ([]models.Feature, error) {
 	var features []models.Feature
 	err := s.db.WithContext(ctx).Order("created_at DESC").Find(&features).Error
-	return features, apperr.Wrap(constant.CommonInternal, err)
+	if err != nil {
+		return nil, apperr.Wrap(constant.CommonInternal, err)
+	}
+
+	return features, nil
 }
 
 // GetFeature 获取功能详情
@@ -340,7 +344,11 @@ func (s *FeatureService) ListWhitelist(ctx context.Context, featureKey string, p
 		Offset(offset).
 		Find(&whitelists).Error
 
-	return whitelists, total, apperr.Wrap(constant.CommonInternal, err)
+	if err != nil {
+		return nil, 0, apperr.Wrap(constant.CommonInternal, err)
+	}
+
+	return whitelists, total, nil
 }
 
 // GetUserFeatureDetails 获取用户的功能权限详情（管理员查看）
@@ -350,7 +358,10 @@ func (s *FeatureService) GetUserFeatureDetails(ctx context.Context, userID uint)
 		Where("user_id = ?", userID).
 		Order("created_at DESC").
 		Find(&whitelists).Error
-	return whitelists, apperr.Wrap(constant.CommonInternal, err)
+	if err != nil {
+		return nil, apperr.Wrap(constant.CommonInternal, err)
+	}
+	return whitelists, nil
 }
 
 // clearUserFeaturesCache 清除用户功能缓存

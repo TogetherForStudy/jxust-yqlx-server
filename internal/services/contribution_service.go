@@ -235,8 +235,10 @@ func (s *ContributionService) ReviewContribution(ctx context.Context, contributi
 				}
 			}
 		}
-
-		return apperr.Wrap(constant.CommonInternal, tx.Model(&contribution).Updates(updates).Error)
+		if err := tx.Model(&contribution).Updates(updates).Error; err != nil {
+			return apperr.Wrap(constant.CommonInternal, err)
+		}
+		return nil
 	})
 }
 

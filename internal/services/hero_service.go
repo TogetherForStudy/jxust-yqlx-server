@@ -62,11 +62,17 @@ func (s *HeroService) Update(ctx context.Context, id uint, name string, sort *in
 	if isShow != nil {
 		updates["is_show"] = *isShow
 	}
-	return apperr.Wrap(constant.CommonInternal, s.db.WithContext(ctx).Model(&models.Hero{}).Where("id = ?", id).Updates(updates).Error)
+	if err := s.db.WithContext(ctx).Model(&models.Hero{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		return apperr.Wrap(constant.CommonInternal, err)
+	}
+	return nil
 }
 
 func (s *HeroService) Delete(ctx context.Context, id uint) error {
-	return apperr.Wrap(constant.CommonInternal, s.db.WithContext(ctx).Unscoped().Delete(&models.Hero{}, id).Error)
+	if err := s.db.WithContext(ctx).Unscoped().Delete(&models.Hero{}, id).Error; err != nil {
+		return apperr.Wrap(constant.CommonInternal, err)
+	}
+	return nil
 }
 
 func (s *HeroService) Get(ctx context.Context, id uint) (*models.Hero, error) {

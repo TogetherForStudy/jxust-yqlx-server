@@ -50,7 +50,7 @@ func (s *PomodoroService) GetPomodoroCount(ctx context.Context, userID uint) (ui
 func (s *PomodoroService) GetPomodoroRanking(ctx context.Context) ([]response.PomodoroRankingItem, error) {
 	var results []response.PomodoroRankingItem
 	err := s.db.WithContext(ctx).Model(&models.User{}).
-		Select("id AS rank, nickname, pomodoro_count").
+		Select("id AS nickname, pomodoro_count").
 		Where("pomodoro_count > 0").
 		Order("pomodoro_count DESC").
 		Limit(20).
