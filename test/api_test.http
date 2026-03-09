@@ -4,6 +4,24 @@
 @baseUrl = http://localhost:8085
 @normalToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTA2MDg5OTksImlhdCI6MTc1MDAwNDE5OSwib3Blbl9pZCI6Im1vY2tfbm9ybWFsX29wZW5pZF83ODkwMTIiLCJyb2xlIjoxLCJ1c2VyX2lkIjoxfQ.AbBgEgMhs6Un5vhunzRuGbznpj0R8yy1DoFM8j3LhrY
 @adminToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTA2MDkzNzUsImlhdCI6MTc1MDAwNDU3NSwib3Blbl9pZCI6Im1vY2tfYWRtaW5fb3BlbmlkXzEyMzQ1NiIsInJvbGUiOjIsInVzZXJfaWQiOjR9.STqC6R_AnTsR1WIKmyGE7Oot7NfkSKdvZCPDatfV5yY
+@backofficeToken =
+@basicUserId = 1
+@adminUserId = 4
+@targetUserId = 1
+@notificationId = 1
+@categoryId = 1
+@countdownId = 1
+@studyTaskId = 1
+@contributionId = 1
+@questionId = 1
+@projectId = 1
+@conversationId = 1
+@roleId = 1
+@permissionId1 = 1
+@permissionId2 = 2
+@featureKey = test.feature
+@resourceId = sample-resource-id
+@materialMd5 = 0123456789abcdef0123456789abcdef
 
 ### ===========================================
 ### 1. 系统健康检查
@@ -17,7 +35,7 @@ GET {{baseUrl}}/health
 ### ===========================================
 
 ### 2.1 微信小程序登录（正式环境）
-POST {{baseUrl}}/api/auth/wechat-login
+POST {{baseUrl}}/api/v0/auth/wechat-login
 Content-Type: application/json
 
 {
@@ -26,49 +44,73 @@ Content-Type: application/json
 
 ### 2.2 模拟微信登录 - 普通用户
 # @name mockLoginNormal
-POST {{baseUrl}}/api/auth/mock-wechat-login
+POST {{baseUrl}}/api/v0/auth/mock-wechat-login
 Content-Type: application/json
 
 {
-  "test_user": "normal"
+  "test_user": "basic"
 }
 
 ### 2.3 模拟微信登录 - 管理员用户
 # @name mockLoginAdmin
-POST {{baseUrl}}/api/auth/mock-wechat-login
+POST {{baseUrl}}/api/v0/auth/mock-wechat-login
 Content-Type: application/json
 
 {
   "test_user": "admin"
 }
 
-### 2.4 模拟微信登录 - 新用户
-# @name mockLoginNewUser
-POST {{baseUrl}}/api/auth/mock-wechat-login
+### 2.4 模拟微信登录 - 活跃用户
+# @name mockLoginActive
+POST {{baseUrl}}/api/v0/auth/mock-wechat-login
 Content-Type: application/json
 
 {
-  "test_user": "new_user"
+  "test_user": "active"
 }
 
 ### 2.5 模拟微信登录 - 无效用户类型（测试错误处理）
-POST {{baseUrl}}/api/auth/mock-wechat-login
+POST {{baseUrl}}/api/v0/auth/mock-wechat-login
 Content-Type: application/json
 
 {
   "test_user": "invalid_type"
 }
 
+### 2.6 设置目标用户后台登录凭据
+PUT {{baseUrl}}/api/v0/admin/users/{{adminUserId}}/login-credentials
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "phone": "13900000004",
+  "password": "Admin1234"
+}
+
+### 2.7 管理界面手机号密码登录
+# @name backofficeLogin
+POST {{baseUrl}}/api/v0/admin/auth/login
+Content-Type: application/json
+
+{
+  "phone": "13900000004",
+  "password": "Admin1234"
+}
+
+### 2.8 使用后台登录 token 访问后台通知列表
+GET {{baseUrl}}/api/v0/admin/notifications/?page=1&size=10
+Authorization: Bearer {{backofficeToken}}
+
 ### ===========================================
 ### 3. 用户相关接口（需要认证）
 ### ===========================================
 
 ### 3.1 获取用户资料
-GET {{baseUrl}}/api/user/profile
+GET {{baseUrl}}/api/v0/user/profile
 Authorization: Bearer {{normalToken}}
 
 ### 3.2 更新用户资料
-PUT {{baseUrl}}/api/user/profile
+PUT {{baseUrl}}/api/v0/user/profile
 Authorization: Bearer {{normalToken}}
 Content-Type: application/json
 
@@ -88,10 +130,10 @@ Content-Type: application/json
 ### ===========================================
 
 ### 4.1 获取指定教师的评价（公开接口）
-GET {{baseUrl}}/api/reviews/teacher?teacher_name=张三&page=1&size=10
+GET {{baseUrl}}/api/v0/reviews/teacher?teacher_name=张三&page=1&size=10
 
 ### 4.2 创建教师评价（需要认证）
-POST {{baseUrl}}/api/reviews
+POST {{baseUrl}}/api/v0/reviews/
 Authorization: Bearer {{normalToken}}
 Content-Type: application/json
 
@@ -104,11 +146,11 @@ Content-Type: application/json
 }
 
 ### 4.3 获取用户自己的评价列表（需要认证）
-GET {{baseUrl}}/api/reviews/user?page=1&size=10
+GET {{baseUrl}}/api/v0/reviews/user?page=1&size=10
 Authorization: Bearer {{normalToken}}
 
 ### 4.4 创建教师评价 - 中立态度
-POST {{baseUrl}}/api/reviews
+POST {{baseUrl}}/api/v0/reviews/
 Authorization: Bearer {{normalToken}}
 Content-Type: application/json
 
@@ -121,7 +163,7 @@ Content-Type: application/json
 }
 
 ### 4.5 创建教师评价 - 避雷
-POST {{baseUrl}}/api/reviews
+POST {{baseUrl}}/api/v0/reviews/
 Authorization: Bearer {{normalToken}}
 Content-Type: application/json
 
@@ -138,19 +180,19 @@ Content-Type: application/json
 ### ===========================================
 
 ### 5.1 获取所有评价列表
-GET {{baseUrl}}/api/admin/reviews?page=1&size=10
+GET {{baseUrl}}/api/v0/reviews/?page=1&size=10
 Authorization: Bearer {{adminToken}}
 
 ### 5.2 获取待审核评价
-GET {{baseUrl}}/api/admin/reviews?page=1&size=10&status=1
+GET {{baseUrl}}/api/v0/reviews/?page=1&size=10&status=1
 Authorization: Bearer {{adminToken}}
 
 ### 5.3 按教师姓名搜索评价
-GET {{baseUrl}}/api/admin/reviews?page=1&size=10&teacher_name=张三
+GET {{baseUrl}}/api/v0/reviews/?page=1&size=10&teacher_name=张三
 Authorization: Bearer {{adminToken}}
 
 ### 5.4 审核通过评价
-POST {{baseUrl}}/api/admin/reviews/1/approve
+POST {{baseUrl}}/api/v0/reviews/1/approve
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
@@ -159,7 +201,7 @@ Content-Type: application/json
 }
 
 ### 5.5 审核拒绝评价
-POST {{baseUrl}}/api/admin/reviews/2/reject
+POST {{baseUrl}}/api/v0/reviews/2/reject
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
@@ -168,7 +210,7 @@ Content-Type: application/json
 }
 
 ### 5.6 删除评价
-DELETE {{baseUrl}}/api/admin/reviews/3
+DELETE {{baseUrl}}/api/v0/reviews/3
 Authorization: Bearer {{adminToken}}
 
 ### ===========================================
@@ -176,25 +218,24 @@ Authorization: Bearer {{adminToken}}
 ### ===========================================
 
 ### 6.1 无效的认证Token测试
-GET {{baseUrl}}/api/user/profile
+GET {{baseUrl}}/api/v0/user/profile
 Authorization: Bearer invalid_token_here
 
 ### 6.2 普通用户访问管理员接口（权限测试）
-GET {{baseUrl}}/api/admin/reviews
+GET {{baseUrl}}/api/v0/reviews/
 Authorization: Bearer {{normalToken}}
 
 ### 6.3 创建评价 - 缺少必填字段
-POST {{baseUrl}}/api/reviews
+POST {{baseUrl}}/api/v0/reviews/
 Authorization: Bearer {{normalToken}}
 Content-Type: application/json
 
 {
   "teacher_name": "张三"
-  // 缺少必填字段
 }
 
 ### 6.4 创建评价 - 无效的态度值
-POST {{baseUrl}}/api/reviews
+POST {{baseUrl}}/api/v0/reviews/
 Authorization: Bearer {{normalToken}}
 Content-Type: application/json
 
@@ -203,11 +244,11 @@ Content-Type: application/json
   "campus": "前湖校区",
   "course_name": "数据结构",
   "content": "测试内容",
-  "attitude": 3
+  "attitude": 4
 }
 
 ### 6.5 更新用户资料 - 无效数据
-PUT {{baseUrl}}/api/user/profile
+PUT {{baseUrl}}/api/v0/user/profile
 Authorization: Bearer {{normalToken}}
 Content-Type: application/json
 
@@ -222,15 +263,15 @@ Content-Type: application/json
 
 ### 7.1 完整用户流程测试 - 注册到创建评价
 # 1. 模拟登录获取Token
-POST {{baseUrl}}/api/auth/mock-wechat-login
+POST {{baseUrl}}/api/v0/auth/mock-wechat-login
 Content-Type: application/json
 
 {
-  "test_user": "normal"
+  "test_user": "basic"
 }
 
 ### 7.2 完善用户资料
-PUT {{baseUrl}}/api/user/profile
+PUT {{baseUrl}}/api/v0/user/profile
 Authorization: Bearer {{normalToken}}
 Content-Type: application/json
 
@@ -244,7 +285,7 @@ Content-Type: application/json
 }
 
 ### 7.3 创建多个评价
-POST {{baseUrl}}/api/reviews
+POST {{baseUrl}}/api/v0/reviews/
 Authorization: Bearer {{normalToken}}
 Content-Type: application/json
 
@@ -257,7 +298,7 @@ Content-Type: application/json
 }
 
 ### 7.4 查看自己的评价
-GET {{baseUrl}}/api/reviews/user
+GET {{baseUrl}}/api/v0/reviews/user
 Authorization: Bearer {{normalToken}}
 
 ### ===========================================
@@ -265,7 +306,7 @@ Authorization: Bearer {{normalToken}}
 ### ===========================================
 
 ### 8.1 管理员登录
-POST {{baseUrl}}/api/auth/mock-wechat-login
+POST {{baseUrl}}/api/v0/auth/mock-wechat-login
 Content-Type: application/json
 
 {
@@ -273,11 +314,11 @@ Content-Type: application/json
 }
 
 ### 8.2 查看所有待审核评价
-GET {{baseUrl}}/api/admin/reviews?status=1
+GET {{baseUrl}}/api/v0/reviews/?status=1
 Authorization: Bearer {{adminToken}}
 
 ### 8.3 批量审核评价（需要先获取评价ID）
-POST {{baseUrl}}/api/admin/reviews/1/approve
+POST {{baseUrl}}/api/v0/reviews/1/approve
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
@@ -290,14 +331,14 @@ Content-Type: application/json
 ### ===========================================
 
 ### 9.1 分页测试 - 大页码
-GET {{baseUrl}}/api/reviews/teacher?teacher_name=张三&page=999&size=50
+GET {{baseUrl}}/api/v0/reviews/teacher?teacher_name=张三&page=999&size=50
 
 ### 9.2 分页测试 - 大页面大小
-GET {{baseUrl}}/api/admin/reviews?page=1&size=100
+GET {{baseUrl}}/api/v0/reviews/?page=1&size=100
 Authorization: Bearer {{adminToken}}
 
 ### 9.3 搜索测试 - 特殊字符
-GET {{baseUrl}}/api/admin/reviews?teacher_name=@#$%^&*()
+GET {{baseUrl}}/api/v0/reviews/?teacher_name=@#$%^&*()
 Authorization: Bearer {{adminToken}}
 
 ### ===========================================
@@ -305,7 +346,7 @@ Authorization: Bearer {{adminToken}}
 ### ===========================================
 
 ### 10.1 创建评价 - 最大长度内容
-POST {{baseUrl}}/api/reviews
+POST {{baseUrl}}/api/v0/reviews/
 Authorization: Bearer {{normalToken}}
 Content-Type: application/json
 
@@ -318,7 +359,7 @@ Content-Type: application/json
 }
 
 ### 10.2 创建评价 - 空白内容测试
-POST {{baseUrl}}/api/reviews
+POST {{baseUrl}}/api/v0/reviews/
 Authorization: Bearer {{normalToken}}
 Content-Type: application/json
 
@@ -328,6 +369,740 @@ Content-Type: application/json
   "course_name": "   ",
   "content": "   ",
   "attitude": 3
+}
+
+### ===========================================
+### 11. 认证补充接口
+### ===========================================
+
+### 11.1 刷新 Token
+POST {{baseUrl}}/api/v0/auth/refresh
+Content-Type: application/json
+
+{
+  "refresh_token": "replace_with_refresh_token"
+}
+
+### 11.2 退出当前设备
+POST {{baseUrl}}/api/v0/auth/logout
+Authorization: Bearer {{normalToken}}
+
+### 11.3 退出全部设备
+POST {{baseUrl}}/api/v0/auth/logout-all
+Authorization: Bearer {{normalToken}}
+
+### ===========================================
+### 12. 用户扩展接口
+### ===========================================
+
+### 12.1 获取用户功能列表
+GET {{baseUrl}}/api/v0/user/features
+Authorization: Bearer {{normalToken}}
+
+### 12.2 获取过去100天登录天数
+GET {{baseUrl}}/api/v0/user/login-days
+Authorization: Bearer {{normalToken}}
+
+### 12.3 获取 OSS Token
+POST {{baseUrl}}/api/v0/oss/token
+Authorization: Bearer {{normalToken}}
+Content-Type: application/json
+
+{
+  "uri": "/uploads/avatar.png",
+  "expire_seconds": 3600
+}
+
+### ===========================================
+### 13. 课程表全量接口
+### ===========================================
+
+### 13.1 获取课表绑定次数
+GET {{baseUrl}}/api/v0/coursetable/bind-count
+Authorization: Bearer {{normalToken}}
+
+### 13.2 更新用户班级
+PUT {{baseUrl}}/api/v0/coursetable/class
+Authorization: Bearer {{normalToken}}
+Content-Type: application/json
+
+{
+  "class_id": "2023级软件工程1班"
+}
+
+### 13.3 编辑课表单元格
+PUT {{baseUrl}}/api/v0/coursetable/
+Authorization: Bearer {{normalToken}}
+Content-Type: application/json
+
+{
+  "semester": "2024-2025-1",
+  "index": "1",
+  "value": {
+    "course_name": "高等数学",
+    "teacher": "张老师",
+    "location": "主教A101"
+  }
+}
+
+### 13.4 重置个人课表
+DELETE {{baseUrl}}/api/v0/coursetable/schedule?semester=2024-2025-1
+Authorization: Bearer {{normalToken}}
+
+### 13.5 管理员重置用户绑定次数
+POST {{baseUrl}}/api/v0/coursetable/reset/{{targetUserId}}
+Authorization: Bearer {{adminToken}}
+
+### ===========================================
+### 14. 英雄榜与配置管理
+### ===========================================
+
+### 14.1 管理员搜索英雄
+GET {{baseUrl}}/api/v0/heroes/search?q=&page=1&size=10
+Authorization: Bearer {{adminToken}}
+
+### 14.2 创建英雄
+POST {{baseUrl}}/api/v0/heroes/
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "测试英雄",
+  "sort": 100,
+  "is_show": true
+}
+
+### 14.3 更新英雄
+PUT {{baseUrl}}/api/v0/heroes/1
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "测试英雄-更新",
+  "sort": 101,
+  "is_show": true
+}
+
+### 14.4 删除英雄
+DELETE {{baseUrl}}/api/v0/heroes/1
+Authorization: Bearer {{adminToken}}
+
+### 14.5 公开获取配置
+GET {{baseUrl}}/api/v0/config/test_key
+
+### 14.6 管理员搜索配置
+GET {{baseUrl}}/api/v0/config/search?query=&page=1&size=10
+Authorization: Bearer {{adminToken}}
+
+### 14.7 创建配置
+POST {{baseUrl}}/api/v0/config/
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "key": "test.feature.flag",
+  "value": "enabled",
+  "value_type": "string",
+  "description": "测试配置"
+}
+
+### 14.8 更新配置
+PUT {{baseUrl}}/api/v0/config/test.feature.flag
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "value": "disabled",
+  "value_type": "string",
+  "description": "更新后的测试配置"
+}
+
+### 14.9 删除配置
+DELETE {{baseUrl}}/api/v0/config/test.feature.flag
+Authorization: Bearer {{adminToken}}
+
+### ===========================================
+### 15. 存储接口
+### ===========================================
+
+### 15.1 上传文件
+POST {{baseUrl}}/api/v0/store
+Authorization: Bearer {{adminToken}}
+Content-Type: multipart/form-data; boundary=GoJxustBoundary
+
+--GoJxustBoundary
+Content-Disposition: form-data; name="file"; filename="test.txt"
+Content-Type: text/plain
+
+hello gojxust
+--GoJxustBoundary--
+
+### 15.2 获取文件列表
+GET {{baseUrl}}/api/v0/store/list
+Authorization: Bearer {{adminToken}}
+
+### 15.3 获取过期文件列表
+GET {{baseUrl}}/api/v0/store/expired
+Authorization: Bearer {{adminToken}}
+
+### 15.4 获取文件下载 URL
+GET {{baseUrl}}/api/v0/store/{{resourceId}}/url?expires=3600&download=false
+Authorization: Bearer {{normalToken}}
+
+### 15.5 获取文件流
+GET {{baseUrl}}/api/v0/store/{{resourceId}}/stream
+Authorization: Bearer {{normalToken}}
+
+### 15.6 删除文件
+DELETE {{baseUrl}}/api/v0/store/{{resourceId}}
+Authorization: Bearer {{adminToken}}
+
+### ===========================================
+### 16. 积分完整接口
+### ===========================================
+
+### 16.1 消费积分
+POST {{baseUrl}}/api/v0/points/spend
+Authorization: Bearer {{normalToken}}
+Content-Type: application/json
+
+{
+  "points": 10,
+  "description": "兑换测试商品"
+}
+
+### 16.2 管理员发放积分
+POST {{baseUrl}}/api/v0/points/grant
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "user_id": {{targetUserId}},
+  "points": 20,
+  "description": "管理员奖励"
+}
+
+### ===========================================
+### 17. 投稿完整接口
+### ===========================================
+
+### 17.1 获取投稿详情
+GET {{baseUrl}}/api/v0/contributions/{{contributionId}}
+Authorization: Bearer {{normalToken}}
+
+### 17.2 审核投稿
+POST {{baseUrl}}/api/v0/contributions/{{contributionId}}/review
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "status": 2,
+  "review_note": "审核通过",
+  "points": 10
+}
+
+### 17.3 获取管理员投稿统计
+GET {{baseUrl}}/api/v0/contributions/stats-admin
+Authorization: Bearer {{adminToken}}
+
+### ===========================================
+### 18. 倒数日与学习任务详情接口
+### ===========================================
+
+### 18.1 获取倒数日详情
+GET {{baseUrl}}/api/v0/countdowns/{{countdownId}}
+Authorization: Bearer {{normalToken}}
+
+### 18.2 获取学习任务详情
+GET {{baseUrl}}/api/v0/study-tasks/{{studyTaskId}}
+Authorization: Bearer {{normalToken}}
+
+### ===========================================
+### 19. 资料接口
+### ===========================================
+
+### 19.1 获取资料列表
+GET {{baseUrl}}/api/v0/materials/?page=1&page_size=10&sort_by=hotness
+Authorization: Bearer {{normalToken}}
+
+### 19.2 获取热门资料
+GET {{baseUrl}}/api/v0/materials/top?limit=10&type=7
+Authorization: Bearer {{normalToken}}
+
+### 19.3 获取热词
+GET {{baseUrl}}/api/v0/materials/hot-words?limit=10
+Authorization: Bearer {{normalToken}}
+
+### 19.4 搜索资料
+GET {{baseUrl}}/api/v0/materials/search?keywords=高数&page=1&page_size=10
+Authorization: Bearer {{normalToken}}
+
+### 19.5 获取资料详情
+GET {{baseUrl}}/api/v0/materials/{{materialMd5}}
+Authorization: Bearer {{normalToken}}
+
+### 19.6 资料评分
+POST {{baseUrl}}/api/v0/materials/{{materialMd5}}/rating
+Authorization: Bearer {{normalToken}}
+Content-Type: application/json
+
+{
+  "rating": 5
+}
+
+### 19.7 下载资料
+POST {{baseUrl}}/api/v0/materials/{{materialMd5}}/download
+Authorization: Bearer {{normalToken}}
+
+### 19.8 获取资料分类列表
+GET {{baseUrl}}/api/v0/material-categories/
+Authorization: Bearer {{normalToken}}
+
+### 19.9 管理员删除资料
+DELETE {{baseUrl}}/api/v0/admin/materials/{{materialMd5}}
+Authorization: Bearer {{adminToken}}
+
+### 19.10 管理员更新资料描述
+PUT {{baseUrl}}/api/v0/admin/material-desc/{{materialMd5}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "tags": "高数,期末",
+  "description": "更新后的资料描述",
+  "external_link": "https://example.com/material",
+  "is_recommended": true
+}
+
+### ===========================================
+### 20. 通知与分类完整接口
+### ===========================================
+
+### 20.1 获取通知列表
+GET {{baseUrl}}/api/v0/notifications/?page=1&size=10
+Authorization: Bearer {{normalToken}}
+
+### 20.2 获取通知详情
+GET {{baseUrl}}/api/v0/notifications/{{notificationId}}
+Authorization: Bearer {{normalToken}}
+
+### 20.3 获取分类列表
+GET {{baseUrl}}/api/v0/categories/
+Authorization: Bearer {{normalToken}}
+
+### 20.4 管理员通知列表
+GET {{baseUrl}}/api/v0/admin/notifications/?page=1&size=10
+Authorization: Bearer {{adminToken}}
+
+### 20.5 管理员通知统计
+GET {{baseUrl}}/api/v0/admin/notifications/stats
+Authorization: Bearer {{adminToken}}
+
+### 20.6 管理员通知详情
+GET {{baseUrl}}/api/v0/admin/notifications/{{notificationId}}
+Authorization: Bearer {{adminToken}}
+
+### 20.7 创建通知
+POST {{baseUrl}}/api/v0/admin/notifications/
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "title": "测试通知",
+  "content": "这是一条测试通知",
+  "categories": [{{categoryId}}]
+}
+
+### 20.8 更新通知
+PUT {{baseUrl}}/api/v0/admin/notifications/{{notificationId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "title": "测试通知-更新",
+  "content": "更新后的通知内容",
+  "categories": [{{categoryId}}]
+}
+
+### 20.9 发布通知
+POST {{baseUrl}}/api/v0/admin/notifications/{{notificationId}}/publish
+Authorization: Bearer {{adminToken}}
+
+### 20.10 审核通知
+POST {{baseUrl}}/api/v0/admin/notifications/{{notificationId}}/approve
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "status": 1,
+  "note": "审核通过"
+}
+
+### 20.11 转换为日程
+POST {{baseUrl}}/api/v0/admin/notifications/{{notificationId}}/schedule
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "title": "考试安排",
+  "description": "来自通知的日程",
+  "time_slots": [
+    {
+      "name": "期末考试",
+      "start_date": "2026-06-20",
+      "end_date": "2026-06-20",
+      "start_time": "09:00",
+      "end_time": "11:00",
+      "is_all_day": false
+    }
+  ]
+}
+
+### 20.12 删除通知
+DELETE {{baseUrl}}/api/v0/admin/notifications/{{notificationId}}
+Authorization: Bearer {{adminToken}}
+
+### 20.13 管理员直接发布通知
+POST {{baseUrl}}/api/v0/admin/notifications/{{notificationId}}/publish-admin
+Authorization: Bearer {{adminToken}}
+
+### 20.14 置顶通知
+POST {{baseUrl}}/api/v0/admin/notifications/{{notificationId}}/pin
+Authorization: Bearer {{adminToken}}
+
+### 20.15 取消置顶
+POST {{baseUrl}}/api/v0/admin/notifications/{{notificationId}}/unpin
+Authorization: Bearer {{adminToken}}
+
+### 20.16 创建通知分类
+POST {{baseUrl}}/api/v0/admin/categories/
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "测试分类",
+  "sort": 100,
+  "is_active": true
+}
+
+### 20.17 更新通知分类
+PUT {{baseUrl}}/api/v0/admin/categories/{{categoryId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "测试分类-更新",
+  "sort": 101,
+  "is_active": true
+}
+
+### ===========================================
+### 21. 刷题、番茄钟、词典、统计
+### ===========================================
+
+### 21.1 获取项目列表
+GET {{baseUrl}}/api/v0/questions/projects
+Authorization: Bearer {{normalToken}}
+
+### 21.2 获取题目 ID 列表
+GET {{baseUrl}}/api/v0/questions/list?project_id={{projectId}}&random=false
+Authorization: Bearer {{normalToken}}
+
+### 21.3 获取题目详情
+GET {{baseUrl}}/api/v0/questions/{{questionId}}
+Authorization: Bearer {{normalToken}}
+
+### 21.4 记录学习次数
+POST {{baseUrl}}/api/v0/questions/study
+Authorization: Bearer {{normalToken}}
+Content-Type: application/json
+
+{
+  "question_id": {{questionId}},
+  "project_id": {{projectId}}
+}
+
+### 21.5 提交做题记录
+POST {{baseUrl}}/api/v0/questions/practice
+Authorization: Bearer {{normalToken}}
+Content-Type: application/json
+
+{
+  "question_id": {{questionId}},
+  "project_id": {{projectId}}
+}
+
+### 21.6 获取番茄钟次数
+GET {{baseUrl}}/api/v0/pomodoro/count
+Authorization: Bearer {{normalToken}}
+
+### 21.7 增加番茄钟次数
+POST {{baseUrl}}/api/v0/pomodoro/increment
+Authorization: Bearer {{normalToken}}
+
+### 21.8 获取番茄钟排名
+GET {{baseUrl}}/api/v0/pomodoro/ranking
+Authorization: Bearer {{normalToken}}
+
+### 21.9 获取随机单词
+GET {{baseUrl}}/api/v0/dictionary/word
+Authorization: Bearer {{normalToken}}
+
+### 21.10 获取系统在线人数
+GET {{baseUrl}}/api/v0/stat/system/online
+Authorization: Bearer {{normalToken}}
+
+### 21.11 获取项目在线人数
+GET {{baseUrl}}/api/v0/stat/project/{{projectId}}/online
+Authorization: Bearer {{normalToken}}
+
+### ===========================================
+### 22. 聊天接口
+### ===========================================
+
+### 22.1 创建对话
+POST {{baseUrl}}/api/v0/chat/conversations
+Authorization: Bearer {{normalToken}}
+Content-Type: application/json
+
+{
+  "title": "测试对话"
+}
+
+### 22.2 获取对话列表
+GET {{baseUrl}}/api/v0/chat/conversations?page=1&page_size=10
+Authorization: Bearer {{normalToken}}
+
+### 22.3 获取单个对话
+GET {{baseUrl}}/api/v0/chat/conversations/{{conversationId}}
+Authorization: Bearer {{normalToken}}
+
+### 22.4 更新对话
+PUT {{baseUrl}}/api/v0/chat/conversations/{{conversationId}}
+Authorization: Bearer {{normalToken}}
+Content-Type: application/json
+
+{
+  "title": "测试对话-更新"
+}
+
+### 22.5 删除对话
+DELETE {{baseUrl}}/api/v0/chat/conversations/{{conversationId}}
+Authorization: Bearer {{normalToken}}
+
+### 22.6 导出对话
+GET {{baseUrl}}/api/v0/chat/conversations/{{conversationId}}/export
+Authorization: Bearer {{normalToken}}
+
+### 22.7 流式对话
+POST {{baseUrl}}/api/v0/chat/conversation
+Authorization: Bearer {{normalToken}}
+Content-Type: application/json
+
+{
+  "conversation_id": {{conversationId}},
+  "message": {
+    "role": "user",
+    "content": "你好，帮我总结一下高数复习重点"
+  }
+}
+
+### ===========================================
+### 23. 功能白名单管理
+### ===========================================
+
+### 23.1 获取功能列表
+GET {{baseUrl}}/api/v0/admin/features
+Authorization: Bearer {{adminToken}}
+
+### 23.2 获取功能详情
+GET {{baseUrl}}/api/v0/admin/features/{{featureKey}}
+Authorization: Bearer {{adminToken}}
+
+### 23.3 创建功能
+POST {{baseUrl}}/api/v0/admin/features
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "feature_key": "{{featureKey}}",
+  "feature_name": "测试功能",
+  "description": "用于 api_test 的功能",
+  "is_enabled": true
+}
+
+### 23.4 更新功能
+PUT {{baseUrl}}/api/v0/admin/features/{{featureKey}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "feature_name": "测试功能-更新",
+  "description": "更新后的描述"
+}
+
+### 23.5 获取功能白名单
+GET {{baseUrl}}/api/v0/admin/features/{{featureKey}}/whitelist?page=1&page_size=20
+Authorization: Bearer {{adminToken}}
+
+### 23.6 授予功能权限
+POST {{baseUrl}}/api/v0/admin/features/{{featureKey}}/whitelist
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "user_id": {{targetUserId}}
+}
+
+### 23.7 批量授予功能权限
+POST {{baseUrl}}/api/v0/admin/features/{{featureKey}}/whitelist/batch
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "user_ids": [{{targetUserId}}]
+}
+
+### 23.8 撤销功能权限
+DELETE {{baseUrl}}/api/v0/admin/features/{{featureKey}}/whitelist/{{targetUserId}}
+Authorization: Bearer {{adminToken}}
+
+### 23.9 查看用户功能权限
+GET {{baseUrl}}/api/v0/admin/users/{{targetUserId}}/features
+Authorization: Bearer {{adminToken}}
+
+### 23.10 删除功能
+DELETE {{baseUrl}}/api/v0/admin/features/{{featureKey}}
+Authorization: Bearer {{adminToken}}
+
+### ===========================================
+### 24. 用户管理与 RBAC
+### ===========================================
+
+### 24.1 获取用户详情
+GET {{baseUrl}}/api/v0/admin/users/{{targetUserId}}
+Authorization: Bearer {{adminToken}}
+
+### 24.2 踢下线用户
+POST {{baseUrl}}/api/v0/admin/users/{{targetUserId}}/kick
+Authorization: Bearer {{adminToken}}
+
+### 24.3 封禁用户
+POST {{baseUrl}}/api/v0/admin/users/{{targetUserId}}/ban
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "duration_seconds": 3600,
+  "reason": "测试封禁"
+}
+
+### 24.4 解封用户
+POST {{baseUrl}}/api/v0/admin/users/{{targetUserId}}/unban
+Authorization: Bearer {{adminToken}}
+
+### 24.5 获取角色列表
+GET {{baseUrl}}/api/v0/admin/rbac/roles
+Authorization: Bearer {{adminToken}}
+
+### 24.6 获取角色及权限列表
+GET {{baseUrl}}/api/v0/admin/rbac/roles/permissions
+Authorization: Bearer {{adminToken}}
+
+### 24.7 创建角色
+POST {{baseUrl}}/api/v0/admin/rbac/roles
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "role_tag": "test_role",
+  "name": "测试角色",
+  "description": "用于接口测试"
+}
+
+### 24.8 更新角色
+PUT {{baseUrl}}/api/v0/admin/rbac/roles/{{roleId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "测试角色-更新",
+  "description": "更新后的角色描述"
+}
+
+### 24.9 获取权限列表
+GET {{baseUrl}}/api/v0/admin/rbac/permissions
+Authorization: Bearer {{adminToken}}
+
+### 24.10 创建权限
+POST {{baseUrl}}/api/v0/admin/rbac/permissions
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "permission_tag": "test.permission",
+  "name": "测试权限",
+  "description": "用于接口测试"
+}
+
+### 24.11 更新角色权限
+POST {{baseUrl}}/api/v0/admin/rbac/roles/{{roleId}}/permissions
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "permission_ids": [{{permissionId1}}, {{permissionId2}}]
+}
+
+### 24.12 更新用户角色
+POST {{baseUrl}}/api/v0/admin/rbac/users/{{targetUserId}}/roles
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "role_ids": [{{roleId}}]
+}
+
+### 24.13 获取用户权限
+GET {{baseUrl}}/api/v0/admin/rbac/users/{{targetUserId}}/permissions
+Authorization: Bearer {{adminToken}}
+
+### ===========================================
+### 25. MCP 接口
+### ===========================================
+
+### 25.1 MCP initialize
+POST {{baseUrl}}/api/mcp
+Authorization: Bearer {{normalToken}}
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2024-11-05",
+    "capabilities": {},
+    "clientInfo": {
+      "name": "api_test",
+      "version": "1.0.0"
+    }
+  }
+}
+
+### 25.2 MCP tools/call - listHeroes
+POST {{baseUrl}}/api/mcp
+Authorization: Bearer {{normalToken}}
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "name": "listHeroes",
+    "arguments": {}
+  }
 }
 
 ### ===========================================
