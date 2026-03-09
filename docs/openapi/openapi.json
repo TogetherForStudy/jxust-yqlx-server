@@ -505,6 +505,36 @@
         },
         "type": "object"
       },
+      "request_AdminLoginCredentialsRequest": {
+        "properties": {
+          "password": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "password",
+          "phone"
+        ],
+        "type": "object"
+      },
+      "request_AdminLoginRequest": {
+        "properties": {
+          "password": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "password",
+          "phone"
+        ],
+        "type": "object"
+      },
       "request_ApproveNotificationRequest": {
         "properties": {
           "note": {
@@ -2204,7 +2234,8 @@
             "type": "integer"
           },
           "rank": {
-            "format": "int32",
+            "format": "int64",
+            "minimum": 0,
             "type": "integer"
           }
         },
@@ -2797,6 +2828,98 @@
           "MCP"
         ],
         "x-router-method": "ANY"
+      }
+    },
+    "/api/v0/admin/auth/login": {
+      "post": {
+        "operationId": "post_api_v0_admin_auth_login",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/request_AdminLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "$ref": "#/components/schemas/response_WechatLoginResponse"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "summary": "管理界面手机号密码登录",
+        "tags": [
+          "Auth"
+        ]
       }
     },
     "/api/v0/admin/categories/": {
@@ -7672,6 +7795,152 @@
           }
         ],
         "summary": "踢下线用户",
+        "tags": [
+          "AdminUsers"
+        ],
+        "x-permission": "user.manage"
+      }
+    },
+    "/api/v0/admin/users/{id}/login-credentials": {
+      "put": {
+        "operationId": "put_api_v0_admin_users_id_login_credentials",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "description": "用户 ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/request_AdminLoginCredentialsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "设置后台登录凭据",
         "tags": [
           "AdminUsers"
         ],

@@ -62,6 +62,23 @@ func (h *AuthHandler) MockWechatLogin(c *gin.Context) {
 	helper.SuccessResponse(c, result)
 }
 
+// AdminLogin 管理界面手机号密码登录
+func (h *AuthHandler) AdminLogin(c *gin.Context) {
+	var req request.AdminLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
+		return
+	}
+
+	result, err := h.authService.AdminLogin(c.Request.Context(), req.Phone, req.Password, c.Request.UserAgent())
+	if err != nil {
+		helper.HandleError(c, err)
+		return
+	}
+
+	helper.SuccessResponse(c, result)
+}
+
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	var req request.RefreshTokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -276,6 +293,33 @@ func (h *AuthHandler) GetUserDetail(c *gin.Context) {
 	}
 
 	helper.SuccessResponse(c, result)
+}
+
+func (h *AuthHandler) SetAdminLoginCredentials(c *gin.Context) {
+	targetUserID, err := parsePathUserID(c)
+	if err != nil {
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
+		return
+	}
+
+	operatorUserID := helper.GetUserID(c)
+	if operatorUserID == 0 {
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
+		return
+	}
+
+	var req request.AdminLoginCredentialsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
+		return
+	}
+
+	if err := h.authService.SetAdminLoginCredentials(c.Request.Context(), operatorUserID, targetUserID, req.Phone, req.Password); err != nil {
+		helper.HandleError(c, err)
+		return
+	}
+
+	helper.SuccessResponse(c, gin.H{"message": "后台登录凭据更新成功"})
 }
 
 func parsePathUserID(c *gin.Context) (uint, error) {

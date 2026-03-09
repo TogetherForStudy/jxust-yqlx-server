@@ -9,7 +9,9 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
@@ -24,6 +26,8 @@ import (
 	rediscache "github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
+
+var backofficeRoleTags = []string{constant.RoleTagAdmin, constant.RoleTagOperator}
 
 type AuthService struct {
 	db    *gorm.DB
@@ -44,6 +48,36 @@ func NewAuthService(db *gorm.DB, cfg *config.Config, rbac *RBACService, ca cache
 		rbac:  rbac,
 		cache: ca,
 	}
+}
+
+// AdminLogin 后台手机号密码登录
+func (s *AuthService) AdminLogin(ctx context.Context, phone, password, userAgent string) (*response.WechatLoginResponse, error) {
+	phone = normalizePhone(phone)
+
+	user, err := s.findAdminUserByPhone(ctx, phone)
+	if err != nil {
+		if appErr, ok := apperr.As(err); ok && appErr.Code == constant.AuthAdminLoginFailed {
+			logger.WarnCtx(ctx, map[string]any{
+				"action":  "auth_admin_login_failed",
+				"message": "admin login rejected",
+				"phone":   phone,
+			})
+			return nil, err
+		}
+		return nil, err
+	}
+
+	if user.Password == "" || !utils.CheckPassword(password, user.Password) {
+		logger.WarnCtx(ctx, map[string]any{
+			"action":  "auth_admin_login_failed",
+			"message": "admin login password mismatch",
+			"phone":   phone,
+			"user_id": user.ID,
+		})
+		return nil, apperr.New(constant.AuthAdminLoginFailed)
+	}
+
+	return s.completeLoginWithAction(ctx, user, userAgent, "auth_admin_login_success")
 }
 
 // WechatLogin 微信小程序登录
@@ -101,9 +135,13 @@ func (s *AuthService) WechatLogin(ctx context.Context, code, userAgent string) (
 }
 
 func (s *AuthService) completeLogin(ctx context.Context, user *models.User, userAgent string) (*response.WechatLoginResponse, error) {
+	return s.completeLoginWithAction(ctx, user, userAgent, "auth_login_success")
+}
+
+func (s *AuthService) completeLoginWithAction(ctx context.Context, user *models.User, userAgent, action string) (*response.WechatLoginResponse, error) {
 	if err := s.ensureDefaultRole(ctx, user.ID); err != nil {
 		logger.ErrorCtx(ctx, map[string]any{
-			"action":  "auth_login_failed",
+			"action":  action,
 			"message": "failed to sync default role",
 			"user_id": user.ID,
 			"error":   err.Error(),
@@ -112,14 +150,14 @@ func (s *AuthService) completeLogin(ctx context.Context, user *models.User, user
 	}
 	if err := s.ensureUserLoginAllowed(ctx, *user); err != nil {
 		logger.WarnCtx(ctx, map[string]any{
-			"action":  "auth_login_failed",
+			"action":  action,
 			"message": "login rejected by user state",
 			"user_id": user.ID,
 			"error":   err.Error(),
 		})
 		return nil, err
 	}
-	return s.issueTokenPair(ctx, user, userAgent, "auth_login_success")
+	return s.issueTokenPair(ctx, user, userAgent, action)
 }
 
 func (s *AuthService) ensureDefaultRole(ctx context.Context, userID uint) error {
@@ -630,10 +668,83 @@ func (s *AuthService) UpdateUserProfile(ctx context.Context, userID uint, update
 		return nil
 	}
 
+	if phoneRaw, ok := updates["phone"]; ok {
+		phone, ok := phoneRaw.(string)
+		if !ok {
+			return apperr.New(constant.CommonBadRequest)
+		}
+		normalizedPhone := normalizePhone(phone)
+		updates["phone"] = normalizedPhone
+
+		isBackoffice, err := s.isBackofficeUser(ctx, userID, 0)
+		if err != nil {
+			return err
+		}
+		if isBackoffice {
+			if normalizedPhone == "" {
+				return apperr.New(constant.AuthAdminPhoneRequired)
+			}
+			if err := s.ensureAdminPhoneAvailable(ctx, normalizedPhone, userID); err != nil {
+				return err
+			}
+		}
+	}
+
 	updates["updated_at"] = time.Now()
 	if err := s.db.WithContext(ctx).Model(&models.User{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
 		return apperr.Wrap(constant.CommonInternal, err)
 	}
+	return nil
+}
+
+// SetAdminLoginCredentials 设置后台登录凭据
+func (s *AuthService) SetAdminLoginCredentials(ctx context.Context, operatorUserID, targetUserID uint, phone, password string) error {
+	phone = normalizePhone(phone)
+	if phone == "" {
+		return apperr.New(constant.AuthAdminPhoneRequired)
+	}
+	if err := validateAdminPassword(password); err != nil {
+		return err
+	}
+
+	targetUser, err := s.GetUserByID(ctx, targetUserID)
+	if err != nil {
+		return err
+	}
+
+	isBackoffice, err := s.isBackofficeUser(ctx, targetUserID, targetUser.Role)
+	if err != nil {
+		return err
+	}
+	if !isBackoffice {
+		return apperr.New(constant.AuthAdminTargetRoleInvalid)
+	}
+
+	if err := s.ensureAdminPhoneAvailable(ctx, phone, targetUserID); err != nil {
+		return err
+	}
+
+	passwordHash, err := utils.HashPassword(password)
+	if err != nil {
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("生成后台密码哈希失败: %w", err))
+	}
+
+	updates := map[string]any{
+		"phone":      phone,
+		"password":   passwordHash,
+		"updated_at": time.Now(),
+	}
+	if err := s.db.WithContext(ctx).Model(&models.User{}).Where("id = ?", targetUserID).Updates(updates).Error; err != nil {
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("更新后台登录凭据失败: %w", err))
+	}
+
+	logger.InfoCtx(ctx, map[string]any{
+		"action":           "auth_admin_credentials_updated",
+		"message":          "updated admin login credentials",
+		"operator_user_id": operatorUserID,
+		"target_user_id":   targetUserID,
+	})
+
 	return nil
 }
 
@@ -953,4 +1064,105 @@ func (s *AuthService) mapRoleTagToLegacyRole(ctx context.Context, userID uint) i
 		return 3
 	}
 	return 1
+}
+
+func (s *AuthService) findAdminUserByPhone(ctx context.Context, phone string) (*models.User, error) {
+	if phone == "" {
+		return nil, apperr.New(constant.AuthAdminLoginFailed)
+	}
+
+	var userIDs []uint
+	if err := s.db.WithContext(ctx).
+		Table("users").
+		Distinct("users.id").
+		Joins("JOIN user_roles ur ON ur.user_id = users.id").
+		Joins("JOIN roles ON roles.id = ur.role_id").
+		Where("users.phone = ?", phone).
+		Where("roles.role_tag IN ?", backofficeRoleTags).
+		Pluck("users.id", &userIDs).Error; err != nil {
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("按手机号查询后台用户失败: %w", err))
+	}
+
+	if len(userIDs) != 1 {
+		return nil, apperr.New(constant.AuthAdminLoginFailed)
+	}
+
+	user, err := s.GetUserByID(ctx, userIDs[0])
+	if err != nil {
+		if appErr, ok := apperr.As(err); ok && appErr.Code == constant.CommonUserNotFound {
+			return nil, apperr.New(constant.AuthAdminLoginFailed)
+		}
+		return nil, err
+	}
+	return user, nil
+}
+
+func (s *AuthService) ensureAdminPhoneAvailable(ctx context.Context, phone string, excludeUserID uint) error {
+	if phone == "" {
+		return apperr.New(constant.AuthAdminPhoneRequired)
+	}
+
+	var userIDs []uint
+	query := s.db.WithContext(ctx).
+		Table("users").
+		Distinct("users.id").
+		Joins("JOIN user_roles ur ON ur.user_id = users.id").
+		Joins("JOIN roles ON roles.id = ur.role_id").
+		Where("users.phone = ?", phone).
+		Where("roles.role_tag IN ?", backofficeRoleTags)
+	if excludeUserID != 0 {
+		query = query.Where("users.id <> ?", excludeUserID)
+	}
+	if err := query.Pluck("users.id", &userIDs).Error; err != nil {
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("校验后台手机号冲突失败: %w", err))
+	}
+	if len(userIDs) > 0 {
+		return apperr.New(constant.AuthAdminPhoneConflict)
+	}
+	return nil
+}
+
+func (s *AuthService) isBackofficeUser(ctx context.Context, userID uint, legacyRole int8) (bool, error) {
+	if s.rbac == nil {
+		return legacyRole == 2 || legacyRole == 3, nil
+	}
+
+	snap, err := s.rbac.GetUserPermissionSnapshot(ctx, userID)
+	if err != nil {
+		return false, apperr.Wrap(constant.CommonInternal, fmt.Errorf("获取后台角色快照失败: %w", err))
+	}
+
+	for _, roleTag := range snap.RoleTags {
+		if roleTag == constant.RoleTagAdmin || roleTag == constant.RoleTagOperator {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func normalizePhone(phone string) string {
+	return strings.TrimSpace(phone)
+}
+
+func validateAdminPassword(password string) error {
+	if len(password) < 8 {
+		return apperr.New(constant.AuthAdminPasswordInvalid)
+	}
+
+	hasLetter := false
+	hasDigit := false
+	for _, r := range password {
+		switch {
+		case unicode.IsLetter(r):
+			hasLetter = true
+		case unicode.IsDigit(r):
+			hasDigit = true
+		}
+	}
+
+	if !hasLetter || !hasDigit {
+		return apperr.New(constant.AuthAdminPasswordInvalid)
+	}
+	return nil
 }

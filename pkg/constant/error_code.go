@@ -46,6 +46,11 @@ const (
 	AuthAccountDisabled             ResCode = 11018
 	AuthAccountTempBanned           ResCode = 11019
 	AuthAccountKicked               ResCode = 11020
+	AuthAdminLoginFailed            ResCode = 11021
+	AuthAdminPasswordInvalid        ResCode = 11022
+	AuthAdminTargetRoleInvalid      ResCode = 11023
+	AuthAdminPhoneConflict          ResCode = 11024
+	AuthAdminPhoneRequired          ResCode = 11025
 )
 
 // 12xxx: 会话相关
@@ -213,6 +218,11 @@ var ErrorMetaMap = map[ResCode]ErrorMeta{
 	AuthAccountDisabled:                 {HTTPStatus: http.StatusUnauthorized, Message: "用户账号已被禁用"},
 	AuthAccountTempBanned:               {HTTPStatus: http.StatusUnauthorized, Message: "用户账号已被临时封禁"},
 	AuthAccountKicked:                   {HTTPStatus: http.StatusUnauthorized, Message: "账号已被下线，请稍后重试"},
+	AuthAdminLoginFailed:                {HTTPStatus: http.StatusUnauthorized, Message: "手机号或密码错误"},
+	AuthAdminPasswordInvalid:            {HTTPStatus: http.StatusBadRequest, Message: "后台密码必须至少8位且包含字母和数字"},
+	AuthAdminTargetRoleInvalid:          {HTTPStatus: http.StatusBadRequest, Message: "目标用户不是后台账号"},
+	AuthAdminPhoneConflict:              {HTTPStatus: http.StatusConflict, Message: "后台登录手机号已被占用"},
+	AuthAdminPhoneRequired:              {HTTPStatus: http.StatusBadRequest, Message: "后台登录手机号不能为空"},
 	ConversationNotFound:                {HTTPStatus: http.StatusNotFound, Message: "会话不存在"},
 	ConversationMessageRequired:         {HTTPStatus: http.StatusBadRequest, Message: "新会话必须提供消息内容"},
 	ConfigKeyExists:                     {HTTPStatus: http.StatusConflict, Message: "配置键已存在"},

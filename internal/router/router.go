@@ -131,6 +131,11 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			}
 		}
 
+		adminAuth := v0.Group("/admin/auth")
+		{
+			adminAuth.POST("/login", authHandler.AdminLogin)
+		}
+
 		// 评价相关路由（公开查询）
 		reviews := v0.Group("/reviews")
 		{
@@ -357,7 +362,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			// 番茄钟（需认证）
 			pomodoro := authorized.Group("/pomodoro")
 			{
-				pomodoro.GET("/count", middleware.RequirePermission(rbacService, constant.PermissionPomodoro), pomodoroHandler.GetCount)         // 获取当前用户次数
+				pomodoro.GET("/count", middleware.RequirePermission(rbacService, constant.PermissionPomodoro), pomodoroHandler.GetCount)       // 获取当前用户次数
 				pomodoro.POST("/increment", middleware.RequirePermission(rbacService, constant.PermissionPomodoro), pomodoroHandler.Increment) // 增加次数
 				pomodoro.GET("/ranking", middleware.RequirePermission(rbacService, constant.PermissionPomodoro), pomodoroHandler.GetRanking)   // 获取排名
 			}
@@ -433,6 +438,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			userFeatureAdmin.Use(middleware.RequirePermission(rbacService, constant.PermissionUserManage))
 			{
 				userFeatureAdmin.GET("/:id", authHandler.GetUserDetail)
+				userFeatureAdmin.PUT("/:id/login-credentials", authHandler.SetAdminLoginCredentials)
 				userFeatureAdmin.POST("/:id/kick", authHandler.KickUser)
 				userFeatureAdmin.POST("/:id/ban", authHandler.BanUser)
 				userFeatureAdmin.POST("/:id/unban", authHandler.UnbanUser)

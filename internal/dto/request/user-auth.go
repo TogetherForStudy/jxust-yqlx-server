@@ -9,6 +9,16 @@ type RefreshTokenRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 
+type AdminLoginRequest struct {
+	Phone    string `json:"phone" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+type AdminLoginCredentialsRequest struct {
+	Phone    string `json:"phone" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
 type BanUserRequest struct {
 	DurationSeconds int64  `json:"duration_seconds" binding:"omitempty,min=0"`
 	Reason          string `json:"reason"`

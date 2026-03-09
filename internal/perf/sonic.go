@@ -19,6 +19,8 @@ import (
 func init() {
 	logger.Infoln("Init Just-In-Time Compilation for Sonic")
 	_ = sonic.Pretouch(reflect.TypeOf(&request.WechatLoginRequest{}))
+	_ = sonic.Pretouch(reflect.TypeOf(&request.AdminLoginRequest{}))
+	_ = sonic.Pretouch(reflect.TypeOf(&request.AdminLoginCredentialsRequest{}))
 	_ = sonic.Pretouch(reflect.TypeOf(&request.GetQuestionRequest{}))
 	_ = sonic.Pretouch(reflect.TypeOf(&request.RecordStudyRequest{}))
 	_ = sonic.Pretouch(reflect.TypeOf(&request.SubmitPracticeRequest{}))
