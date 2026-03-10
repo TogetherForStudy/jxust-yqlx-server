@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"encoding/json"
-	"io"
 
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
@@ -26,29 +26,23 @@ func (h *GPABackupHandler) CreateBackup(c *gin.Context) {
 		return
 	}
 
-	body, err := io.ReadAll(c.Request.Body)
-	if err != nil {
-		helper.HandleError(c, err)
-		return
-	}
-
-	var payload map[string]any
-	if err := json.Unmarshal(body, &payload); err != nil {
+	var req request.CreateGPABackupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	now := utils.FormatDateTime(utils.GetLocalTime())
-	payload["create"] = now
-	payload["update"] = now
+	req.Data["create"] = now
+	req.Data["update"] = now
 
-	normalizedBody, err := json.Marshal(payload)
+	normalizedBody, err := json.Marshal(req.Data)
 	if err != nil {
 		helper.HandleError(c, err)
 		return
 	}
 
-	result, err := h.service.CreateBackup(c.Request.Context(), userID, normalizedBody)
+	result, err := h.service.CreateBackup(c.Request.Context(), userID, req.Title, normalizedBody)
 	if err != nil {
 		helper.HandleError(c, err)
 		return

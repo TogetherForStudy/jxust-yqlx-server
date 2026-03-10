@@ -1253,18 +1253,23 @@ class E2ETestClient:
     def test_create_gpa_backup(self) -> Optional[int]:
         try:
             payload = {
-                "semester": "2024-2025-1",
-                "courses": [
-                    {"name": "高等数学", "credit": 4, "score": 91},
-                    {"name": "大学英语", "credit": 2, "score": 88},
-                ],
+                "title": "2024-2025-1 学期绩点备份",
+                "data": {
+                    "semester": "2024-2025-1",
+                    "courses": [
+                        {"name": "高等数学", "credit": 4, "score": 91},
+                        {"name": "大学英语", "credit": 2, "score": 88},
+                    ],
+                },
             }
             resp = self._post_json("/gpa/backup", json=payload)
             if resp.status_code != 200:
                 self._record("创建绩点备份", False, f"status={resp.status_code}")
                 return None
-            backup_id = self._extract_result(resp).get("id")
-            self._record("创建绩点备份", bool(backup_id), f"status={resp.status_code}, id={backup_id}")
+            result = self._extract_result(resp)
+            backup_id = result.get("id")
+            passed = bool(backup_id) and result.get("title") == payload["title"]
+            self._record("创建绩点备份", passed, f"status={resp.status_code}, id={backup_id}, title={result.get('title')}")
             return int(backup_id) if backup_id else None
         except Exception as e:
             self._record("创建绩点备份", False, str(e))

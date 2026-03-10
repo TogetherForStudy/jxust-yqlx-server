@@ -4,6 +4,7 @@ import (
 	"context"
 	stdjson "encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
@@ -23,7 +24,18 @@ func NewGPABackupService(db *gorm.DB) *GPABackupService {
 	return &GPABackupService{db: db}
 }
 
-func (s *GPABackupService) CreateBackup(ctx context.Context, userID uint, rawData []byte) (*response.GPABackupResponse, error) {
+func (s *GPABackupService) CreateBackup(ctx context.Context, userID uint, title string, rawData []byte) (*response.GPABackupResponse, error) {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		err := apperr.New(constant.CommonBadRequest)
+		err.Message = "title 不能为空"
+		return nil, err
+	}
+	if len([]rune(title)) > 200 {
+		err := apperr.New(constant.CommonBadRequest)
+		err.Message = "title 长度不能超过 200 个字符"
+		return nil, err
+	}
 	if len(rawData) == 0 || !stdjson.Valid(rawData) {
 		err := apperr.New(constant.CommonBadRequest)
 		err.Message = "请求体必须是有效 JSON"
@@ -42,6 +54,7 @@ func (s *GPABackupService) CreateBackup(ctx context.Context, userID uint, rawDat
 
 	backup := models.GPABackup{
 		UserID: userID,
+		Title:  title,
 		Data:   datatypes.JSON(rawData),
 	}
 	if err := s.db.WithContext(ctx).Create(&backup).Error; err != nil {
@@ -95,6 +108,7 @@ func (s *GPABackupService) DeleteBackup(ctx context.Context, userID, backupID ui
 func toGPABackupResponse(backup models.GPABackup) response.GPABackupResponse {
 	return response.GPABackupResponse{
 		ID:        backup.ID,
+		Title:     backup.Title,
 		Data:      backup.Data,
 		CreatedAt: backup.CreatedAt,
 		UpdatedAt: backup.UpdatedAt,

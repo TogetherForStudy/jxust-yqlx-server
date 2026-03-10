@@ -1454,7 +1454,7 @@ func buildOperations() []operation {
 		op("POST", "/api/v0/gpa/backup", "GPA", "创建当前用户绩点备份",
 			withSecurity(constant.PermissionUserUpdate),
 			withIdempotency(),
-			withRequestBodySchema("application/json", anySchema()),
+			withJSONBodyType[req.CreateGPABackupRequest](),
 			withEnvelopeType[resp.GPABackupResponse](),
 		),
 		op("DELETE", "/api/v0/gpa/backup/{id}", "GPA", "删除当前用户绩点备份",

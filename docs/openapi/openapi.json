@@ -161,6 +161,34 @@
         },
         "type": "object"
       },
+      "models_CourseTable": {
+        "properties": {
+          "class_id": {
+            "type": "string"
+          },
+          "course_data": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "semester": {
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "models_Dictionary": {
         "properties": {
           "id": {
@@ -198,6 +226,37 @@
             "type": "object"
           },
           "word": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "models_FailRate": {
+        "properties": {
+          "course_name": {
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "department": {
+            "type": "string"
+          },
+          "failrate": {
+            "format": "double",
+            "type": "number"
+          },
+          "id": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "semester": {
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
             "type": "string"
           }
         },
@@ -750,6 +809,23 @@
         "required": [
           "feature_key",
           "feature_name"
+        ],
+        "type": "object"
+      },
+      "request_CreateGPABackupRequest": {
+        "properties": {
+          "data": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "title": {
+            "maxLength": 200,
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "title"
         ],
         "type": "object"
       },
@@ -1665,6 +1741,31 @@
         },
         "type": "object"
       },
+      "response_GPABackupResponse": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "data": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "id": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "response_GetFileURLResponse": {
         "properties": {
           "url": {
@@ -2229,11 +2330,6 @@
             "type": "string"
           },
           "pomodoro_count": {
-            "format": "int64",
-            "minimum": 0,
-            "type": "integer"
-          },
-          "rank": {
             "format": "int64",
             "minimum": 0,
             "type": "integer"
@@ -3169,6 +3265,1344 @@
           "Notifications"
         ],
         "x-permission": "notification.category.manage"
+      }
+    },
+    "/api/v0/admin/coursetables": {
+      "get": {
+        "operationId": "get_api_v0_admin_coursetables",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "description": "班级 ID",
+            "in": "query",
+            "name": "class_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "学期",
+            "in": "query",
+            "name": "semester",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "关键字",
+            "in": "query",
+            "name": "keyword",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "页码",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "每页数量",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "properties": {
+                        "data": {
+                          "items": {
+                            "$ref": "#/components/schemas/models_CourseTable"
+                          },
+                          "type": "array"
+                        },
+                        "page": {
+                          "format": "int32",
+                          "type": "integer"
+                        },
+                        "size": {
+                          "format": "int32",
+                          "type": "integer"
+                        },
+                        "total": {
+                          "format": "int64",
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "data",
+                        "total",
+                        "page",
+                        "size"
+                      ],
+                      "type": "object"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员分页查询课表",
+        "tags": [
+          "AdminCourseTables"
+        ],
+        "x-permission": "coursetable.manage"
+      },
+      "post": {
+        "operationId": "post_api_v0_admin_coursetables",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "class_id": {
+                    "type": "string"
+                  },
+                  "course_data": {},
+                  "semester": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "class_id",
+                  "semester",
+                  "course_data"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "$ref": "#/components/schemas/models_CourseTable"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员创建课表",
+        "tags": [
+          "AdminCourseTables"
+        ],
+        "x-permission": "coursetable.manage"
+      }
+    },
+    "/api/v0/admin/coursetables/{id}": {
+      "delete": {
+        "operationId": "delete_api_v0_admin_coursetables_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "description": "课表 ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "type": "string"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员删除课表",
+        "tags": [
+          "AdminCourseTables"
+        ],
+        "x-permission": "coursetable.manage"
+      },
+      "get": {
+        "operationId": "get_api_v0_admin_coursetables_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "description": "课表 ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "$ref": "#/components/schemas/models_CourseTable"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员获取课表详情",
+        "tags": [
+          "AdminCourseTables"
+        ],
+        "x-permission": "coursetable.manage"
+      },
+      "put": {
+        "operationId": "put_api_v0_admin_coursetables_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "description": "课表 ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "class_id": {
+                    "type": "string"
+                  },
+                  "course_data": {},
+                  "semester": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "class_id",
+                  "semester",
+                  "course_data"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "type": "string"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员更新课表",
+        "tags": [
+          "AdminCourseTables"
+        ],
+        "x-permission": "coursetable.manage"
+      }
+    },
+    "/api/v0/admin/failrates": {
+      "get": {
+        "operationId": "get_api_v0_admin_failrates",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "description": "课程关键词",
+            "in": "query",
+            "name": "keyword",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "开课单位",
+            "in": "query",
+            "name": "department",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "学期",
+            "in": "query",
+            "name": "semester",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "页码",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "每页数量",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "properties": {
+                        "data": {
+                          "items": {
+                            "$ref": "#/components/schemas/models_FailRate"
+                          },
+                          "type": "array"
+                        },
+                        "page": {
+                          "format": "int32",
+                          "type": "integer"
+                        },
+                        "size": {
+                          "format": "int32",
+                          "type": "integer"
+                        },
+                        "total": {
+                          "format": "int64",
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "data",
+                        "total",
+                        "page",
+                        "size"
+                      ],
+                      "type": "object"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员分页查询挂科率",
+        "tags": [
+          "AdminFailRates"
+        ],
+        "x-permission": "failrate.manage"
+      },
+      "post": {
+        "operationId": "post_api_v0_admin_failrates",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "course_name": {
+                    "type": "string"
+                  },
+                  "department": {
+                    "type": "string"
+                  },
+                  "failrate": {},
+                  "semester": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "course_name",
+                  "department",
+                  "semester",
+                  "failrate"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "$ref": "#/components/schemas/models_FailRate"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员创建挂科率",
+        "tags": [
+          "AdminFailRates"
+        ],
+        "x-permission": "failrate.manage"
+      }
+    },
+    "/api/v0/admin/failrates/{id}": {
+      "delete": {
+        "operationId": "delete_api_v0_admin_failrates_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "description": "挂科率 ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "type": "string"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员删除挂科率",
+        "tags": [
+          "AdminFailRates"
+        ],
+        "x-permission": "failrate.manage"
+      },
+      "get": {
+        "operationId": "get_api_v0_admin_failrates_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "description": "挂科率 ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "$ref": "#/components/schemas/models_FailRate"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员获取挂科率详情",
+        "tags": [
+          "AdminFailRates"
+        ],
+        "x-permission": "failrate.manage"
+      },
+      "put": {
+        "operationId": "put_api_v0_admin_failrates_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "description": "挂科率 ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "course_name": {
+                    "type": "string"
+                  },
+                  "department": {
+                    "type": "string"
+                  },
+                  "failrate": {},
+                  "semester": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "course_name",
+                  "department",
+                  "semester",
+                  "failrate"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "type": "string"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员更新挂科率",
+        "tags": [
+          "AdminFailRates"
+        ],
+        "x-permission": "failrate.manage"
       }
     },
     "/api/v0/admin/features": {
@@ -6233,6 +7667,1555 @@
         "x-permission": "notification.pin"
       }
     },
+    "/api/v0/admin/questions": {
+      "get": {
+        "operationId": "get_api_v0_admin_questions",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "description": "项目 ID",
+            "in": "query",
+            "name": "project_id",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "标题关键字",
+            "in": "query",
+            "name": "keyword",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "是否启用",
+            "in": "query",
+            "name": "is_active",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "父题目 ID",
+            "in": "query",
+            "name": "parent_id",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "题目类型",
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "排序最小值",
+            "in": "query",
+            "name": "sort_min",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "排序最大值",
+            "in": "query",
+            "name": "sort_max",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "创建开始时间",
+            "in": "query",
+            "name": "created_from",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "创建结束时间",
+            "in": "query",
+            "name": "created_to",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "页码",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "每页数量",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "properties": {
+                        "data": {
+                          "items": {
+                            "properties": {
+                              "answer": {
+                                "type": "string"
+                              },
+                              "created_at": {
+                                "type": "string"
+                              },
+                              "id": {
+                                "format": "int64",
+                                "type": "integer"
+                              },
+                              "is_active": {
+                                "type": "boolean"
+                              },
+                              "options": {
+                                "items": {
+                                  "type": "string"
+                                },
+                                "type": "array"
+                              },
+                              "parent_id": {
+                                "format": "int64",
+                                "type": "integer"
+                              },
+                              "project_id": {
+                                "format": "int64",
+                                "type": "integer"
+                              },
+                              "sort": {
+                                "format": "int32",
+                                "type": "integer"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "format": "int32",
+                                "type": "integer"
+                              },
+                              "updated_at": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "project_id",
+                              "parent_id",
+                              "type",
+                              "title",
+                              "options",
+                              "answer",
+                              "sort",
+                              "is_active",
+                              "created_at",
+                              "updated_at"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "page": {
+                          "format": "int32",
+                          "type": "integer"
+                        },
+                        "size": {
+                          "format": "int32",
+                          "type": "integer"
+                        },
+                        "total": {
+                          "format": "int64",
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "data",
+                        "total",
+                        "page",
+                        "size"
+                      ],
+                      "type": "object"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员分页搜索题目",
+        "tags": [
+          "AdminQuestions"
+        ],
+        "x-permission": "question.manage"
+      },
+      "post": {
+        "operationId": "post_api_v0_admin_questions",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "answer": {
+                    "type": "string"
+                  },
+                  "is_active": {
+                    "type": "boolean"
+                  },
+                  "options": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "parent_id": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "project_id": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "sort": {
+                    "format": "int32",
+                    "type": "integer"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "format": "int32",
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "project_id",
+                  "parent_id",
+                  "type",
+                  "title",
+                  "options",
+                  "answer",
+                  "sort",
+                  "is_active"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {},
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员创建题目",
+        "tags": [
+          "AdminQuestions"
+        ],
+        "x-permission": "question.manage"
+      }
+    },
+    "/api/v0/admin/questions/projects": {
+      "get": {
+        "operationId": "get_api_v0_admin_questions_projects",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "description": "关键字",
+            "in": "query",
+            "name": "keyword",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "是否启用",
+            "in": "query",
+            "name": "is_active",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "页码",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "每页数量",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "properties": {
+                        "data": {
+                          "items": {
+                            "properties": {
+                              "created_at": {
+                                "type": "string"
+                              },
+                              "description": {
+                                "type": "string"
+                              },
+                              "id": {
+                                "format": "int64",
+                                "type": "integer"
+                              },
+                              "is_active": {
+                                "type": "boolean"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "sort": {
+                                "format": "int32",
+                                "type": "integer"
+                              },
+                              "updated_at": {
+                                "type": "string"
+                              },
+                              "version": {
+                                "format": "int32",
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "name",
+                              "description",
+                              "version",
+                              "sort",
+                              "is_active",
+                              "created_at",
+                              "updated_at"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "page": {
+                          "format": "int32",
+                          "type": "integer"
+                        },
+                        "size": {
+                          "format": "int32",
+                          "type": "integer"
+                        },
+                        "total": {
+                          "format": "int64",
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "data",
+                        "total",
+                        "page",
+                        "size"
+                      ],
+                      "type": "object"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员分页查询题库项目",
+        "tags": [
+          "AdminQuestions"
+        ],
+        "x-permission": "question.project.manage"
+      },
+      "post": {
+        "operationId": "post_api_v0_admin_questions_projects",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "description": {
+                    "type": "string"
+                  },
+                  "is_active": {
+                    "type": "boolean"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "sort": {
+                    "format": "int32",
+                    "type": "integer"
+                  },
+                  "version": {
+                    "format": "int32",
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "name",
+                  "description",
+                  "version",
+                  "sort",
+                  "is_active"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {},
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员创建题库项目",
+        "tags": [
+          "AdminQuestions"
+        ],
+        "x-permission": "question.project.manage"
+      }
+    },
+    "/api/v0/admin/questions/projects/{id}": {
+      "delete": {
+        "operationId": "delete_api_v0_admin_questions_projects_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "description": "项目 ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "type": "string"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员删除题库项目",
+        "tags": [
+          "AdminQuestions"
+        ],
+        "x-permission": "question.project.manage"
+      },
+      "get": {
+        "operationId": "get_api_v0_admin_questions_projects_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "description": "项目 ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {},
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员获取题库项目详情",
+        "tags": [
+          "AdminQuestions"
+        ],
+        "x-permission": "question.project.manage"
+      },
+      "put": {
+        "operationId": "put_api_v0_admin_questions_projects_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "description": "项目 ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "description": {
+                    "type": "string"
+                  },
+                  "is_active": {
+                    "type": "boolean"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "sort": {
+                    "format": "int32",
+                    "type": "integer"
+                  },
+                  "version": {
+                    "format": "int32",
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "name",
+                  "description",
+                  "version",
+                  "sort",
+                  "is_active"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "type": "string"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员更新题库项目",
+        "tags": [
+          "AdminQuestions"
+        ],
+        "x-permission": "question.project.manage"
+      }
+    },
+    "/api/v0/admin/questions/{id}": {
+      "delete": {
+        "operationId": "delete_api_v0_admin_questions_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "description": "题目 ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "type": "string"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员删除题目",
+        "tags": [
+          "AdminQuestions"
+        ],
+        "x-permission": "question.manage"
+      },
+      "get": {
+        "operationId": "get_api_v0_admin_questions_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "description": "题目 ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {},
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员获取题目详情",
+        "tags": [
+          "AdminQuestions"
+        ],
+        "x-permission": "question.manage"
+      },
+      "put": {
+        "operationId": "put_api_v0_admin_questions_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "description": "题目 ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "answer": {
+                    "type": "string"
+                  },
+                  "is_active": {
+                    "type": "boolean"
+                  },
+                  "options": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "parent_id": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "project_id": {
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "sort": {
+                    "format": "int32",
+                    "type": "integer"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "format": "int32",
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "project_id",
+                  "parent_id",
+                  "type",
+                  "title",
+                  "options",
+                  "answer",
+                  "sort",
+                  "is_active"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "type": "string"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员更新题目",
+        "tags": [
+          "AdminQuestions"
+        ],
+        "x-permission": "question.manage"
+      }
+    },
     "/api/v0/admin/rbac/permissions": {
       "get": {
         "operationId": "get_api_v0_admin_rbac_permissions",
@@ -7288,6 +10271,480 @@
           "RBAC"
         ],
         "x-permission": "user.manage"
+      }
+    },
+    "/api/v0/admin/stats/countdowns/by-user": {
+      "get": {
+        "operationId": "get_api_v0_admin_stats_countdowns_by_user",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "description": "页码",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "每页数量",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "properties": {
+                        "data": {
+                          "items": {
+                            "properties": {
+                              "count": {
+                                "format": "int64",
+                                "type": "integer"
+                              },
+                              "user_id": {
+                                "format": "int64",
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "user_id",
+                              "count"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "page": {
+                          "format": "int32",
+                          "type": "integer"
+                        },
+                        "size": {
+                          "format": "int32",
+                          "type": "integer"
+                        },
+                        "total": {
+                          "format": "int64",
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "data",
+                        "total",
+                        "page",
+                        "size"
+                      ],
+                      "type": "object"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员按用户统计倒数日数量",
+        "tags": [
+          "AdminStats"
+        ],
+        "x-permission": "statistic.manage"
+      }
+    },
+    "/api/v0/admin/stats/gpa-backups/by-user": {
+      "get": {
+        "operationId": "get_api_v0_admin_stats_gpa_backups_by_user",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "description": "页码",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "每页数量",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "properties": {
+                        "data": {
+                          "items": {
+                            "properties": {
+                              "count": {
+                                "format": "int64",
+                                "type": "integer"
+                              },
+                              "user_id": {
+                                "format": "int64",
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "user_id",
+                              "count"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "page": {
+                          "format": "int32",
+                          "type": "integer"
+                        },
+                        "size": {
+                          "format": "int32",
+                          "type": "integer"
+                        },
+                        "total": {
+                          "format": "int64",
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "data",
+                        "total",
+                        "page",
+                        "size"
+                      ],
+                      "type": "object"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员按用户统计绩点备份数量",
+        "tags": [
+          "AdminStats"
+        ],
+        "x-permission": "statistic.manage"
+      }
+    },
+    "/api/v0/admin/stats/studytasks/by-user": {
+      "get": {
+        "operationId": "get_api_v0_admin_stats_studytasks_by_user",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "description": "页码",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "每页数量",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "properties": {
+                        "data": {
+                          "items": {
+                            "properties": {
+                              "count": {
+                                "format": "int64",
+                                "type": "integer"
+                              },
+                              "user_id": {
+                                "format": "int64",
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "user_id",
+                              "count"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "page": {
+                          "format": "int32",
+                          "type": "integer"
+                        },
+                        "size": {
+                          "format": "int32",
+                          "type": "integer"
+                        },
+                        "total": {
+                          "format": "int64",
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "data",
+                        "total",
+                        "page",
+                        "size"
+                      ],
+                      "type": "object"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员按用户统计学习清单数量",
+        "tags": [
+          "AdminStats"
+        ],
+        "x-permission": "statistic.manage"
       }
     },
     "/api/v0/admin/users/{id}": {
@@ -12600,6 +16057,468 @@
           "FailRate"
         ],
         "x-permission": "failrate"
+      }
+    },
+    "/api/v0/gpa/backup": {
+      "get": {
+        "operationId": "get_api_v0_gpa_backup",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "items": {
+                        "$ref": "#/components/schemas/response_GPABackupResponse"
+                      },
+                      "type": "array"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "获取当前用户绩点备份列表",
+        "tags": [
+          "GPA"
+        ],
+        "x-permission": "user.get"
+      },
+      "post": {
+        "operationId": "post_api_v0_gpa_backup",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "$ref": "#/components/parameters/XIdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/request_CreateGPABackupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "$ref": "#/components/schemas/response_GPABackupResponse"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "创建当前用户绩点备份",
+        "tags": [
+          "GPA"
+        ],
+        "x-permission": "user.update"
+      }
+    },
+    "/api/v0/gpa/backup/{id}": {
+      "delete": {
+        "operationId": "delete_api_v0_gpa_backup_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "description": "备份 ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "删除当前用户绩点备份",
+        "tags": [
+          "GPA"
+        ],
+        "x-permission": "user.update"
+      },
+      "get": {
+        "operationId": "get_api_v0_gpa_backup_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "description": "备份 ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "$ref": "#/components/schemas/response_GPABackupResponse"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "获取当前用户单个绩点备份",
+        "tags": [
+          "GPA"
+        ],
+        "x-permission": "user.get"
       }
     },
     "/api/v0/heroes/": {
