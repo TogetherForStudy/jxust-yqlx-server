@@ -1,6 +1,10 @@
 package response
 
-import "gorm.io/datatypes"
+import (
+	"time"
+
+	"gorm.io/datatypes"
+)
 
 // CourseTableResponse 课程表响应
 type CourseTableResponse struct {
@@ -23,4 +27,13 @@ type SearchClassResponse struct {
 	Total int64       `json:"total"` // 总数
 	Page  int         `json:"page"`  // 当前页
 	Size  int         `json:"size"`  // 每页数量
+}
+
+type AdminCourseTableResponse struct {
+	ID         uint           `json:"id"`
+	ClassID    string         `json:"class_id"`
+	Semester   string         `json:"semester"`
+	CourseData datatypes.JSON `json:"course_data"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
 }

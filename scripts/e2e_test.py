@@ -1250,6 +1250,56 @@ class E2ETestClient:
             self._record("获取项目在线人数", False, str(e))
             return False
 
+    def test_create_gpa_backup(self) -> Optional[int]:
+        try:
+            payload = {
+                "semester": "2024-2025-1",
+                "courses": [
+                    {"name": "高等数学", "credit": 4, "score": 91},
+                    {"name": "大学英语", "credit": 2, "score": 88},
+                ],
+            }
+            resp = self._post_json("/gpa/backup", json=payload)
+            if resp.status_code != 200:
+                self._record("创建绩点备份", False, f"status={resp.status_code}")
+                return None
+            backup_id = self._extract_result(resp).get("id")
+            self._record("创建绩点备份", bool(backup_id), f"status={resp.status_code}, id={backup_id}")
+            return int(backup_id) if backup_id else None
+        except Exception as e:
+            self._record("创建绩点备份", False, str(e))
+            return None
+
+    def test_list_gpa_backups(self) -> bool:
+        try:
+            resp = self._get("/gpa/backup")
+            passed = resp.status_code == 200
+            self._record("获取绩点备份列表", passed, f"status={resp.status_code}")
+            return passed
+        except Exception as e:
+            self._record("获取绩点备份列表", False, str(e))
+            return False
+
+    def test_get_gpa_backup_detail(self, backup_id: int) -> bool:
+        try:
+            resp = self._get(f"/gpa/backup/{backup_id}")
+            passed = resp.status_code == 200
+            self._record("获取绩点备份详情", passed, f"status={resp.status_code}, id={backup_id}")
+            return passed
+        except Exception as e:
+            self._record("获取绩点备份详情", False, str(e))
+            return False
+
+    def test_delete_gpa_backup(self, backup_id: int) -> bool:
+        try:
+            resp = self._delete(f"/gpa/backup/{backup_id}")
+            passed = resp.status_code == 200
+            self._record("删除绩点备份", passed, f"status={resp.status_code}, id={backup_id}")
+            return passed
+        except Exception as e:
+            self._record("删除绩点备份", False, str(e))
+            return False
+
     def test_get_dictionary_word(self) -> bool:
         try:
             resp = self._get("/dictionary/word")
@@ -1515,6 +1565,332 @@ class E2ETestClient:
             return passed
         except Exception as e:
             self._record("管理员获取投稿统计", False, str(e))
+            return False
+
+    def test_admin_create_coursetable(self) -> Optional[int]:
+        class_id = f"E2E-CLASS-{uuid.uuid4().hex[:8]}"
+        try:
+            resp = self._post_json(
+                "/admin/coursetables",
+                use_admin=True,
+                json={
+                    "class_id": class_id,
+                    "semester": "2099-2100-1",
+                    "course_data": {
+                        "1": {
+                            "name": "E2E课程",
+                            "teacher": "E2E老师",
+                            "location": "E2E教室",
+                        }
+                    },
+                },
+            )
+            if resp.status_code != 200:
+                self._record("管理员创建课表", False, f"status={resp.status_code}, body={resp.text}")
+                return None
+            coursetable_id = self._extract_result(resp).get("id")
+            self._record("管理员创建课表", bool(coursetable_id), f"status={resp.status_code}, id={coursetable_id}")
+            return int(coursetable_id) if coursetable_id else None
+        except Exception as e:
+            self._record("管理员创建课表", False, str(e))
+            return None
+
+    def test_admin_list_coursetables(self) -> bool:
+        try:
+            resp = self._get("/admin/coursetables", use_admin=True, params={"page": 1, "page_size": 10})
+            passed = resp.status_code == 200
+            self._record("管理员获取课表列表", passed, f"status={resp.status_code}")
+            return passed
+        except Exception as e:
+            self._record("管理员获取课表列表", False, str(e))
+            return False
+
+    def test_admin_get_coursetable_detail(self, coursetable_id: int) -> bool:
+        try:
+            resp = self._get(f"/admin/coursetables/{coursetable_id}", use_admin=True)
+            passed = resp.status_code == 200
+            self._record("管理员获取课表详情", passed, f"status={resp.status_code}, id={coursetable_id}")
+            return passed
+        except Exception as e:
+            self._record("管理员获取课表详情", False, str(e))
+            return False
+
+    def test_admin_update_coursetable(self, coursetable_id: int) -> bool:
+        try:
+            resp = self._put_json(
+                f"/admin/coursetables/{coursetable_id}",
+                use_admin=True,
+                json={
+                    "course_data": {
+                        "1": {
+                            "name": "E2E课程-已更新",
+                            "teacher": "E2E老师",
+                            "location": "E2E教室A101",
+                        }
+                    }
+                },
+            )
+            passed = resp.status_code == 200
+            self._record("管理员更新课表", passed, f"status={resp.status_code}, id={coursetable_id}")
+            return passed
+        except Exception as e:
+            self._record("管理员更新课表", False, str(e))
+            return False
+
+    def test_admin_delete_coursetable(self, coursetable_id: int) -> bool:
+        try:
+            resp = self._delete(f"/admin/coursetables/{coursetable_id}", use_admin=True)
+            passed = resp.status_code == 200
+            self._record("管理员删除课表", passed, f"status={resp.status_code}, id={coursetable_id}")
+            return passed
+        except Exception as e:
+            self._record("管理员删除课表", False, str(e))
+            return False
+
+    def test_admin_reset_coursetable_bind_count(self, user_id: int) -> bool:
+        try:
+            resp = self._post_json(f"/admin/users/{user_id}/coursetable-bind-count/reset", use_admin=True, json={})
+            passed = resp.status_code == 200
+            self._record("管理员重置课表绑定次数", passed, f"status={resp.status_code}, user_id={user_id}")
+            return passed
+        except Exception as e:
+            self._record("管理员重置课表绑定次数", False, str(e))
+            return False
+
+    def test_admin_create_failrate(self) -> Optional[int]:
+        course_name = f"E2E挂科率课程-{uuid.uuid4().hex[:8]}"
+        try:
+            resp = self._post_json(
+                "/admin/failrates",
+                use_admin=True,
+                json={
+                    "course_name": course_name,
+                    "department": "E2E学院",
+                    "semester": "2099-2100-1",
+                    "failrate": 12.5,
+                },
+            )
+            if resp.status_code != 200:
+                self._record("管理员创建挂科率", False, f"status={resp.status_code}, body={resp.text}")
+                return None
+            failrate_id = self._extract_result(resp).get("id")
+            self._record("管理员创建挂科率", bool(failrate_id), f"status={resp.status_code}, id={failrate_id}")
+            return int(failrate_id) if failrate_id else None
+        except Exception as e:
+            self._record("管理员创建挂科率", False, str(e))
+            return None
+
+    def test_admin_list_failrates(self) -> bool:
+        try:
+            resp = self._get("/admin/failrates", use_admin=True, params={"page": 1, "page_size": 10})
+            passed = resp.status_code == 200
+            self._record("管理员获取挂科率列表", passed, f"status={resp.status_code}")
+            return passed
+        except Exception as e:
+            self._record("管理员获取挂科率列表", False, str(e))
+            return False
+
+    def test_admin_get_failrate_detail(self, failrate_id: int) -> bool:
+        try:
+            resp = self._get(f"/admin/failrates/{failrate_id}", use_admin=True)
+            passed = resp.status_code == 200
+            self._record("管理员获取挂科率详情", passed, f"status={resp.status_code}, id={failrate_id}")
+            return passed
+        except Exception as e:
+            self._record("管理员获取挂科率详情", False, str(e))
+            return False
+
+    def test_admin_update_failrate(self, failrate_id: int) -> bool:
+        try:
+            resp = self._put_json(
+                f"/admin/failrates/{failrate_id}",
+                use_admin=True,
+                json={"failrate": 18.5, "department": "E2E学院-已更新"},
+            )
+            passed = resp.status_code == 200
+            self._record("管理员更新挂科率", passed, f"status={resp.status_code}, id={failrate_id}")
+            return passed
+        except Exception as e:
+            self._record("管理员更新挂科率", False, str(e))
+            return False
+
+    def test_admin_delete_failrate(self, failrate_id: int) -> bool:
+        try:
+            resp = self._delete(f"/admin/failrates/{failrate_id}", use_admin=True)
+            passed = resp.status_code == 200
+            self._record("管理员删除挂科率", passed, f"status={resp.status_code}, id={failrate_id}")
+            return passed
+        except Exception as e:
+            self._record("管理员删除挂科率", False, str(e))
+            return False
+
+    def test_admin_create_question_project(self) -> Optional[int]:
+        try:
+            resp = self._post_json(
+                "/admin/questions/projects",
+                use_admin=True,
+                json={
+                    "name": f"E2E题库项目-{uuid.uuid4().hex[:8]}",
+                    "description": "E2E题库项目描述",
+                    "version": 1,
+                    "sort": 999,
+                    "is_active": True,
+                },
+            )
+            if resp.status_code != 200:
+                self._record("管理员创建题库项目", False, f"status={resp.status_code}, body={resp.text}")
+                return None
+            project_id = self._extract_result(resp).get("id")
+            self._record("管理员创建题库项目", bool(project_id), f"status={resp.status_code}, id={project_id}")
+            return int(project_id) if project_id else None
+        except Exception as e:
+            self._record("管理员创建题库项目", False, str(e))
+            return None
+
+    def test_admin_list_question_projects(self) -> bool:
+        try:
+            resp = self._get("/admin/questions/projects", use_admin=True, params={"page": 1, "page_size": 10})
+            passed = resp.status_code == 200
+            self._record("管理员获取题库项目列表", passed, f"status={resp.status_code}")
+            return passed
+        except Exception as e:
+            self._record("管理员获取题库项目列表", False, str(e))
+            return False
+
+    def test_admin_get_question_project_detail(self, project_id: int) -> bool:
+        try:
+            resp = self._get(f"/admin/questions/projects/{project_id}", use_admin=True)
+            passed = resp.status_code == 200
+            self._record("管理员获取题库项目详情", passed, f"status={resp.status_code}, id={project_id}")
+            return passed
+        except Exception as e:
+            self._record("管理员获取题库项目详情", False, str(e))
+            return False
+
+    def test_admin_update_question_project(self, project_id: int) -> bool:
+        try:
+            resp = self._put_json(
+                f"/admin/questions/projects/{project_id}",
+                use_admin=True,
+                json={"description": "E2E题库项目描述-已更新", "sort": 1000},
+            )
+            passed = resp.status_code == 200
+            self._record("管理员更新题库项目", passed, f"status={resp.status_code}, id={project_id}")
+            return passed
+        except Exception as e:
+            self._record("管理员更新题库项目", False, str(e))
+            return False
+
+    def test_admin_delete_question_project(self, project_id: int) -> bool:
+        try:
+            resp = self._delete(f"/admin/questions/projects/{project_id}", use_admin=True)
+            passed = resp.status_code == 200
+            self._record("管理员删除题库项目", passed, f"status={resp.status_code}, id={project_id}")
+            return passed
+        except Exception as e:
+            self._record("管理员删除题库项目", False, str(e))
+            return False
+
+    def test_admin_create_question(self, project_id: int) -> Optional[int]:
+        try:
+            resp = self._post_json(
+                "/admin/questions",
+                use_admin=True,
+                json={
+                    "project_id": project_id,
+                    "type": 1,
+                    "title": f"E2E题目-{uuid.uuid4().hex[:8]}",
+                    "options": ["选项A", "选项B", "选项C"],
+                    "answer": "选项A",
+                    "sort": 1,
+                    "is_active": True,
+                },
+            )
+            if resp.status_code != 200:
+                self._record("管理员创建题目", False, f"status={resp.status_code}, body={resp.text}")
+                return None
+            question_id = self._extract_result(resp).get("id")
+            self._record("管理员创建题目", bool(question_id), f"status={resp.status_code}, id={question_id}")
+            return int(question_id) if question_id else None
+        except Exception as e:
+            self._record("管理员创建题目", False, str(e))
+            return None
+
+    def test_admin_list_questions(self, project_id: Optional[int] = None) -> bool:
+        params = {"page": 1, "page_size": 10}
+        if project_id:
+            params["project_id"] = project_id
+        try:
+            resp = self._get("/admin/questions", use_admin=True, params=params)
+            passed = resp.status_code == 200
+            self._record("管理员获取题目列表", passed, f"status={resp.status_code}")
+            return passed
+        except Exception as e:
+            self._record("管理员获取题目列表", False, str(e))
+            return False
+
+    def test_admin_get_question_detail(self, question_id: int) -> bool:
+        try:
+            resp = self._get(f"/admin/questions/{question_id}", use_admin=True)
+            passed = resp.status_code == 200
+            self._record("管理员获取题目详情", passed, f"status={resp.status_code}, id={question_id}")
+            return passed
+        except Exception as e:
+            self._record("管理员获取题目详情", False, str(e))
+            return False
+
+    def test_admin_update_question(self, question_id: int) -> bool:
+        try:
+            resp = self._put_json(
+                f"/admin/questions/{question_id}",
+                use_admin=True,
+                json={"title": "E2E题目-已更新", "answer": "选项B", "sort": 2},
+            )
+            passed = resp.status_code == 200
+            self._record("管理员更新题目", passed, f"status={resp.status_code}, id={question_id}")
+            return passed
+        except Exception as e:
+            self._record("管理员更新题目", False, str(e))
+            return False
+
+    def test_admin_delete_question(self, question_id: int) -> bool:
+        try:
+            resp = self._delete(f"/admin/questions/{question_id}", use_admin=True)
+            passed = resp.status_code == 200
+            self._record("管理员删除题目", passed, f"status={resp.status_code}, id={question_id}")
+            return passed
+        except Exception as e:
+            self._record("管理员删除题目", False, str(e))
+            return False
+
+    def test_admin_get_countdown_group_stats(self) -> bool:
+        try:
+            resp = self._get("/admin/stats/countdowns/by-user", use_admin=True, params={"page": 1, "page_size": 10})
+            passed = resp.status_code == 200
+            self._record("管理员获取倒数日分组统计", passed, f"status={resp.status_code}")
+            return passed
+        except Exception as e:
+            self._record("管理员获取倒数日分组统计", False, str(e))
+            return False
+
+    def test_admin_get_studytask_group_stats(self) -> bool:
+        try:
+            resp = self._get("/admin/stats/studytasks/by-user", use_admin=True, params={"page": 1, "page_size": 10})
+            passed = resp.status_code == 200
+            self._record("管理员获取学习清单分组统计", passed, f"status={resp.status_code}")
+            return passed
+        except Exception as e:
+            self._record("管理员获取学习清单分组统计", False, str(e))
+            return False
+
+    def test_admin_get_gpa_backup_group_stats(self) -> bool:
+        try:
+            resp = self._get("/admin/stats/gpa-backups/by-user", use_admin=True, params={"page": 1, "page_size": 10})
+            passed = resp.status_code == 200
+            self._record("管理员获取绩点备份分组统计", passed, f"status={resp.status_code}")
+            return passed
+        except Exception as e:
+            self._record("管理员获取绩点备份分组统计", False, str(e))
             return False
 
     def test_admin_review_contribution(self, contribution_id: int) -> bool:
@@ -2095,6 +2471,49 @@ class E2ETestClient:
             self.test_admin_get_contribution_stats()
             if contribution_id:
                 self.test_admin_review_contribution(contribution_id)
+            self.test_admin_get_countdown_group_stats()
+            self.test_admin_get_studytask_group_stats()
+            self.test_admin_get_gpa_backup_group_stats()
+
+            print("\n🧩 新增后台接口测试")
+            print("-" * 40)
+            self.test_admin_list_coursetables()
+            if self.basic_user_id:
+                self.test_admin_reset_coursetable_bind_count(self.basic_user_id)
+            coursetable_id = self.test_admin_create_coursetable()
+            if coursetable_id:
+                self.test_admin_get_coursetable_detail(coursetable_id)
+                self.test_admin_update_coursetable(coursetable_id)
+                self.test_admin_delete_coursetable(coursetable_id)
+
+            self.test_admin_list_failrates()
+            failrate_id = self.test_admin_create_failrate()
+            if failrate_id:
+                self.test_admin_get_failrate_detail(failrate_id)
+                self.test_admin_update_failrate(failrate_id)
+                self.test_admin_delete_failrate(failrate_id)
+
+            self.test_admin_list_question_projects()
+            project_id = self.test_admin_create_question_project()
+            if project_id:
+                self.test_admin_get_question_project_detail(project_id)
+                self.test_admin_update_question_project(project_id)
+                self.test_admin_list_questions(project_id=project_id)
+                question_id = self.test_admin_create_question(project_id)
+                if question_id:
+                    self.test_admin_get_question_detail(question_id)
+                    self.test_admin_update_question(question_id)
+                    self.test_admin_delete_question(question_id)
+                self.test_admin_delete_question_project(project_id)
+
+            if self.token:
+                print("\n📚 绩点备份接口测试")
+                print("-" * 40)
+                gpa_backup_id = self.test_create_gpa_backup()
+                self.test_list_gpa_backups()
+                if gpa_backup_id:
+                    self.test_get_gpa_backup_detail(gpa_backup_id)
+                    self.test_delete_gpa_backup(gpa_backup_id)
 
             # 用户查看自己的功能列表
             if self.token:

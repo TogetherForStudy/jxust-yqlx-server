@@ -66,14 +66,7 @@ func (h *StatHandler) GetProjectOnlineCount(c *gin.Context) {
 
 	ctx := c.Request.Context()
 
-	// 获取当前用户ID（如果已登录）
-	userID := helper.GetUserID(c)
-	if userID == 0 {
-		helper.HandleErrCode(c, constant.AuthMissingUserContext)
-		return
-	}
-
-	count, err := h.statService.GetProjectOnlineCount(ctx, req.ProjectID, userID)
+	count, err := h.statService.GetProjectOnlineCount(ctx, req.ProjectID)
 	if err != nil {
 		helper.HandleError(c, err)
 		return

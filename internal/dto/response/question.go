@@ -41,6 +41,33 @@ type QuestionResponse struct {
 	SubQuestions  []QuestionResponse `json:"sub_questions,omitempty"` // 子题（题目分组）
 }
 
+type AdminQuestionProjectResponse struct {
+	ID            uint      `json:"id"`
+	Name          string    `json:"name"`
+	Description   string    `json:"description"`
+	Version       int       `json:"version"`
+	Sort          int       `json:"sort"`
+	IsActive      bool      `json:"is_active"`
+	QuestionCount int64     `json:"question_count"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+type AdminQuestionResponse struct {
+	ID           uint                    `json:"id"`
+	ProjectID    uint                    `json:"project_id"`
+	ParentID     *uint                   `json:"parent_id,omitempty"`
+	Type         int8                    `json:"type"`
+	Title        string                  `json:"title"`
+	Options      []string                `json:"options,omitempty"`
+	Answer       string                  `json:"answer"`
+	Sort         int                     `json:"sort"`
+	IsActive     bool                    `json:"is_active"`
+	CreatedAt    time.Time               `json:"created_at"`
+	UpdatedAt    time.Time               `json:"updated_at"`
+	SubQuestions []AdminQuestionResponse `json:"sub_questions,omitempty"`
+}
+
 // ToQuestionProjectResponse 转换为项目响应
 func ToQuestionProjectResponse(project *models.QuestionProject, questionCount int64, userCount, usageCount int64) QuestionProjectResponse {
 	return QuestionProjectResponse{

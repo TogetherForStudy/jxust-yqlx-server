@@ -13,7 +13,12 @@ INSERT IGNORE INTO `permissions` (`permission_tag`, `name`, `description`, `crea
 ('user.get', '用户资料查看', '', NOW(), NOW()),
 ('user.update', '用户资料修改', '', NOW(), NOW()),
 ('review.create', '发布点评', '', NOW(), NOW()),
-('coursetable.get', '查看课表', '', NOW(), NOW());
+('coursetable.get', '查看课表', '', NOW(), NOW()),
+('coursetable.manage', '课表管理', '', NOW(), NOW()),
+('failrate.manage', '挂科率管理', '', NOW(), NOW()),
+('statistic.manage', '后台统计管理', '', NOW(), NOW()),
+('question.project.manage', '题库项目管理', '', NOW(), NOW()),
+('question.manage', '题目管理', '', NOW(), NOW());
 
 -- 绑定基础用户权限
 INSERT IGNORE INTO `role_permissions` (`role_id`, `permission_id`, `created_at`, `updated_at`)

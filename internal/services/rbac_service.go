@@ -65,10 +65,12 @@ func (s *RBACService) SeedDefaults(ctx context.Context) error {
 		{PermissionTag: constant.PermissionCourseTableClassUpdateAll, Name: "管理员更新班级", Description: ""},
 		{PermissionTag: constant.PermissionCourseTableUpdate, Name: "更新个人课表", Description: ""},
 		{PermissionTag: constant.PermissionFailRate, Name: "挂科率查询", Description: ""},
+		{PermissionTag: constant.PermissionFailRateManage, Name: "挂科率管理", Description: ""},
 		{PermissionTag: constant.PermissionPointGet, Name: "积分查看", Description: ""},
 		{PermissionTag: constant.PermissionPointSpend, Name: "积分消费", Description: ""},
 		{PermissionTag: constant.PermissionPointManage, Name: "积分管理", Description: ""},
 		{PermissionTag: constant.PermissionStatisticGet, Name: "统计查看", Description: ""},
+		{PermissionTag: constant.PermissionStatisticManage, Name: "后台统计管理", Description: ""},
 		{PermissionTag: constant.PermissionContributionGet, Name: "投稿查看", Description: ""},
 		{PermissionTag: constant.PermissionContributionCreate, Name: "投稿创建", Description: ""},
 		{PermissionTag: constant.PermissionCountdown, Name: "倒数日", Description: ""},
@@ -77,7 +79,9 @@ func (s *RBACService) SeedDefaults(ctx context.Context) error {
 		{PermissionTag: constant.PermissionMaterialRate, Name: "资料评分", Description: ""},
 		{PermissionTag: constant.PermissionMaterialDownload, Name: "资料下载", Description: ""},
 		{PermissionTag: constant.PermissionMaterialCategoryGet, Name: "资料分类查看", Description: ""},
+		{PermissionTag: constant.PermissionQuestionProjectManage, Name: "题库项目管理", Description: ""},
 		{PermissionTag: constant.PermissionQuestion, Name: "刷题访问", Description: ""},
+		{PermissionTag: constant.PermissionQuestionManage, Name: "题目管理", Description: ""},
 		{PermissionTag: constant.PermissionPomodoro, Name: "番茄钟", Description: ""},
 		{PermissionTag: constant.PermissionDictionary, Name: "每日一词", Description: ""},
 		{PermissionTag: constant.PermissionChatStudy, Name: "学习对话", Description: ""},
@@ -478,12 +482,7 @@ func (s *RBACService) GetUserPermissionSnapshot(ctx context.Context, userID uint
 	}
 
 	var roleTags []string
-	if err := s.db.WithContext(ctx).
-		Table("roles").
-		Select("roles.role_tag").
-		Joins("JOIN user_roles ur ON ur.role_id = roles.id").
-		Where("ur.user_id = ?", userID).
-		Find(&roleTags).Error; err != nil {
+	if err := userRoleTagsQuery(s.db.WithContext(ctx), userID).Find(&roleTags).Error; err != nil {
 		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
@@ -496,13 +495,7 @@ func (s *RBACService) GetUserPermissionSnapshot(ctx context.Context, userID uint
 	}
 
 	var permissionTags []string
-	if err := s.db.WithContext(ctx).
-		Table("permissions").
-		Select("DISTINCT permissions.permission_tag").
-		Joins("JOIN role_permissions rp ON rp.permission_id = permissions.id").
-		Joins("JOIN user_roles ur ON ur.role_id = rp.role_id").
-		Where("ur.user_id = ?", userID).
-		Find(&permissionTags).Error; err != nil {
+	if err := userPermissionTagsQuery(s.db.WithContext(ctx), userID).Find(&permissionTags).Error; err != nil {
 		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
@@ -573,13 +566,7 @@ func (s *RBACService) GetUsersByRoleTags(ctx context.Context, roleTags []string)
 	}
 
 	var users []models.User
-	err := s.db.WithContext(ctx).
-		Table("users").
-		Select("DISTINCT users.*").
-		Joins("JOIN user_roles ur ON ur.user_id = users.id").
-		Joins("JOIN roles r ON r.id = ur.role_id").
-		Where("r.role_tag IN ?", roleTags).
-		Find(&users).Error
+	err := usersByRoleTagsQuery(s.db.WithContext(ctx), roleTags).Find(&users).Error
 
 	if err != nil {
 		return nil, apperr.Wrap(constant.CommonInternal, err)

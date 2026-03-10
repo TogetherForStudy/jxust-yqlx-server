@@ -143,6 +143,7 @@ func (s *QuestionService) GetQuestions(ctx context.Context, userID uint, req *re
 	if err := s.updateProjectUsage(ctx, userID, req.ProjectID); err != nil {
 		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("更新项目使用记录失败: %w", err))
 	}
+	s.markProjectOnline(ctx, req.ProjectID, userID)
 
 	// 获取项目下所有启用的主题目/独立题（parent_id 为 null）的ID
 	var questionIDs []uint
@@ -229,6 +230,7 @@ func (s *QuestionService) GetQuestionByID(ctx context.Context, userID, questionI
 	if !question.IsActive {
 		return nil, apperr.New(constant.QuestionDisabled)
 	}
+	s.markProjectOnline(ctx, question.ProjectID, userID)
 
 	// 获取用户使用记录
 	var usage models.UserQuestionUsage
@@ -289,13 +291,7 @@ func (s *QuestionService) RecordStudy(ctx context.Context, userID uint, req *req
 		_, _ = cache.GlobalCache.Incr(ctx, usageKey)
 	}
 
-	// 更新项目在线人数统计（每个用户独立TTL 1分钟）
-	if cache.GlobalCache != nil {
-		userIDStr := strconv.FormatUint(uint64(userID), 10)
-		projectOnlineKey := fmt.Sprintf("online:project:%d", question.ProjectID)
-		onlineNow := float64(time.Now().Unix())
-		_ = cache.GlobalCache.ZAdd(ctx, projectOnlineKey, onlineNow, userIDStr)
-	}
+	s.markProjectOnline(ctx, question.ProjectID, userID)
 
 	return nil
 }
@@ -328,13 +324,7 @@ func (s *QuestionService) SubmitPractice(ctx context.Context, userID uint, req *
 		_, _ = cache.GlobalCache.Incr(ctx, usageKey)
 	}
 
-	// 更新项目在线人数统计（每个用户独立TTL 1分钟）
-	if cache.GlobalCache != nil {
-		userIDStr := strconv.FormatUint(uint64(userID), 10)
-		projectOnlineKey := fmt.Sprintf("online:project:%d", question.ProjectID)
-		onlineNow := float64(time.Now().Unix())
-		_ = cache.GlobalCache.ZAdd(ctx, projectOnlineKey, onlineNow, userIDStr)
-	}
+	s.markProjectOnline(ctx, question.ProjectID, userID)
 
 	return nil
 }
@@ -365,4 +355,15 @@ func (s *QuestionService) updateProjectUsage(ctx context.Context, userID, projec
 	}
 
 	return nil
+}
+
+func (s *QuestionService) markProjectOnline(ctx context.Context, projectID, userID uint) {
+	if cache.GlobalCache == nil || projectID == 0 || userID == 0 {
+		return
+	}
+
+	userIDStr := strconv.FormatUint(uint64(userID), 10)
+	projectOnlineKey := fmt.Sprintf("online:project:%d", projectID)
+	onlineNow := float64(time.Now().Unix())
+	_ = cache.GlobalCache.ZAdd(ctx, projectOnlineKey, onlineNow, userIDStr)
 }

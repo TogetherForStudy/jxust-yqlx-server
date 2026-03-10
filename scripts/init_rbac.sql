@@ -29,9 +29,11 @@ INSERT INTO `permissions` (`permission_tag`, `name`, `description`, `created_at`
 ('coursetable.class.update.all', '管理员更新班级', '', NOW(), NOW()),
 ('coursetable.update', '更新个人课表', '', NOW(), NOW()),
 ('failrate', '挂科率查询', '', NOW(), NOW()),
+('failrate.manage', '挂科率管理', '', NOW(), NOW()),
 ('point.get', '积分查看', '', NOW(), NOW()),
 ('point.spend', '积分消费', '', NOW(), NOW()),
 ('statistic.get', '统计查看', '', NOW(), NOW()),
+('statistic.manage', '后台统计管理', '', NOW(), NOW()),
 ('contribution.get', '投稿查看', '', NOW(), NOW()),
 ('contribution.create', '投稿创建', '', NOW(), NOW()),
 ('countdown', '倒数日', '', NOW(), NOW()),
@@ -40,7 +42,9 @@ INSERT INTO `permissions` (`permission_tag`, `name`, `description`, `created_at`
 ('material.rate', '资料评分', '', NOW(), NOW()),
 ('material.download', '资料下载', '', NOW(), NOW()),
 ('material.category.get', '资料分类查看', '', NOW(), NOW()),
+('question.project.manage', '题库项目管理', '', NOW(), NOW()),
 ('question', '刷题访问', '', NOW(), NOW()),
+('question.manage', '题目管理', '', NOW(), NOW()),
 ('notification.get', '通知后台查看', '', NOW(), NOW()),
 
 -- 管理权限

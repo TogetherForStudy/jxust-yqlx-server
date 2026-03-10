@@ -5,15 +5,20 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
+	"gorm.io/gorm"
 )
 
-type StatService struct{}
+type StatService struct {
+	db *gorm.DB
+}
 
-func NewStatService() *StatService {
-	return &StatService{}
+func NewStatService(db *gorm.DB) *StatService {
+	return &StatService{db: db}
 }
 
 // GetSystemOnlineCount 获取系统在线人数
@@ -68,4 +73,42 @@ func (s *StatService) GetProjectOnlineCount(ctx context.Context, projectID uint,
 	}
 
 	return count, nil
+}
+
+func (s *StatService) GetCountdownCountsByUser(ctx context.Context, page, pageSize int) ([]response.AdminUserCountStatResponse, int64, error) {
+	return s.getUserCountStats(ctx, "countdowns", page, pageSize)
+}
+
+func (s *StatService) GetStudyTaskCountsByUser(ctx context.Context, page, pageSize int) ([]response.AdminUserCountStatResponse, int64, error) {
+	return s.getUserCountStats(ctx, "study_tasks", page, pageSize)
+}
+
+func (s *StatService) GetGPABackupCountsByUser(ctx context.Context, page, pageSize int) ([]response.AdminUserCountStatResponse, int64, error) {
+	return s.getUserCountStats(ctx, "gpa_backups", page, pageSize)
+}
+
+func (s *StatService) getUserCountStats(ctx context.Context, tableName string, page, pageSize int) ([]response.AdminUserCountStatResponse, int64, error) {
+	if s.db == nil {
+		return nil, 0, apperr.New(constant.StatServiceUnavailable)
+	}
+
+	var total int64
+	groupedQuery := s.db.WithContext(ctx).Table(tableName).Select("user_id").Group("user_id")
+	if err := s.db.WithContext(ctx).Table("(?) AS grouped", groupedQuery).Count(&total).Error; err != nil {
+		return nil, 0, apperr.Wrap(constant.CommonInternal, fmt.Errorf("统计 %s 用户分组总数失败: %w", tableName, err))
+	}
+
+	pagination := utils.GetPagination(page, pageSize)
+	var result []response.AdminUserCountStatResponse
+	if err := s.db.WithContext(ctx).Table(tableName).
+		Select("user_id, COUNT(*) AS count").
+		Group("user_id").
+		Order("count DESC, user_id ASC").
+		Offset(pagination.Offset).
+		Limit(pagination.Size).
+		Scan(&result).Error; err != nil {
+		return nil, 0, apperr.Wrap(constant.CommonInternal, fmt.Errorf("统计 %s 用户分组失败: %w", tableName, err))
+	}
+
+	return result, total, nil
 }

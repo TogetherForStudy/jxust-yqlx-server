@@ -1072,14 +1072,7 @@ func (s *AuthService) findAdminUserByPhone(ctx context.Context, phone string) (*
 	}
 
 	var userIDs []uint
-	if err := s.db.WithContext(ctx).
-		Table("users").
-		Distinct("users.id").
-		Joins("JOIN user_roles ur ON ur.user_id = users.id").
-		Joins("JOIN roles ON roles.id = ur.role_id").
-		Where("users.phone = ?", phone).
-		Where("roles.role_tag IN ?", backofficeRoleTags).
-		Pluck("users.id", &userIDs).Error; err != nil {
+	if err := backofficeUsersByPhoneQuery(s.db.WithContext(ctx), phone).Pluck("users.id", &userIDs).Error; err != nil {
 		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("按手机号查询后台用户失败: %w", err))
 	}
 
@@ -1103,13 +1096,7 @@ func (s *AuthService) ensureAdminPhoneAvailable(ctx context.Context, phone strin
 	}
 
 	var userIDs []uint
-	query := s.db.WithContext(ctx).
-		Table("users").
-		Distinct("users.id").
-		Joins("JOIN user_roles ur ON ur.user_id = users.id").
-		Joins("JOIN roles ON roles.id = ur.role_id").
-		Where("users.phone = ?", phone).
-		Where("roles.role_tag IN ?", backofficeRoleTags)
+	query := backofficeUsersByPhoneQuery(s.db.WithContext(ctx), phone)
 	if excludeUserID != 0 {
 		query = query.Where("users.id <> ?", excludeUserID)
 	}

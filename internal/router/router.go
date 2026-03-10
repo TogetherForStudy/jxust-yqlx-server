@@ -62,8 +62,9 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	featureService := services.NewFeatureService(db)
 	materialService := services.NewMaterialService(db)
 	questionService := services.NewQuestionService(db)
+	gpaBackupService := services.NewGPABackupService(db)
 	pomodoroService := services.NewPomodoroService(db)
-	statService := services.NewStatService()
+	statService := services.NewStatService(db)
 	dictionaryService := services.NewDictionaryService(db)
 	chatService := services.NewChatService(db, cfg)
 	userActivityService := services.NewUserActivityService(db, rbacService)
@@ -86,6 +87,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	featureHandler := handlers.NewFeatureHandler(featureService)
 	materialHandler := handlers.NewMaterialHandler(materialService)
 	questionHandler := handlers.NewQuestionHandler(questionService)
+	gpaBackupHandler := handlers.NewGPABackupHandler(gpaBackupService)
 	pomodoroHandler := handlers.NewPomodoroHandler(pomodoroService)
 	statHandler := handlers.NewStatHandler(statService)
 	dictionaryHandler := handlers.NewDictionaryHandler(dictionaryService)
@@ -173,6 +175,14 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				user.GET("/features", middleware.RequirePermission(rbacService, constant.PermissionUserGet), featureHandler.GetUserFeatures)     // 获取用户功能列表
 				user.GET("/login-days", middleware.RequirePermission(rbacService, constant.PermissionUserGet), userActivityHandler.GetLoginDays) // 获取过去100天登录天数
 			}
+
+			gpa := authorized.Group("/gpa")
+			{
+				gpa.GET("/backup", middleware.RequirePermission(rbacService, constant.PermissionUserGet), gpaBackupHandler.ListBackups)
+				gpa.GET("/backup/:id", middleware.RequirePermission(rbacService, constant.PermissionUserGet), gpaBackupHandler.GetBackupByID)
+				gpa.POST("/backup", middleware.RequirePermission(rbacService, constant.PermissionUserUpdate), middleware.IdempotencyRecommended(ca), gpaBackupHandler.CreateBackup)
+				gpa.DELETE("/backup/:id", middleware.RequirePermission(rbacService, constant.PermissionUserUpdate), gpaBackupHandler.DeleteBackup)
+			}
 			// OSS/CDN Token （需认证）
 			oss := authorized.Group("/oss")
 			{
@@ -209,7 +219,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				adminCourseTable := courseTable.Group("")
 				adminCourseTable.Use(middleware.RequirePermission(rbacService, constant.PermissionCourseTableManage))
 				{
-					adminCourseTable.POST("/reset/:id", courseTableHandler.ResetUserBindCountToOne)
+					adminCourseTable.POST("/reset/:id", courseTableHandler.ResetUserBindCount)
 				}
 			}
 
@@ -391,6 +401,54 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			dictionary := authorized.Group("/dictionary")
 			{
 				dictionary.GET("/word", middleware.RequirePermission(rbacService, constant.PermissionDictionary), dictionaryHandler.GetRandomWord)
+			}
+
+			adminCourseTables := authorized.Group("/admin/coursetables")
+			adminCourseTables.Use(middleware.RequirePermission(rbacService, constant.PermissionCourseTableManage))
+			{
+				adminCourseTables.GET("", courseTableHandler.AdminListCourseTables)
+				adminCourseTables.GET("/:id", courseTableHandler.AdminGetCourseTableByID)
+				adminCourseTables.POST("", middleware.IdempotencyRecommended(ca), courseTableHandler.AdminCreateCourseTable)
+				adminCourseTables.PUT("/:id", courseTableHandler.AdminUpdateCourseTable)
+				adminCourseTables.DELETE("/:id", courseTableHandler.AdminDeleteCourseTable)
+			}
+
+			adminQuestionProjects := authorized.Group("/admin/questions/projects")
+			adminQuestionProjects.Use(middleware.RequirePermission(rbacService, constant.PermissionQuestionProjectManage))
+			{
+				adminQuestionProjects.GET("", questionHandler.AdminListQuestionProjects)
+				adminQuestionProjects.GET("/:id", questionHandler.AdminGetQuestionProjectByID)
+				adminQuestionProjects.POST("", middleware.IdempotencyRecommended(ca), questionHandler.AdminCreateQuestionProject)
+				adminQuestionProjects.PUT("/:id", questionHandler.AdminUpdateQuestionProject)
+				adminQuestionProjects.DELETE("/:id", questionHandler.AdminDeleteQuestionProject)
+			}
+
+			adminQuestions := authorized.Group("/admin/questions")
+			adminQuestions.Use(middleware.RequirePermission(rbacService, constant.PermissionQuestionManage))
+			{
+				adminQuestions.GET("", questionHandler.AdminListQuestions)
+				adminQuestions.GET("/:id", questionHandler.AdminGetQuestionByID)
+				adminQuestions.POST("", middleware.IdempotencyRecommended(ca), questionHandler.AdminCreateQuestion)
+				adminQuestions.PUT("/:id", questionHandler.AdminUpdateQuestion)
+				adminQuestions.DELETE("/:id", questionHandler.AdminDeleteQuestion)
+			}
+
+			adminFailRates := authorized.Group("/admin/failrates")
+			adminFailRates.Use(middleware.RequirePermission(rbacService, constant.PermissionFailRateManage))
+			{
+				adminFailRates.GET("", failRateHandler.AdminListFailRates)
+				adminFailRates.GET("/:id", failRateHandler.AdminGetFailRateByID)
+				adminFailRates.POST("", middleware.IdempotencyRecommended(ca), failRateHandler.AdminCreateFailRate)
+				adminFailRates.PUT("/:id", failRateHandler.AdminUpdateFailRate)
+				adminFailRates.DELETE("/:id", failRateHandler.AdminDeleteFailRate)
+			}
+
+			adminStats := authorized.Group("/admin/stats")
+			adminStats.Use(middleware.RequirePermission(rbacService, constant.PermissionStatisticManage))
+			{
+				adminStats.GET("/countdowns/by-user", statHandler.GetCountdownCountsByUser)
+				adminStats.GET("/studytasks/by-user", statHandler.GetStudyTaskCountsByUser)
+				adminStats.GET("/gpa-backups/by-user", statHandler.GetGPABackupCountsByUser)
 			}
 
 			// 通知管理（管理员）

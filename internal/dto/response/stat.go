@@ -10,3 +10,8 @@ type ProjectOnlineStatResponse struct {
 	ProjectID   uint  `json:"project_id"`   // 项目ID
 	OnlineCount int64 `json:"online_count"` // 在线人数
 }
+
+type AdminUserCountStatResponse struct {
+	UserID uint  `json:"user_id"`
+	Count  int64 `json:"count"`
+}
