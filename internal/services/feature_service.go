@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 
@@ -82,7 +83,7 @@ func (s *FeatureService) GetUserFeatures(ctx context.Context, userID uint) ([]st
 		Pluck("feature_key", &features).Error
 
 	if err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 5. 缓存结果
@@ -117,7 +118,7 @@ func (s *FeatureService) isFeatureEnabled(ctx context.Context, featureKey string
 		if err == gorm.ErrRecordNotFound {
 			return false, nil
 		}
-		return false, err
+		return false, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 3. 缓存结果
@@ -141,9 +142,9 @@ func (s *FeatureService) GrantFeatureToUser(ctx context.Context, userID, granted
 	err := s.db.WithContext(ctx).Where("feature_key = ?", featureKey).First(&feature).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return fmt.Errorf("功能不存在")
+			return apperr.New(constant.FeatureNotFound)
 		}
-		return err
+		return apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 2. 检查用户是否存在
@@ -151,9 +152,9 @@ func (s *FeatureService) GrantFeatureToUser(ctx context.Context, userID, granted
 	err = s.db.WithContext(ctx).Where("id = ?", userID).First(&user).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return fmt.Errorf("用户不存在")
+			return apperr.New(constant.CommonUserNotFound)
 		}
-		return err
+		return apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 3. 创建或更新白名单记录
@@ -171,7 +172,7 @@ func (s *FeatureService) GrantFeatureToUser(ctx context.Context, userID, granted
 		FirstOrCreate(&whitelist).Error
 
 	if err != nil {
-		return err
+		return apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 4. 清除用户功能缓存
@@ -191,9 +192,9 @@ func (s *FeatureService) BatchGrantFeatureToUsers(ctx context.Context, userIDs [
 	err := s.db.WithContext(ctx).Where("feature_key = ?", featureKey).First(&feature).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return fmt.Errorf("功能不存在")
+			return apperr.New(constant.FeatureNotFound)
 		}
-		return err
+		return apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 2. 批量授予权限
@@ -215,7 +216,7 @@ func (s *FeatureService) RevokeFeatureFromUser(ctx context.Context, userID uint,
 		Delete(&models.UserFeatureWhitelist{}).Error
 
 	if err != nil {
-		return err
+		return apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 清除用户功能缓存
@@ -228,7 +229,11 @@ func (s *FeatureService) RevokeFeatureFromUser(ctx context.Context, userID uint,
 func (s *FeatureService) ListFeatures(ctx context.Context) ([]models.Feature, error) {
 	var features []models.Feature
 	err := s.db.WithContext(ctx).Order("created_at DESC").Find(&features).Error
-	return features, err
+	if err != nil {
+		return nil, apperr.Wrap(constant.CommonInternal, err)
+	}
+
+	return features, nil
 }
 
 // GetFeature 获取功能详情
@@ -236,7 +241,10 @@ func (s *FeatureService) GetFeature(ctx context.Context, featureKey string) (*mo
 	var feature models.Feature
 	err := s.db.WithContext(ctx).Where("feature_key = ?", featureKey).First(&feature).Error
 	if err != nil {
-		return nil, err
+		if err == gorm.ErrRecordNotFound {
+			return nil, apperr.New(constant.FeatureNotFound)
+		}
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	return &feature, nil
 }
@@ -247,15 +255,15 @@ func (s *FeatureService) CreateFeature(ctx context.Context, feature *models.Feat
 	var existing models.Feature
 	err := s.db.WithContext(ctx).Where("feature_key = ?", feature.FeatureKey).First(&existing).Error
 	if err == nil {
-		return fmt.Errorf("功能标识已存在")
+		return apperr.New(constant.FeatureIdentifierExists)
 	}
 	if err != gorm.ErrRecordNotFound {
-		return err
+		return apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	err = s.db.WithContext(ctx).Create(feature).Error
 	if err != nil {
-		return err
+		return apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 清除功能缓存
@@ -266,13 +274,25 @@ func (s *FeatureService) CreateFeature(ctx context.Context, feature *models.Feat
 
 // UpdateFeature 更新功能
 func (s *FeatureService) UpdateFeature(ctx context.Context, featureKey string, updates map[string]interface{}) error {
-	err := s.db.WithContext(ctx).
+	result := s.db.WithContext(ctx).
 		Model(&models.Feature{}).
 		Where("feature_key = ?", featureKey).
-		Updates(updates).Error
+		Updates(updates)
 
-	if err != nil {
-		return err
+	if result.Error != nil {
+		return apperr.Wrap(constant.CommonInternal, result.Error)
+	}
+	if result.RowsAffected == 0 {
+		var count int64
+		if err := s.db.WithContext(ctx).
+			Model(&models.Feature{}).
+			Where("feature_key = ?", featureKey).
+			Count(&count).Error; err != nil {
+			return apperr.Wrap(constant.CommonInternal, err)
+		}
+		if count == 0 {
+			return apperr.New(constant.FeatureNotFound)
+		}
 	}
 
 	// 清除功能缓存
@@ -283,12 +303,15 @@ func (s *FeatureService) UpdateFeature(ctx context.Context, featureKey string, u
 
 // DeleteFeature 删除功能（软删除）
 func (s *FeatureService) DeleteFeature(ctx context.Context, featureKey string) error {
-	err := s.db.WithContext(ctx).
+	result := s.db.WithContext(ctx).
 		Where("feature_key = ?", featureKey).
-		Delete(&models.Feature{}).Error
+		Delete(&models.Feature{})
 
-	if err != nil {
-		return err
+	if result.Error != nil {
+		return apperr.Wrap(constant.CommonInternal, result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return apperr.New(constant.FeatureNotFound)
 	}
 
 	// 清除相关缓存
@@ -310,7 +333,7 @@ func (s *FeatureService) ListWhitelist(ctx context.Context, featureKey string, p
 	// 获取总数
 	err := query.Model(&models.UserFeatureWhitelist{}).Count(&total).Error
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 分页查询
@@ -321,7 +344,11 @@ func (s *FeatureService) ListWhitelist(ctx context.Context, featureKey string, p
 		Offset(offset).
 		Find(&whitelists).Error
 
-	return whitelists, total, err
+	if err != nil {
+		return nil, 0, apperr.Wrap(constant.CommonInternal, err)
+	}
+
+	return whitelists, total, nil
 }
 
 // GetUserFeatureDetails 获取用户的功能权限详情（管理员查看）
@@ -331,7 +358,10 @@ func (s *FeatureService) GetUserFeatureDetails(ctx context.Context, userID uint)
 		Where("user_id = ?", userID).
 		Order("created_at DESC").
 		Find(&whitelists).Error
-	return whitelists, err
+	if err != nil {
+		return nil, apperr.Wrap(constant.CommonInternal, err)
+	}
+	return whitelists, nil
 }
 
 // clearUserFeaturesCache 清除用户功能缓存

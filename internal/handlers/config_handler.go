@@ -1,12 +1,11 @@
 package handlers
 
 import (
-	"net/http"
-
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 
 	"github.com/gin-gonic/gin"
 )
@@ -24,7 +23,7 @@ func (h *ConfigHandler) GetByKey(c *gin.Context) {
 	key := c.Param("key")
 	m, err := h.service.GetByKey(c, key)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 	resp := response.ConfigResponse{
@@ -39,12 +38,12 @@ func (h *ConfigHandler) GetByKey(c *gin.Context) {
 func (h *ConfigHandler) Create(c *gin.Context) {
 	var req request.CreateConfigRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 	m, err := h.service.Create(c, req.Key, req.Value, req.ValueType, req.Description)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 	helper.SuccessResponse(c, m)
@@ -55,11 +54,11 @@ func (h *ConfigHandler) Update(c *gin.Context) {
 	key := c.Param("key")
 	var req request.UpdateConfigRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 	if err := h.service.Update(c, key, req.Value, req.ValueType, req.Description); err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 	helper.SuccessResponse(c, "更新成功")
@@ -69,7 +68,7 @@ func (h *ConfigHandler) Update(c *gin.Context) {
 func (h *ConfigHandler) Delete(c *gin.Context) {
 	key := c.Param("key")
 	if err := h.service.Delete(c, key); err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 	helper.SuccessResponse(c, "删除成功")
@@ -79,7 +78,7 @@ func (h *ConfigHandler) Delete(c *gin.Context) {
 func (h *ConfigHandler) SearchConfigs(c *gin.Context) {
 	var req request.SearchConfigRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
@@ -93,7 +92,7 @@ func (h *ConfigHandler) SearchConfigs(c *gin.Context) {
 
 	items, total, err := h.service.SearchConfigs(c, req.Query, req.Page, req.Size)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, "搜索失败")
+		helper.HandleError(c, err)
 		return
 	}
 	helper.PageSuccessResponse(c, items, total, req.Page, req.Size)

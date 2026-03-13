@@ -2,12 +2,13 @@ package services
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
 	"gorm.io/gorm"
@@ -31,7 +32,7 @@ func (s *StudyTaskService) CreateStudyTask(ctx context.Context, userID uint, req
 	if req.DueDate != "" {
 		parsedTime, err := utils.ParseDateTime(req.DueDate)
 		if err != nil {
-			return nil, errors.New("截止时间格式错误")
+			return nil, apperr.New(constant.StudyTaskDeadlineInvalid)
 		}
 		dueDate = parsedTime
 	}
@@ -47,7 +48,7 @@ func (s *StudyTaskService) CreateStudyTask(ctx context.Context, userID uint, req
 	}
 
 	if err := s.db.WithContext(ctx).Create(&task).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	return &response.StudyTaskResponse{
@@ -90,7 +91,7 @@ func (s *StudyTaskService) GetStudyTasks(ctx context.Context, userID uint, req *
 
 	// 获取总数
 	if err := query.Count(&total).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 分页查询：优先级（高→低）、截止日期（近→远）、更新时间（近→远）
@@ -99,7 +100,7 @@ func (s *StudyTaskService) GetStudyTasks(ctx context.Context, userID uint, req *
 		Offset(offset).
 		Limit(req.Size).
 		Find(&tasks).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 转换为响应格式
@@ -132,9 +133,9 @@ func (s *StudyTaskService) GetStudyTaskByID(ctx context.Context, taskID uint, us
 	var task models.StudyTask
 	if err := s.db.WithContext(ctx).Where("id = ? AND user_id = ?", taskID, userID).First(&task).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, errors.New("学习任务不存在或无权限访问")
+			return nil, apperr.New(constant.StudyTaskNotAccessible)
 		}
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	return &response.StudyTaskResponse{
@@ -157,9 +158,9 @@ func (s *StudyTaskService) UpdateStudyTask(ctx context.Context, taskID uint, use
 	var task models.StudyTask
 	if err := s.db.WithContext(ctx).Where("id = ? AND user_id = ?", taskID, userID).First(&task).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, errors.New("学习任务不存在或无权限访问")
+			return nil, apperr.New(constant.StudyTaskNotAccessible)
 		}
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 更新字段
@@ -174,7 +175,7 @@ func (s *StudyTaskService) UpdateStudyTask(ctx context.Context, taskID uint, use
 	if req.DueDate != nil && *req.DueDate != "" {
 		dueDate, err := utils.ParseDateTime(*req.DueDate)
 		if err != nil {
-			return nil, errors.New("截止日期格式错误")
+			return nil, apperr.New(constant.StudyTaskDateInvalid)
 		}
 		updates["due_date"] = dueDate
 	}
@@ -194,7 +195,7 @@ func (s *StudyTaskService) UpdateStudyTask(ctx context.Context, taskID uint, use
 
 	if len(updates) > 0 {
 		if err := s.db.WithContext(ctx).Model(&task).Updates(updates).Error; err != nil {
-			return nil, err
+			return nil, apperr.Wrap(constant.CommonInternal, err)
 		}
 	}
 
@@ -207,13 +208,16 @@ func (s *StudyTaskService) DeleteStudyTask(ctx context.Context, taskID uint, use
 	var task models.StudyTask
 	if err := s.db.WithContext(ctx).Where("id = ? AND user_id = ?", taskID, userID).First(&task).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return errors.New("学习任务不存在或无权限访问")
+			return apperr.New(constant.StudyTaskNotAccessible)
 		}
-		return err
+		return apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 软删除
-	return s.db.WithContext(ctx).Delete(&task).Error
+	if err := s.db.WithContext(ctx).Delete(&task).Error; err != nil {
+		return apperr.Wrap(constant.CommonInternal, err)
+	}
+	return nil
 }
 
 // GetStudyTaskStats 获取用户学习任务统计
@@ -223,7 +227,7 @@ func (s *StudyTaskService) GetStudyTaskStats(ctx context.Context, userID uint) (
 	// 总任务数
 	var totalCount int64
 	if err := s.db.WithContext(ctx).Model(&models.StudyTask{}).Where("user_id = ?", userID).Count(&totalCount).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	stats.TotalCount = int(totalCount)
 
@@ -232,7 +236,7 @@ func (s *StudyTaskService) GetStudyTaskStats(ctx context.Context, userID uint) (
 	if err := s.db.WithContext(ctx).Model(&models.StudyTask{}).
 		Where("user_id = ? AND status = ?", userID, models.StudyTaskStatusPending).
 		Count(&pendingCount).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	stats.PendingCount = int(pendingCount)
 
@@ -241,7 +245,7 @@ func (s *StudyTaskService) GetStudyTaskStats(ctx context.Context, userID uint) (
 	if err := s.db.WithContext(ctx).Model(&models.StudyTask{}).
 		Where("user_id = ? AND status = ?", userID, models.StudyTaskStatusCompleted).
 		Count(&completedCount).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	stats.CompletedCount = int(completedCount)
 
@@ -259,7 +263,7 @@ func (s *StudyTaskService) GetCompletedTasks(ctx context.Context, userID uint, p
 
 	// 获取总数
 	if err := query.Count(&total).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 分页查询
@@ -268,7 +272,7 @@ func (s *StudyTaskService) GetCompletedTasks(ctx context.Context, userID uint, p
 		Offset(offset).
 		Limit(size).
 		Find(&tasks).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 转换为响应格式

@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"gorm.io/gorm"
 )
 
@@ -23,7 +25,7 @@ func (s *DictionaryService) GetRandomWord(ctx context.Context) (*models.Dictiona
 	// 如果数据量巨大，可以考虑使用更高效的随机算法，但对于词典表，RAND() 通常足够
 	err := s.db.WithContext(ctx).Model(&models.Dictionary{}).Order("RAND()").First(&word).Error
 	if err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.DictionaryRandomWordFailed, err)
 	}
 
 	return &word, nil

@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/gin-gonic/gin"
 )
 
@@ -47,7 +48,7 @@ func IsAdmin(ctx context.Context) bool {
 		}
 	}
 	// 如果没有显式设置，检查是否包含 admin 角色
-	return HasUserRole(ctx, "admin")
+	return HasUserRole(ctx, constant.RoleTagAdmin)
 }
 
 // GetUserPermissions 从 context 中获取用户权限信息

@@ -60,6 +60,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.Hero{},
 		&models.SystemConfig{},
 		&models.BindRecord{},
+		&models.GPABackup{},
 		&models.S3Resource{},
 		&models.S3Data{},
 		&models.StudyTask{},
@@ -80,6 +81,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.UserProjectUsage{},
 		&models.UserQuestionUsage{},
 		&models.UserActivity{},
+		&models.Dictionary{},
 		&models.Conversation{},
 	)
 }

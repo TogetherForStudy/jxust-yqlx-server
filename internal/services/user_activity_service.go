@@ -2,9 +2,12 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 
 	"gorm.io/gorm"
@@ -20,6 +23,20 @@ func NewUserActivityService(db *gorm.DB, rbacService *RBACService) *UserActivity
 		db:          db,
 		rbacService: rbacService,
 	}
+}
+
+// GetUserLoginDays 获取用户在过去指定天数内的登录天数
+func (s *UserActivityService) GetUserLoginDays(ctx context.Context, userID uint, pastDays int) (int64, error) {
+	cutoff := time.Now().AddDate(0, 0, -pastDays)
+
+	var count int64
+	if err := s.db.WithContext(ctx).
+		Model(&models.UserActivity{}).
+		Where("user_id = ? AND date >= ?", userID, cutoff.Format("2006-01-02")).
+		Count(&count).Error; err != nil {
+		return 0, apperr.Wrap(constant.UserActivityQueryFailed, err)
+	}
+	return count, nil
 }
 
 // UpdateActiveUserRoles 更新活跃用户角色
@@ -50,7 +67,7 @@ func (s *UserActivityService) UpdateActiveUserRoles(ctx context.Context) error {
 		Scan(&activeUsers).Error
 
 	if err != nil {
-		return err
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("统计活跃用户失败：%w", err))
 	}
 
 	logger.InfoCtx(ctx, map[string]any{
@@ -62,7 +79,7 @@ func (s *UserActivityService) UpdateActiveUserRoles(ctx context.Context) error {
 	// 获取活跃角色ID
 	var activeRole models.Role
 	if err := s.db.WithContext(ctx).
-		Where("role_tag = ?", models.RoleTagUserActive).
+		Where("role_tag = ?", constant.RoleTagUserActive).
 		First(&activeRole).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			logger.WarnCtx(ctx, map[string]any{
@@ -71,7 +88,7 @@ func (s *UserActivityService) UpdateActiveUserRoles(ctx context.Context) error {
 			})
 			return nil
 		}
-		return err
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询活跃角色失败：%w", err))
 	}
 
 	// 获取所有当前拥有活跃角色的用户
@@ -79,7 +96,7 @@ func (s *UserActivityService) UpdateActiveUserRoles(ctx context.Context) error {
 	if err := s.db.WithContext(ctx).
 		Where("role_id = ?", activeRole.ID).
 		Find(&currentActiveUsers).Error; err != nil {
-		return err
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询当前活跃角色用户失败：%w", err))
 	}
 
 	currentActiveUserMap := make(map[uint]bool)

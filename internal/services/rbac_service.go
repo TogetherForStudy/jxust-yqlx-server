@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 	json "github.com/bytedance/sonic"
 	"gorm.io/gorm"
@@ -44,100 +46,119 @@ func (s *RBACService) cacheKey(userID uint) string {
 // SeedDefaults 初始化设计文档中预置的角色/权限与绑定关系
 func (s *RBACService) SeedDefaults(ctx context.Context) error {
 	roleSeeds := []models.Role{
-		{RoleTag: models.RoleTagUserBasic, Name: "基本用户", Description: "默认角色"},
-		{RoleTag: models.RoleTagUserActive, Name: "活跃用户", Description: "活跃度达标解锁"},
-		{RoleTag: models.RoleTagUserVerified, Name: "认证用户", Description: "完成校内身份认证"},
-		{RoleTag: models.RoleTagOperator, Name: "运营", Description: "运营"},
-		{RoleTag: models.RoleTagAdmin, Name: "管理", Description: "管理"},
+		{RoleTag: constant.RoleTagUserBasic, Name: "基本用户", Description: "默认角色"},
+		{RoleTag: constant.RoleTagUserActive, Name: "活跃用户", Description: "活跃度达标解锁"},
+		{RoleTag: constant.RoleTagUserVerified, Name: "认证用户", Description: "完成校内身份认证"},
+		{RoleTag: constant.RoleTagOperator, Name: "运营", Description: "运营"},
+		{RoleTag: constant.RoleTagAdmin, Name: "管理", Description: "管理"},
 	}
 
 	permissionSeeds := []models.Permission{
-		{PermissionTag: models.PermissionUserGet, Name: "用户资料查看", Description: ""},
-		{PermissionTag: models.PermissionUserUpdate, Name: "用户资料修改", Description: ""},
-		{PermissionTag: models.PermissionOSSTokenGet, Name: "获取OSS Token", Description: ""},
-		{PermissionTag: models.PermissionReviewCreate, Name: "发布点评", Description: ""},
-		{PermissionTag: models.PermissionReviewGetSelf, Name: "查看本人点评", Description: ""},
-		{PermissionTag: models.PermissionCourseTableGet, Name: "查看课表", Description: ""},
-		{PermissionTag: models.PermissionCourseTableClassSearch, Name: "搜索班级", Description: ""},
-		{PermissionTag: models.PermissionCourseTableClassUpdate, Name: "更新本人班级", Description: ""},
-		{PermissionTag: models.PermissionCourseTableClassUpdateAll, Name: "管理员更新班级", Description: ""},
-		{PermissionTag: models.PermissionCourseTableUpdate, Name: "更新个人课表", Description: ""},
-		{PermissionTag: models.PermissionFailRate, Name: "挂科率查询", Description: ""},
-		{PermissionTag: models.PermissionPointGet, Name: "积分查看", Description: ""},
-		{PermissionTag: models.PermissionPointSpend, Name: "积分消费", Description: ""},
-		{PermissionTag: models.PermissionPointManage, Name: "积分管理", Description: ""},
-		{PermissionTag: models.PermissionContributionGet, Name: "投稿查看", Description: ""},
-		{PermissionTag: models.PermissionContributionCreate, Name: "投稿创建", Description: ""},
-		{PermissionTag: models.PermissionCountdown, Name: "倒数日", Description: ""},
-		{PermissionTag: models.PermissionStudyTask, Name: "学习任务", Description: ""},
-		{PermissionTag: models.PermissionMaterialGet, Name: "资料查看", Description: ""},
-		{PermissionTag: models.PermissionMaterialRate, Name: "资料评分", Description: ""},
-		{PermissionTag: models.PermissionMaterialDownload, Name: "资料下载", Description: ""},
-		{PermissionTag: models.PermissionMaterialCategoryGet, Name: "资料分类查看", Description: ""},
-		{PermissionTag: models.PermissionQuestion, Name: "刷题访问", Description: ""},
-		{PermissionTag: models.PermissionPomodoro, Name: "番茄钟", Description: ""},
-		{PermissionTag: models.PermissionDictionary, Name: "每日一词", Description: ""},
+		{PermissionTag: constant.PermissionUserGet, Name: "用户资料查看", Description: ""},
+		{PermissionTag: constant.PermissionUserUpdate, Name: "用户资料修改", Description: ""},
+		{PermissionTag: constant.PermissionOSSTokenGet, Name: "获取OSS Token", Description: ""},
+		{PermissionTag: constant.PermissionReviewCreate, Name: "发布点评", Description: ""},
+		{PermissionTag: constant.PermissionReviewGetSelf, Name: "查看本人点评", Description: ""},
+		{PermissionTag: constant.PermissionCourseTableGet, Name: "查看课表", Description: ""},
+		{PermissionTag: constant.PermissionCourseTableClassSearch, Name: "搜索班级", Description: ""},
+		{PermissionTag: constant.PermissionCourseTableClassUpdate, Name: "更新本人班级", Description: ""},
+		{PermissionTag: constant.PermissionCourseTableClassUpdateAll, Name: "管理员更新班级", Description: ""},
+		{PermissionTag: constant.PermissionCourseTableUpdate, Name: "更新个人课表", Description: ""},
+		{PermissionTag: constant.PermissionFailRate, Name: "挂科率查询", Description: ""},
+		{PermissionTag: constant.PermissionFailRateManage, Name: "挂科率管理", Description: ""},
+		{PermissionTag: constant.PermissionPointGet, Name: "积分查看", Description: ""},
+		{PermissionTag: constant.PermissionPointSpend, Name: "积分消费", Description: ""},
+		{PermissionTag: constant.PermissionPointManage, Name: "积分管理", Description: ""},
+		{PermissionTag: constant.PermissionStatisticGet, Name: "统计查看", Description: ""},
+		{PermissionTag: constant.PermissionStatisticManage, Name: "后台统计管理", Description: ""},
+		{PermissionTag: constant.PermissionContributionGet, Name: "投稿查看", Description: ""},
+		{PermissionTag: constant.PermissionContributionCreate, Name: "投稿创建", Description: ""},
+		{PermissionTag: constant.PermissionCountdown, Name: "倒数日", Description: ""},
+		{PermissionTag: constant.PermissionStudyTask, Name: "学习任务", Description: ""},
+		{PermissionTag: constant.PermissionMaterialGet, Name: "资料查看", Description: ""},
+		{PermissionTag: constant.PermissionMaterialRate, Name: "资料评分", Description: ""},
+		{PermissionTag: constant.PermissionMaterialDownload, Name: "资料下载", Description: ""},
+		{PermissionTag: constant.PermissionMaterialCategoryGet, Name: "资料分类查看", Description: ""},
+		{PermissionTag: constant.PermissionQuestionProjectManage, Name: "题库项目管理", Description: ""},
+		{PermissionTag: constant.PermissionQuestion, Name: "刷题访问", Description: ""},
+		{PermissionTag: constant.PermissionQuestionManage, Name: "题目管理", Description: ""},
+		{PermissionTag: constant.PermissionPomodoro, Name: "番茄钟", Description: ""},
+		{PermissionTag: constant.PermissionDictionary, Name: "每日一词", Description: ""},
+		{PermissionTag: constant.PermissionChatStudy, Name: "学习对话", Description: ""},
+		{PermissionTag: constant.PermissionNotificationGet, Name: "通知查看", Description: ""},
 
-		{PermissionTag: models.PermissionReviewManage, Name: "点评管理", Description: ""},
-		{PermissionTag: models.PermissionCourseTableManage, Name: "课表管理", Description: ""},
-		{PermissionTag: models.PermissionHeroManage, Name: "英雄榜管理", Description: ""},
-		{PermissionTag: models.PermissionConfigManage, Name: "配置管理", Description: ""},
-		{PermissionTag: models.PermissionContributionManage, Name: "投稿管理", Description: ""},
-		{PermissionTag: models.PermissionNotificationGet, Name: "通知后台查看", Description: ""},
-		{PermissionTag: models.PermissionNotificationCreate, Name: "通知创建", Description: ""},
-		{PermissionTag: models.PermissionNotificationPublish, Name: "通知发布", Description: ""},
-		{PermissionTag: models.PermissionNotificationUpdate, Name: "通知更新", Description: ""},
-		{PermissionTag: models.PermissionNotificationApprove, Name: "通知审核", Description: ""},
-		{PermissionTag: models.PermissionNotificationSchedule, Name: "通知排期", Description: ""},
-		{PermissionTag: models.PermissionNotificationPin, Name: "通知置顶/撤销", Description: ""},
-		{PermissionTag: models.PermissionNotificationDelete, Name: "通知删除", Description: ""},
-		{PermissionTag: models.PermissionNotificationPublishAdmin, Name: "通知直发", Description: ""},
-		{PermissionTag: models.PermissionNotificationCategoryManage, Name: "通知分类管理", Description: ""},
-		{PermissionTag: models.PermissionFeatureManage, Name: "功能管理", Description: ""},
-		{PermissionTag: models.PermissionUserManage, Name: "用户管理", Description: ""},
-		{PermissionTag: models.PermissionMaterialManage, Name: "资料管理", Description: ""},
+		{PermissionTag: constant.PermissionReviewManage, Name: "点评管理", Description: ""},
+		{PermissionTag: constant.PermissionCourseTableManage, Name: "课表管理", Description: ""},
+		{PermissionTag: constant.PermissionHeroManage, Name: "英雄榜管理", Description: ""},
+		{PermissionTag: constant.PermissionConfigManage, Name: "配置管理", Description: ""},
+		{PermissionTag: constant.PermissionContributionManage, Name: "投稿管理", Description: ""},
+		{PermissionTag: constant.PermissionNotificationGetAdmin, Name: "通知后台查看", Description: ""},
+		{PermissionTag: constant.PermissionNotificationCreate, Name: "通知创建", Description: ""},
+		{PermissionTag: constant.PermissionNotificationPublish, Name: "通知发布", Description: ""},
+		{PermissionTag: constant.PermissionNotificationUpdate, Name: "通知更新", Description: ""},
+		{PermissionTag: constant.PermissionNotificationApprove, Name: "通知审核", Description: ""},
+		{PermissionTag: constant.PermissionNotificationSchedule, Name: "通知排期", Description: ""},
+		{PermissionTag: constant.PermissionNotificationPin, Name: "通知置顶/撤销", Description: ""},
+		{PermissionTag: constant.PermissionNotificationDelete, Name: "通知删除", Description: ""},
+		{PermissionTag: constant.PermissionNotificationPublishAdmin, Name: "通知直发", Description: ""},
+		{PermissionTag: constant.PermissionNotificationCategoryManage, Name: "通知分类管理", Description: ""},
+		{PermissionTag: constant.PermissionFeatureManage, Name: "功能管理", Description: ""},
+		{PermissionTag: constant.PermissionUserManage, Name: "用户管理", Description: ""},
+		{PermissionTag: constant.PermissionMaterialManage, Name: "资料管理", Description: ""},
+		{PermissionTag: constant.PermissionS3Manage, Name: "S3管理", Description: ""},
+	}
+
+	allPermissionTags := make([]string, 0, len(permissionSeeds))
+	for _, perm := range permissionSeeds {
+		allPermissionTags = append(allPermissionTags, perm.PermissionTag)
 	}
 
 	roleBindings := map[string][]string{
 		// 基础用户：常规读写
-		models.RoleTagUserBasic: {
-			models.PermissionUserGet,
-			models.PermissionUserUpdate,
-			models.PermissionOSSTokenGet,
-			models.PermissionReviewCreate,
-			models.PermissionReviewGetSelf,
-			models.PermissionCourseTableGet,
-			models.PermissionCourseTableClassSearch,
-			models.PermissionCourseTableClassUpdate,
-			models.PermissionCourseTableUpdate,
-			models.PermissionFailRate,
-			models.PermissionPointGet,
-			models.PermissionPointSpend,
-			models.PermissionContributionGet,
-			models.PermissionContributionCreate,
-			models.PermissionCountdown,
-			models.PermissionStudyTask,
-			models.PermissionMaterialGet,
-			models.PermissionMaterialRate,
-			models.PermissionMaterialDownload,
-			models.PermissionMaterialCategoryGet,
-			models.PermissionQuestion,
-			models.PermissionPomodoro,
-			models.PermissionDictionary,
+		constant.RoleTagUserBasic: {
+			constant.PermissionUserGet,
+			constant.PermissionUserUpdate,
+			constant.PermissionOSSTokenGet,
+			constant.PermissionReviewCreate,
+			constant.PermissionReviewGetSelf,
+			constant.PermissionCourseTableGet,
+			constant.PermissionCourseTableClassSearch,
+			constant.PermissionCourseTableClassUpdate,
+			constant.PermissionCourseTableUpdate,
+			constant.PermissionFailRate,
+			constant.PermissionPointGet,
+			constant.PermissionPointSpend,
+			constant.PermissionStatisticGet,
+			constant.PermissionContributionGet,
+			constant.PermissionContributionCreate,
+			constant.PermissionCountdown,
+			constant.PermissionStudyTask,
+			constant.PermissionMaterialGet,
+			constant.PermissionMaterialRate,
+			constant.PermissionMaterialDownload,
+			constant.PermissionMaterialCategoryGet,
+			constant.PermissionNotificationGet,
+			constant.PermissionQuestion,
+			constant.PermissionPomodoro,
+			constant.PermissionDictionary,
+			constant.PermissionChatStudy,
 		},
-		models.RoleTagUserActive: {
-			models.PermissionCourseTableClassUpdateAll,
+		constant.RoleTagUserActive: {
+			constant.PermissionCourseTableClassUpdateAll,
 		},
+		constant.RoleTagUserVerified: {},
 		// 运营：
-		models.RoleTagOperator: {
-			models.PermissionContributionManage,
-			models.PermissionNotificationGet,
-			models.PermissionNotificationCreate,
-			models.PermissionNotificationPublish,
-			models.PermissionNotificationUpdate,
-			models.PermissionNotificationApprove,
-			models.PermissionNotificationSchedule,
+		constant.RoleTagOperator: {
+			constant.PermissionContributionManage,
+			constant.PermissionNotificationGetAdmin,
+			constant.PermissionNotificationCreate,
+			constant.PermissionNotificationPublish,
+			constant.PermissionNotificationUpdate,
+			constant.PermissionNotificationApprove,
+			constant.PermissionNotificationSchedule,
 		},
+		// 管理：拥有全部权限
+		constant.RoleTagAdmin: allPermissionTags,
 	}
 
 	// 创建/更新角色
@@ -146,19 +167,19 @@ func (s *RBACService) SeedDefaults(ctx context.Context) error {
 		err := s.db.WithContext(ctx).Where("role_tag = ?", role.RoleTag).First(&existing).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			if err := s.db.WithContext(ctx).Create(&role).Error; err != nil {
-				return fmt.Errorf("初始化角色失败: %w", err)
+				return apperr.Wrap(constant.CommonInternal, fmt.Errorf("初始化角色失败: %w", err))
 			}
 			continue
 		}
 		if err != nil {
-			return err
+			return apperr.Wrap(constant.CommonInternal, err)
 		}
 		if existing.Name != role.Name || existing.Description != role.Description {
 			if err := s.db.WithContext(ctx).Model(&existing).Updates(map[string]any{
 				"name":        role.Name,
 				"description": role.Description,
 			}).Error; err != nil {
-				return fmt.Errorf("更新角色信息失败: %w", err)
+				return apperr.Wrap(constant.CommonInternal, fmt.Errorf("更新角色信息失败: %w", err))
 			}
 		}
 	}
@@ -169,19 +190,19 @@ func (s *RBACService) SeedDefaults(ctx context.Context) error {
 		err := s.db.WithContext(ctx).Where("permission_tag = ?", perm.PermissionTag).First(&existing).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			if err := s.db.WithContext(ctx).Create(&perm).Error; err != nil {
-				return fmt.Errorf("初始化权限失败: %w", err)
+				return apperr.Wrap(constant.CommonInternal, fmt.Errorf("初始化权限失败: %w", err))
 			}
 			continue
 		}
 		if err != nil {
-			return err
+			return apperr.Wrap(constant.CommonInternal, err)
 		}
 		if existing.Name != perm.Name || existing.Description != perm.Description {
 			if err := s.db.WithContext(ctx).Model(&existing).Updates(map[string]any{
 				"name":        perm.Name,
 				"description": perm.Description,
 			}).Error; err != nil {
-				return fmt.Errorf("更新权限信息失败: %w", err)
+				return apperr.Wrap(constant.CommonInternal, fmt.Errorf("更新权限信息失败: %w", err))
 			}
 		}
 	}
@@ -195,7 +216,7 @@ func (s *RBACService) bindRolePermissions(ctx context.Context, bindings map[stri
 	for roleTag, permTags := range bindings {
 		var role models.Role
 		if err := s.db.WithContext(ctx).Where("role_tag = ?", roleTag).First(&role).Error; err != nil {
-			return fmt.Errorf("查询角色失败[%s]: %w", roleTag, err)
+			return apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询角色失败[%s]: %w", roleTag, err))
 		}
 
 		var perms []models.Permission
@@ -203,13 +224,13 @@ func (s *RBACService) bindRolePermissions(ctx context.Context, bindings map[stri
 			if err := s.db.WithContext(ctx).
 				Where("permission_tag IN ?", permTags).
 				Find(&perms).Error; err != nil {
-				return fmt.Errorf("查询权限失败: %w", err)
+				return apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询权限失败: %w", err))
 			}
 		}
 
 		if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 			if err := tx.Where("role_id = ?", role.ID).Delete(&models.RolePermission{}).Error; err != nil {
-				return err
+				return apperr.Wrap(constant.CommonInternal, err)
 			}
 			for _, perm := range perms {
 				rp := models.RolePermission{
@@ -218,12 +239,12 @@ func (s *RBACService) bindRolePermissions(ctx context.Context, bindings map[stri
 				}
 				if err := tx.Where("role_id = ? AND permission_id = ?", role.ID, perm.ID).
 					FirstOrCreate(&rp).Error; err != nil {
-					return err
+					return apperr.Wrap(constant.CommonInternal, err)
 				}
 			}
 			return nil
 		}); err != nil {
-			return fmt.Errorf("绑定角色权限失败[%s]: %w", roleTag, err)
+			return apperr.Wrap(constant.CommonInternal, fmt.Errorf("绑定角色权限失败[%s]: %w", roleTag, err))
 		}
 	}
 	return nil
@@ -233,7 +254,7 @@ func (s *RBACService) bindRolePermissions(ctx context.Context, bindings map[stri
 func (s *RBACService) ListRoles(ctx context.Context) ([]models.Role, error) {
 	var roles []models.Role
 	if err := s.db.WithContext(ctx).Find(&roles).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	return roles, nil
 }
@@ -243,7 +264,7 @@ func (s *RBACService) ListRolesWithUsers(ctx context.Context) ([]models.Role, ma
 	// 获取所有角色
 	var roles []models.Role
 	if err := s.db.WithContext(ctx).Find(&roles).Error; err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 构建角色ID到用户数量和用户ID列表的映射
@@ -257,18 +278,18 @@ func (s *RBACService) ListRolesWithUsers(ctx context.Context) ([]models.Role, ma
 			Model(&models.UserRole{}).
 			Where("role_id = ?", role.ID).
 			Count(&count).Error; err != nil {
-			return nil, nil, nil, err
+			return nil, nil, nil, apperr.Wrap(constant.CommonInternal, err)
 		}
 		roleUserCountMap[role.ID] = int(count)
 
 		// 只为非 basic_user 角色获取用户ID列表
-		if role.RoleTag != models.RoleTagUserBasic {
+		if role.RoleTag != constant.RoleTagUserBasic {
 			var userIDs []uint
 			if err := s.db.WithContext(ctx).
 				Model(&models.UserRole{}).
 				Where("role_id = ?", role.ID).
 				Pluck("user_id", &userIDs).Error; err != nil {
-				return nil, nil, nil, err
+				return nil, nil, nil, apperr.Wrap(constant.CommonInternal, err)
 			}
 			roleUserIDsMap[role.ID] = userIDs
 		}
@@ -281,7 +302,7 @@ func (s *RBACService) ListRolesWithUsers(ctx context.Context) ([]models.Role, ma
 func (s *RBACService) ListPermissions(ctx context.Context) ([]models.Permission, error) {
 	var perms []models.Permission
 	if err := s.db.WithContext(ctx).Find(&perms).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	return perms, nil
 }
@@ -291,19 +312,19 @@ func (s *RBACService) GetRolesWithPermissions(ctx context.Context) ([]models.Rol
 	// 获取所有角色
 	var roles []models.Role
 	if err := s.db.WithContext(ctx).Find(&roles).Error; err != nil {
-		return nil, nil, err
+		return nil, nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 获取所有角色-权限关联
 	var rolePermissions []models.RolePermission
 	if err := s.db.WithContext(ctx).Find(&rolePermissions).Error; err != nil {
-		return nil, nil, err
+		return nil, nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 获取所有权限
 	var permissions []models.Permission
 	if err := s.db.WithContext(ctx).Find(&permissions).Error; err != nil {
-		return nil, nil, err
+		return nil, nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 构建权限ID到权限对象的映射
@@ -325,12 +346,18 @@ func (s *RBACService) GetRolesWithPermissions(ctx context.Context) ([]models.Rol
 
 // CreateRole 创建角色
 func (s *RBACService) CreateRole(ctx context.Context, role *models.Role) error {
-	return s.db.WithContext(ctx).Create(role).Error
+	if err := s.db.WithContext(ctx).Create(role).Error; err != nil {
+		return apperr.Wrap(constant.CommonInternal, err)
+	}
+	return nil
 }
 
 // UpdateRole 更新角色
 func (s *RBACService) UpdateRole(ctx context.Context, id uint, updates map[string]any) error {
-	return s.db.WithContext(ctx).Model(&models.Role{}).Where("id = ?", id).Updates(updates).Error
+	if err := s.db.WithContext(ctx).Model(&models.Role{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		return apperr.Wrap(constant.CommonInternal, err)
+	}
+	return nil
 }
 
 // DeleteRole 删除角色并清理关联
@@ -341,17 +368,17 @@ func (s *RBACService) DeleteRole(ctx context.Context, id uint) error {
 			Select("user_id").
 			Where("role_id = ?", id).
 			Find(&userIDs).Error; err != nil {
-			return err
+			return apperr.Wrap(constant.CommonInternal, err)
 		}
 
 		if err := tx.Where("role_id = ?", id).Delete(&models.RolePermission{}).Error; err != nil {
-			return err
+			return apperr.Wrap(constant.CommonInternal, err)
 		}
 		if err := tx.Where("role_id = ?", id).Delete(&models.UserRole{}).Error; err != nil {
-			return err
+			return apperr.Wrap(constant.CommonInternal, err)
 		}
 		if err := tx.Delete(&models.Role{}, id).Error; err != nil {
-			return err
+			return apperr.Wrap(constant.CommonInternal, err)
 		}
 		for _, uid := range userIDs {
 			s.invalidateUserCache(uid)
@@ -362,14 +389,17 @@ func (s *RBACService) DeleteRole(ctx context.Context, id uint) error {
 
 // CreatePermission 创建权限
 func (s *RBACService) CreatePermission(ctx context.Context, perm *models.Permission) error {
-	return s.db.WithContext(ctx).Create(perm).Error
+	if err := s.db.WithContext(ctx).Create(perm).Error; err != nil {
+		return apperr.Wrap(constant.CommonInternal, err)
+	}
+	return nil
 }
 
 // UpdateRolePermissions 重置角色拥有的权限列表
 func (s *RBACService) UpdateRolePermissions(ctx context.Context, roleID uint, permissionIDs []uint) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("role_id = ?", roleID).Delete(&models.RolePermission{}).Error; err != nil {
-			return err
+			return apperr.Wrap(constant.CommonInternal, err)
 		}
 		for _, pid := range permissionIDs {
 			rp := models.RolePermission{
@@ -377,7 +407,7 @@ func (s *RBACService) UpdateRolePermissions(ctx context.Context, roleID uint, pe
 				PermissionID: pid,
 			}
 			if err := tx.Create(&rp).Error; err != nil {
-				return err
+				return apperr.Wrap(constant.CommonInternal, err)
 			}
 		}
 
@@ -399,7 +429,7 @@ func (s *RBACService) UpdateRolePermissions(ctx context.Context, roleID uint, pe
 func (s *RBACService) UpdateUserRoles(ctx context.Context, userID uint, roleIDs []uint) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("user_id = ?", userID).Delete(&models.UserRole{}).Error; err != nil {
-			return err
+			return apperr.Wrap(constant.CommonInternal, err)
 		}
 		for _, rid := range roleIDs {
 			rel := models.UserRole{
@@ -407,7 +437,7 @@ func (s *RBACService) UpdateUserRoles(ctx context.Context, userID uint, roleIDs 
 				RoleID: rid,
 			}
 			if err := tx.Create(&rel).Error; err != nil {
-				return err
+				return apperr.Wrap(constant.CommonInternal, err)
 			}
 		}
 		s.invalidateUserCache(userID)
@@ -419,7 +449,7 @@ func (s *RBACService) UpdateUserRoles(ctx context.Context, userID uint, roleIDs 
 func (s *RBACService) EnsureUserHasRoleByTag(ctx context.Context, userID uint, roleTag string) error {
 	var role models.Role
 	if err := s.db.WithContext(ctx).Where("role_tag = ?", roleTag).First(&role).Error; err != nil {
-		return err
+		return apperr.Wrap(constant.CommonInternal, err)
 	}
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var rel models.UserRole
@@ -430,10 +460,10 @@ func (s *RBACService) EnsureUserHasRoleByTag(ctx context.Context, userID uint, r
 				RoleID: role.ID,
 			}
 			if err := tx.Create(&rel).Error; err != nil {
-				return err
+				return apperr.Wrap(constant.CommonInternal, err)
 			}
 		} else if err != nil {
-			return err
+			return apperr.Wrap(constant.CommonInternal, err)
 		}
 		s.invalidateUserCache(userID)
 		return nil
@@ -452,32 +482,21 @@ func (s *RBACService) GetUserPermissionSnapshot(ctx context.Context, userID uint
 	}
 
 	var roleTags []string
-	if err := s.db.WithContext(ctx).
-		Table("roles").
-		Select("roles.role_tag").
-		Joins("JOIN user_roles ur ON ur.role_id = roles.id").
-		Where("ur.user_id = ?", userID).
-		Find(&roleTags).Error; err != nil {
-		return nil, err
+	if err := userRoleTagsQuery(s.db.WithContext(ctx), userID).Find(&roleTags).Error; err != nil {
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	isAdmin := false
 	for _, tag := range roleTags {
-		if tag == models.RoleTagAdmin {
+		if tag == constant.RoleTagAdmin {
 			isAdmin = true
 			break
 		}
 	}
 
 	var permissionTags []string
-	if err := s.db.WithContext(ctx).
-		Table("permissions").
-		Select("DISTINCT permissions.permission_tag").
-		Joins("JOIN role_permissions rp ON rp.permission_id = permissions.id").
-		Joins("JOIN user_roles ur ON ur.role_id = rp.role_id").
-		Where("ur.user_id = ?", userID).
-		Find(&permissionTags).Error; err != nil {
-		return nil, err
+	if err := userPermissionTagsQuery(s.db.WithContext(ctx), userID).Find(&permissionTags).Error; err != nil {
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	snap := &UserPermissionSnapshot{
@@ -500,7 +519,7 @@ func (s *RBACService) GetUserPermissionSnapshot(ctx context.Context, userID uint
 func (s *RBACService) CheckPermission(ctx context.Context, userID uint, permissionTag string) (bool, error) {
 	snap, err := s.GetUserPermissionSnapshot(ctx, userID)
 	if err != nil {
-		return false, err
+		return false, apperr.Wrap(constant.CommonInternal, err)
 	}
 	if snap.IsAdmin {
 		return true, nil
@@ -517,7 +536,7 @@ func (s *RBACService) CheckPermission(ctx context.Context, userID uint, permissi
 func (s *RBACService) GetUserRoleTags(ctx context.Context, userID uint) ([]string, error) {
 	snap, err := s.GetUserPermissionSnapshot(ctx, userID)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	return snap.RoleTags, nil
 }
@@ -535,7 +554,7 @@ func (s *RBACService) CheckUserRole(ctx context.Context, userID uint, role strin
 func (s *RBACService) GetUserPermissions(ctx context.Context, userID uint) ([]string, error) {
 	snap, err := s.GetUserPermissionSnapshot(ctx, userID)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	return snap.PermissionTags, nil
 }
@@ -547,16 +566,10 @@ func (s *RBACService) GetUsersByRoleTags(ctx context.Context, roleTags []string)
 	}
 
 	var users []models.User
-	err := s.db.WithContext(ctx).
-		Table("users").
-		Select("DISTINCT users.*").
-		Joins("JOIN user_roles ur ON ur.user_id = users.id").
-		Joins("JOIN roles r ON r.id = ur.role_id").
-		Where("r.role_tag IN ?", roleTags).
-		Find(&users).Error
+	err := usersByRoleTagsQuery(s.db.WithContext(ctx), roleTags).Find(&users).Error
 
 	if err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	return users, nil
@@ -573,11 +586,11 @@ func (s *RBACService) GrantRole(ctx context.Context, userID uint, roleID uint) e
 				RoleID: roleID,
 			}
 			if err := tx.Create(&rel).Error; err != nil {
-				return err
+				return apperr.Wrap(constant.CommonInternal, err)
 			}
 			s.invalidateUserCache(userID)
 		} else if err != nil {
-			return err
+			return apperr.Wrap(constant.CommonInternal, err)
 		}
 		return nil
 	})
@@ -587,7 +600,7 @@ func (s *RBACService) GrantRole(ctx context.Context, userID uint, roleID uint) e
 func (s *RBACService) RevokeRole(ctx context.Context, userID uint, roleID uint) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("user_id = ? AND role_id = ?", userID, roleID).Delete(&models.UserRole{}).Error; err != nil {
-			return err
+			return apperr.Wrap(constant.CommonInternal, err)
 		}
 		s.invalidateUserCache(userID)
 		return nil

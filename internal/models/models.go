@@ -137,6 +137,21 @@ type BindRecord struct {
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"comment:软删除时间"`
 }
 
+// GPABackup 用户绩点计算数据备份
+type GPABackup struct {
+	ID        uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:绩点备份ID"`
+	UserID    uint           `json:"user_id" gorm:"not null;index:idx_gpa_backup_user_created;comment:用户ID"`
+	Title     string         `json:"title" gorm:"type:varchar(200);not null;comment:备份标题"`
+	Data      datatypes.JSON `json:"data" gorm:"type:json;not null;comment:绩点计算原始JSON"`
+	CreatedAt time.Time      `json:"created_at" gorm:"type:datetime;index:idx_gpa_backup_user_created;comment:创建时间"`
+	UpdatedAt time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
+	DeletedAt gorm.DeletedAt `json:"-" gorm:"comment:软删除时间"`
+}
+
+func (GPABackup) TableName() string {
+	return "gpa_backups"
+}
+
 // ==================== 通知/日程系统模型 ====================
 
 // NotificationCategory 通知分类模型

@@ -18,6 +18,7 @@ help:
 	@echo "Available targets:"
 	@echo "  docker-build       Build Docker images"
 	@echo "  build-apiserver    Build the apiserver binary"
+	@echo "  openapi            Generate OpenAPI document"
 	@echo "  test               Run unit tests"
 	@echo "  test-coverage      Run tests with coverage"
 	@echo "  clean              Clean build artifacts"
@@ -35,6 +36,9 @@ docker-build:
 build-apiserver: # $(or $(CGO_ENABLED),0)
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -v -ldflags "-w -s" -tags="sonic" \
 	-o ./bin/apiserver ./cmd/apiserver
+
+openapi:
+	go run ./scripts/generate_openapi
 
 test:
 	go test -v $(shell go list ./... | grep -v /integration)

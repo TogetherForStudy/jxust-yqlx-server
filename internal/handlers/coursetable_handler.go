@@ -1,12 +1,12 @@
 package handlers
 
 import (
-	"net/http"
 	"strconv"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 
 	json "github.com/bytedance/sonic"
 	"github.com/gin-gonic/gin"
@@ -38,19 +38,19 @@ func (h *CourseTableHandler) GetCourseTable(c *gin.Context) {
 	// 从上下文中获取用户ID（通过认证中间件设置）
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	var req request.GetCourseTableRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	result, err := h.courseTableService.GetUserCourseTableWithVersion(c, userID, req.Semester, req.LastModified)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -73,7 +73,7 @@ func (h *CourseTableHandler) GetCourseTable(c *gin.Context) {
 func (h *CourseTableHandler) SearchClasses(c *gin.Context) {
 	var req request.SearchClassRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
@@ -87,7 +87,7 @@ func (h *CourseTableHandler) SearchClasses(c *gin.Context) {
 
 	result, err := h.courseTableService.SearchClasses(c, req.Keyword, req.Page, req.Size)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -109,19 +109,19 @@ func (h *CourseTableHandler) UpdateUserClass(c *gin.Context) {
 	// 从上下文中获取用户ID（通过认证中间件设置）
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	var req request.UpdateUserClassRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	err := h.courseTableService.UpdateUserClass(c, userID, req.ClassID)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -143,35 +143,91 @@ func (h *CourseTableHandler) EditCourseCell(c *gin.Context) {
 	// 从上下文中获取用户ID（通过认证中间件设置）
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	var req request.EditCourseCellRequest
 	// 检查 index 是否为 1-35 之间的字符串
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	indexInt, err := strconv.Atoi(req.Index)
 	if err != nil || indexInt < 1 || indexInt > 35 {
-		helper.ValidateResponse(c, "参数校验失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	// 将任意值编码为 JSON 原样传入服务层
 	bytesValue, err := json.Marshal(req.Value)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, "无效的值数据")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	if err := h.courseTableService.EditUserCourseCell(c, userID, req.Semester, req.Index, bytesValue); err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 	helper.SuccessResponse(c, "编辑成功")
+}
+
+// GetBindCount 获取当前用户的课表绑定次数
+// @Summary 获取课表已绑定次数
+// @Description 返回当前用户更换班级的已使用次数
+// @Tags 课程表
+// @Produce json
+// @Success 200 {object} helper.Response{data=map[string]int}
+// @Failure 401 {object} helper.Response
+// @Router /api/v0/coursetable/bind-count [get]
+func (h *CourseTableHandler) GetBindCount(c *gin.Context) {
+	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
+		return
+	}
+
+	count, err := h.courseTableService.GetUserBindCount(c, userID)
+	if err != nil {
+		helper.HandleError(c, err)
+		return
+	}
+
+	helper.SuccessResponse(c, gin.H{"bind_count": count})
+}
+
+// ResetSchedule 重置用户个人课表
+// @Summary 重置个人课表
+// @Description 删除当前用户在指定学期的个人编辑课表数据，恢复为班级默认课表
+// @Tags 课程表
+// @Accept json
+// @Produce json
+// @Param semester query string true "学期"
+// @Success 200 {object} helper.Response
+// @Failure 400 {object} helper.Response
+// @Failure 401 {object} helper.Response
+// @Router /api/v0/coursetable/schedule [delete]
+func (h *CourseTableHandler) ResetSchedule(c *gin.Context) {
+	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
+		return
+	}
+
+	semester := c.Query("semester")
+	if semester == "" {
+		helper.HandleErrCode(c, constant.CommonBadRequest)
+		return
+	}
+
+	if err := h.courseTableService.ResetUserSchedule(c, userID, semester); err != nil {
+		helper.HandleError(c, err)
+		return
+	}
+
+	helper.SuccessResponse(c, "个人课表重置成功")
 }
 
 // ResetUserBindCountToOne 管理员重置用户绑定次数为1
@@ -189,12 +245,12 @@ func (h *CourseTableHandler) ResetUserBindCountToOne(c *gin.Context) {
 	idStr := c.Param("id")
 	uid, err := strconv.ParseUint(idStr, 10, 64)
 	if err != nil || uid == 0 {
-		helper.ValidateResponse(c, "参数校验失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	if err := h.courseTableService.ResetUserBindCountToOne(c, uint(uid)); err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, "重置失败")
+		helper.HandleError(c, err)
 		return
 	}
 	helper.SuccessResponse(c, "重置成功")

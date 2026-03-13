@@ -1,5 +1,7 @@
 package request
 
+import "encoding/json"
+
 // GetCourseTableRequest 获取课程表请求
 type GetCourseTableRequest struct {
 	Semester     string `form:"semester" binding:"required" json:"semester"` // 学期
@@ -23,4 +25,24 @@ type EditCourseCellRequest struct {
 	Semester string `json:"semester" binding:"required"` // 学期
 	Index    string `json:"index" binding:"required"`    // 格子索引 1-35
 	Value    any    `json:"value" binding:"required"`    // 该格子的完整JSON对象
+}
+
+type AdminListCourseTablesRequest struct {
+	ClassID  string `form:"class_id" json:"class_id"`
+	Semester string `form:"semester" json:"semester"`
+	Keyword  string `form:"keyword" json:"keyword"`
+	Page     int    `form:"page" json:"page"`
+	PageSize int    `form:"page_size" json:"page_size" binding:"min=1,max=100"`
+}
+
+type AdminCreateCourseTableRequest struct {
+	ClassID    string          `json:"class_id" binding:"required"`
+	Semester   string          `json:"semester" binding:"required"`
+	CourseData json.RawMessage `json:"course_data" binding:"required"`
+}
+
+type AdminUpdateCourseTableRequest struct {
+	ClassID    *string         `json:"class_id"`
+	Semester   *string         `json:"semester"`
+	CourseData json.RawMessage `json:"course_data"`
 }

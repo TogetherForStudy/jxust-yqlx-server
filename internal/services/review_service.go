@@ -7,6 +7,8 @@ import (
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
 	"gorm.io/gorm"
@@ -30,9 +32,9 @@ func (s *ReviewService) CreateReview(ctx context.Context, userID uint, req *requ
 	var existingReview models.TeacherReview
 	err := s.db.WithContext(ctx).Where("user_id = ? AND teacher_name = ? AND course_name = ?", userID, req.TeacherName, req.CourseName).First(&existingReview).Error
 	if err == nil {
-		return fmt.Errorf("您已经评价过该教师的这门课程")
+		return apperr.New(constant.ReviewDuplicate)
 	} else if err != gorm.ErrRecordNotFound {
-		return fmt.Errorf("检查评价记录失败: %w", err)
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("检查评价记录失败: %w", err))
 	}
 
 	// 创建评价
@@ -48,7 +50,10 @@ func (s *ReviewService) CreateReview(ctx context.Context, userID uint, req *requ
 		UpdatedAt:   time.Now(),
 	}
 
-	return s.db.WithContext(ctx).Create(review).Error
+	if err := s.db.WithContext(ctx).Create(review).Error; err != nil {
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("创建评价失败: %w", err))
+	}
+	return nil
 }
 
 // GetReviews 获取评价列表
@@ -70,7 +75,7 @@ func (s *ReviewService) GetReviews(ctx context.Context, page, size int, teacherN
 
 	// 获取总数
 	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
+		return nil, 0, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 获取分页数据
@@ -80,7 +85,10 @@ func (s *ReviewService) GetReviews(ctx context.Context, page, size int, teacherN
 		Limit(pagination.Size).
 		Find(&reviews).Error
 
-	return reviews, total, err
+	if err != nil {
+		return nil, 0, apperr.Wrap(constant.CommonInternal, err)
+	}
+	return reviews, total, nil
 }
 
 // GetReviewsByTeacher 获取指定教师的评价
@@ -93,7 +101,7 @@ func (s *ReviewService) GetReviewsByTeacher(ctx context.Context, teacherName str
 
 	// 获取总数
 	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
+		return nil, 0, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 获取分页数据
@@ -103,7 +111,10 @@ func (s *ReviewService) GetReviewsByTeacher(ctx context.Context, teacherName str
 		Limit(pagination.Size).
 		Find(&reviews).Error
 
-	return reviews, total, err
+	if err != nil {
+		return nil, 0, apperr.Wrap(constant.CommonInternal, err)
+	}
+	return reviews, total, nil
 }
 
 // GetUserReviews 获取用户的评价记录
@@ -116,7 +127,7 @@ func (s *ReviewService) GetUserReviews(ctx context.Context, userID uint, page, s
 
 	// 获取总数
 	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
+		return nil, 0, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 获取分页数据
@@ -126,7 +137,10 @@ func (s *ReviewService) GetUserReviews(ctx context.Context, userID uint, page, s
 		Limit(pagination.Size).
 		Find(&reviews).Error
 
-	return reviews, total, err
+	if err != nil {
+		return nil, 0, apperr.Wrap(constant.CommonInternal, err)
+	}
+	return reviews, total, nil
 }
 
 // ApproveReview 审核通过评价
@@ -134,12 +148,15 @@ func (s *ReviewService) ApproveReview(ctx context.Context, reviewID uint, adminN
 	// 获取评价信息
 	var review models.TeacherReview
 	if err := s.db.WithContext(ctx).First(&review, reviewID).Error; err != nil {
-		return fmt.Errorf("评价不存在: %w", err)
+		if err == gorm.ErrRecordNotFound {
+			return apperr.New(constant.ReviewNotFound)
+		}
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询评价失败: %w", err))
 	}
 
 	// 检查是否已经审核通过
 	if review.Status == models.TeacherReviewStatusApproved {
-		return fmt.Errorf("评价已审核通过，无需重复审核")
+		return apperr.New(constant.ReviewApproved)
 	}
 
 	// 开启事务
@@ -152,7 +169,7 @@ func (s *ReviewService) ApproveReview(ctx context.Context, reviewID uint, adminN
 				"admin_note": adminNote,
 				"updated_at": time.Now(),
 			}).Error; err != nil {
-			return err
+			return apperr.Wrap(constant.CommonInternal, fmt.Errorf("更新评价失败：%w", err))
 		}
 
 		// 给投稿用户加50积分
@@ -166,7 +183,7 @@ func (s *ReviewService) ApproveReview(ctx context.Context, reviewID uint, adminN
 			fmt.Sprintf("教师评价审核通过（教师：%s，课程：%s）", review.TeacherName, review.CourseName),
 			reviewIDPtr,
 		); err != nil {
-			return fmt.Errorf("添加积分失败: %w", err)
+			return err
 		}
 
 		return nil
@@ -175,18 +192,26 @@ func (s *ReviewService) ApproveReview(ctx context.Context, reviewID uint, adminN
 
 // RejectReview 审核拒绝评价
 func (s *ReviewService) RejectReview(ctx context.Context, reviewID uint, adminNote string) error {
-	return s.db.WithContext(ctx).Model(&models.TeacherReview{}).
+	err := s.db.WithContext(ctx).Model(&models.TeacherReview{}).
 		Where("id = ?", reviewID).
 		Updates(map[string]any{
 			"status":     models.TeacherReviewStatusRejected,
 			"admin_note": adminNote,
 			"updated_at": time.Now(),
 		}).Error
+	if err != nil {
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("更新评价状态失败: %w", err))
+	}
+	return nil
 }
 
 // DeleteReview 删除评价
 func (s *ReviewService) DeleteReview(ctx context.Context, reviewID uint) error {
-	return s.db.WithContext(ctx).Delete(&models.TeacherReview{}, reviewID).Error
+	err := s.db.WithContext(ctx).Delete(&models.TeacherReview{}, reviewID).Error
+	if err != nil {
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("删除评价失败: %w", err))
+	}
+	return nil
 }
 
 // GetReviewByID 根据ID获取评价
@@ -194,7 +219,10 @@ func (s *ReviewService) GetReviewByID(ctx context.Context, reviewID uint) (*mode
 	var review models.TeacherReview
 	err := s.db.WithContext(ctx).First(&review, reviewID).Error
 	if err != nil {
-		return nil, err
+		if err == gorm.ErrRecordNotFound {
+			return nil, apperr.New(constant.ReviewNotFound)
+		}
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	return &review, nil
 }

@@ -41,6 +41,10 @@ const (
 
 	PermissionReviewManage               = "review.manage"
 	PermissionCourseTableManage          = "coursetable.manage"
+	PermissionQuestionProjectManage      = "question.project.manage"
+	PermissionQuestionManage             = "question.manage"
+	PermissionFailRateManage             = "failrate.manage"
+	PermissionStatisticManage            = "statistic.manage"
 	PermissionHeroManage                 = "hero.manage"
 	PermissionConfigManage               = "config.manage"
 	PermissionPointManage                = "point.manage"

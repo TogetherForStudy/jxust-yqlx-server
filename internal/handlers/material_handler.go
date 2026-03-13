@@ -1,11 +1,10 @@
 package handlers
 
 import (
-	"net/http"
-
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 
 	"github.com/gin-gonic/gin"
 )
@@ -38,7 +37,7 @@ func NewMaterialHandler(materialService *services.MaterialService) *MaterialHand
 func (h *MaterialHandler) GetMaterialList(c *gin.Context) {
 	var req request.MaterialListRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
@@ -55,7 +54,7 @@ func (h *MaterialHandler) GetMaterialList(c *gin.Context) {
 
 	materials, total, err := h.materialService.GetMaterialList(c.Request.Context(), &req)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -75,7 +74,7 @@ func (h *MaterialHandler) GetMaterialList(c *gin.Context) {
 func (h *MaterialHandler) GetMaterialDetail(c *gin.Context) {
 	md5 := c.Param("md5")
 	if md5 == "" {
-		helper.ErrorResponse(c, http.StatusBadRequest, "MD5参数不能为空")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
@@ -88,7 +87,7 @@ func (h *MaterialHandler) GetMaterialDetail(c *gin.Context) {
 
 	detail, err := h.materialService.GetMaterialByMD5(c.Request.Context(), md5, userIDPtr)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusNotFound, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -99,7 +98,7 @@ func (h *MaterialHandler) GetMaterialDetail(c *gin.Context) {
 			MaterialMD5: md5,
 		}
 		if err := h.materialService.CreateMaterialLog(c.Request.Context(), *userIDPtr, logReq); err != nil {
-			helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+			helper.HandleError(c, err)
 			return
 		}
 	}
@@ -121,12 +120,12 @@ func (h *MaterialHandler) GetMaterialDetail(c *gin.Context) {
 func (h *MaterialHandler) DeleteMaterial(c *gin.Context) {
 	md5 := c.Param("md5")
 	if md5 == "" {
-		helper.ErrorResponse(c, http.StatusBadRequest, "MD5参数不能为空")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	if err := h.materialService.DeleteMaterial(c.Request.Context(), md5); err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -149,7 +148,7 @@ func (h *MaterialHandler) DeleteMaterial(c *gin.Context) {
 func (h *MaterialHandler) SearchMaterials(c *gin.Context) {
 	var req request.MaterialSearchRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
@@ -163,7 +162,7 @@ func (h *MaterialHandler) SearchMaterials(c *gin.Context) {
 
 	result, err := h.materialService.SearchMaterials(c.Request.Context(), &req)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -174,7 +173,7 @@ func (h *MaterialHandler) SearchMaterials(c *gin.Context) {
 			Keywords: req.Keywords,
 		}
 		if err := h.materialService.CreateMaterialLog(c.Request.Context(), userID, logReq); err != nil {
-			helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+			helper.HandleError(c, err)
 			return
 		}
 	}
@@ -196,7 +195,7 @@ func (h *MaterialHandler) SearchMaterials(c *gin.Context) {
 func (h *MaterialHandler) GetTopMaterials(c *gin.Context) {
 	var req request.TopMaterialsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
@@ -206,7 +205,7 @@ func (h *MaterialHandler) GetTopMaterials(c *gin.Context) {
 
 	materials, err := h.materialService.GetTopMaterials(c.Request.Context(), &req)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -228,24 +227,24 @@ func (h *MaterialHandler) GetTopMaterials(c *gin.Context) {
 func (h *MaterialHandler) RateMaterial(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	md5 := c.Param("md5")
 	if md5 == "" {
-		helper.ErrorResponse(c, http.StatusBadRequest, "MD5参数不能为空")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	var req request.MaterialRatingRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	if err := h.materialService.RateMaterial(c.Request.Context(), userID, md5, req.Rating); err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -269,18 +268,18 @@ func (h *MaterialHandler) RateMaterial(c *gin.Context) {
 func (h *MaterialHandler) UpdateMaterialDesc(c *gin.Context) {
 	md5 := c.Param("md5")
 	if md5 == "" {
-		helper.ErrorResponse(c, http.StatusBadRequest, "MD5参数不能为空")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	var req request.MaterialDescUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	if err := h.materialService.UpdateMaterialDesc(c.Request.Context(), md5, &req); err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -302,13 +301,13 @@ func (h *MaterialHandler) UpdateMaterialDesc(c *gin.Context) {
 func (h *MaterialHandler) GetCategories(c *gin.Context) {
 	var req request.MaterialCategoryListRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	categories, err := h.materialService.GetCategoriesByParent(c.Request.Context(), req.ParentID)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -330,7 +329,7 @@ func (h *MaterialHandler) GetCategories(c *gin.Context) {
 func (h *MaterialHandler) GetHotWords(c *gin.Context) {
 	var req request.HotWordsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
@@ -340,7 +339,7 @@ func (h *MaterialHandler) GetHotWords(c *gin.Context) {
 
 	hotWords, err := h.materialService.GetHotWords(c.Request.Context(), req.Limit)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -361,13 +360,13 @@ func (h *MaterialHandler) GetHotWords(c *gin.Context) {
 func (h *MaterialHandler) DownloadMaterial(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	md5 := c.Param("md5")
 	if md5 == "" {
-		helper.ErrorResponse(c, http.StatusBadRequest, "MD5参数不能为空")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
@@ -378,7 +377,7 @@ func (h *MaterialHandler) DownloadMaterial(c *gin.Context) {
 	}
 
 	if err := h.materialService.CreateMaterialLog(c.Request.Context(), userID, logReq); err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 

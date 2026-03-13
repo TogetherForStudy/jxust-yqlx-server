@@ -2,11 +2,13 @@ package services
 
 import (
 	"context"
-	"errors"
+	"fmt"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
 	"gorm.io/gorm"
@@ -28,9 +30,9 @@ func (s *PointsService) GetUserPoints(ctx context.Context, userID uint) (*respon
 	err := s.db.WithContext(ctx).Select("id, nickname, points").First(&user, userID).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, errors.New("用户不存在")
+			return nil, apperr.New(constant.CommonUserNotFound)
 		}
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询用户积分失败：%w", err))
 	}
 
 	return &response.UserPointsResponse{
@@ -73,7 +75,7 @@ func (s *PointsService) GetPointsTransactions(ctx context.Context, userID uint, 
 
 	// 获取总数
 	if err := query.Count(&total).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询积分交易总数失败：%w", err))
 	}
 
 	// 分页查询
@@ -82,7 +84,7 @@ func (s *PointsService) GetPointsTransactions(ctx context.Context, userID uint, 
 		Offset(offset).
 		Limit(req.Size).
 		Find(&transactions).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询积分交易记录失败：%w", err))
 	}
 
 	// 批量获取用户信息（管理员查看时）
@@ -143,19 +145,22 @@ func (s *PointsService) SpendPoints(ctx context.Context, userID uint, req *reque
 	// 获取用户信息
 	var user models.User
 	if err := s.db.WithContext(ctx).First(&user, userID).Error; err != nil {
-		return errors.New("用户不存在")
+		if err != gorm.ErrRecordNotFound {
+			return apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询用户信息失败：%w", err))
+		}
+		return apperr.New(constant.CommonUserNotFound)
 	}
 
 	// 检查积分是否足够
 	if user.Points < req.Points {
-		return errors.New("积分不足")
+		return apperr.New(constant.PointsInsufficient)
 	}
 
 	// 开启事务
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// 扣除积分
 		if err := tx.Model(&user).Update("points", gorm.Expr("points - ?", req.Points)).Error; err != nil {
-			return err
+			return apperr.Wrap(constant.CommonInternal, fmt.Errorf("扣减用户积分失败：%w", err))
 		}
 
 		// 记录交易
@@ -167,7 +172,11 @@ func (s *PointsService) SpendPoints(ctx context.Context, userID uint, req *reque
 			Description: req.Description,
 		}
 
-		return tx.Create(&transaction).Error
+		if err := tx.Create(&transaction).Error; err != nil {
+			return apperr.Wrap(constant.CommonInternal, fmt.Errorf("创建积分交易记录失败：%w", err))
+		}
+
+		return nil
 	})
 }
 
@@ -176,12 +185,15 @@ func (s *PointsService) AddPoints(ctx context.Context, tx *gorm.DB, userID uint,
 	// 获取用户信息
 	var user models.User
 	if err := tx.WithContext(ctx).First(&user, userID).Error; err != nil {
-		return err
+		if err == gorm.ErrRecordNotFound {
+			return apperr.New(constant.CommonUserNotFound)
+		}
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询用户信息失败：%w", err))
 	}
 
 	// 更新积分
 	if err := tx.WithContext(ctx).Model(&user).Update("points", gorm.Expr("points + ?", points)).Error; err != nil {
-		return err
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("更新用户积分失败：%w", err))
 	}
 
 	// 记录交易
@@ -194,7 +206,11 @@ func (s *PointsService) AddPoints(ctx context.Context, tx *gorm.DB, userID uint,
 		RelatedID:   relatedID,
 	}
 
-	return tx.Create(&transaction).Error
+	if err := tx.Create(&transaction).Error; err != nil {
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("创建积分交易记录失败：%w", err))
+	}
+
+	return nil
 }
 
 // GetUserPointsStats 获取用户积分统计
@@ -204,7 +220,10 @@ func (s *PointsService) GetUserPointsStats(ctx context.Context, userID uint) (ma
 	// 获取用户积分
 	userPoints, err := s.GetUserPoints(ctx, userID)
 	if err != nil {
-		return nil, err
+		if appErr, ok := apperr.As(err); ok {
+			return nil, appErr
+		}
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("获取用户积分失败：%w", err))
 	}
 
 	stats["points"] = userPoints.Points
@@ -214,7 +233,7 @@ func (s *PointsService) GetUserPointsStats(ctx context.Context, userID uint) (ma
 	if err := s.db.WithContext(ctx).Model(&models.User{}).
 		Where("points > (SELECT points FROM users WHERE id = ?)", userID).
 		Count(&rank).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询用户积分排名失败：%w", err))
 	}
 	stats["rank"] = rank + 1
 
@@ -229,7 +248,7 @@ func (s *PointsService) GetUserPointsStats(ctx context.Context, userID uint) (ma
 		Select("source, COALESCE(SUM(points), 0) as points").
 		Group("source").
 		Find(&earnedStats).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询积分获取统计失败：%w", err))
 	}
 
 	// 统计消耗的积分（按 source 分组）
@@ -242,7 +261,7 @@ func (s *PointsService) GetUserPointsStats(ctx context.Context, userID uint) (ma
 		Select("source, COALESCE(SUM(ABS(points)), 0) as points").
 		Group("source").
 		Find(&spentStats).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询积分消费统计失败：%w", err))
 	}
 
 	// 合并统计结果
@@ -271,9 +290,9 @@ func (s *PointsService) GrantPoints(ctx context.Context, userID uint, points int
 	var user models.User
 	if err := s.db.WithContext(ctx).First(&user, userID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return errors.New("用户不存在")
+			return apperr.New(constant.CommonUserNotFound)
 		}
-		return err
+		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询用户信息失败：%w", err))
 	}
 
 	// 开启事务
@@ -281,11 +300,11 @@ func (s *PointsService) GrantPoints(ctx context.Context, userID uint, points int
 		// 更新积分（支持正数和负数）
 		newPoints := int(user.Points) + points
 		if newPoints < 0 {
-			return errors.New("积分不足，无法扣除")
+			return apperr.New(constant.PointsInsufficient)
 		}
 
 		if err := tx.Model(&user).Update("points", newPoints).Error; err != nil {
-			return err
+			return apperr.Wrap(constant.CommonInternal, fmt.Errorf("更新用户积分失败：%w", err))
 		}
 
 		// 记录交易
@@ -299,6 +318,10 @@ func (s *PointsService) GrantPoints(ctx context.Context, userID uint, points int
 			Description: description,
 		}
 
-		return tx.Create(&transaction).Error
+		if err := tx.Create(&transaction).Error; err != nil {
+			return apperr.Wrap(constant.CommonInternal, fmt.Errorf("创建积分交易记录失败：%w", err))
+		}
+
+		return nil
 	})
 }
