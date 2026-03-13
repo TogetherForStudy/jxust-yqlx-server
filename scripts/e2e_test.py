@@ -1898,6 +1898,16 @@ class E2ETestClient:
             self._record("管理员获取绩点备份分组统计", False, str(e))
             return False
 
+    def test_admin_get_all_projects_online(self) -> bool:
+        try:
+            resp = self._get("/admin/stats/projects/online", use_admin=True)
+            passed = resp.status_code == 200
+            self._record("管理员获取所有启用项目在线人数", passed, f"status={resp.status_code}")
+            return passed
+        except Exception as e:
+            self._record("管理员获取所有启用项目在线人数", False, str(e))
+            return False
+
     def test_admin_review_contribution(self, contribution_id: int) -> bool:
         try:
             resp = self._post_json(
@@ -2479,6 +2489,7 @@ class E2ETestClient:
             self.test_admin_get_countdown_group_stats()
             self.test_admin_get_studytask_group_stats()
             self.test_admin_get_gpa_backup_group_stats()
+            self.test_admin_get_all_projects_online()
 
             print("\n🧩 新增后台接口测试")
             print("-" * 40)

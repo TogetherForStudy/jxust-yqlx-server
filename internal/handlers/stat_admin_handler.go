@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"github.com/gin-gonic/gin"
+
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
-	"github.com/gin-gonic/gin"
 )
 
 func (h *StatHandler) GetCountdownCountsByUser(c *gin.Context) {
@@ -76,4 +78,18 @@ func (h *StatHandler) GetGPABackupCountsByUser(c *gin.Context) {
 		return
 	}
 	helper.PageSuccessResponse(c, items, total, req.Page, req.PageSize)
+}
+
+func (h *StatHandler) GetAllProjectsOnlineCount(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	items, err := h.statService.GetAllProjectsOnlineCount(ctx)
+	if err != nil {
+		helper.HandleError(c, err)
+		return
+	}
+
+	helper.SuccessResponse(c, response.AllProjectsOnlineStatResponse{
+		Projects: items,
+	})
 }

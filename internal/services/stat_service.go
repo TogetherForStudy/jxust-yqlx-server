@@ -75,6 +75,46 @@ func (s *StatService) GetProjectOnlineCount(ctx context.Context, projectID uint,
 	return count, nil
 }
 
+// GetAllProjectsOnlineCount 获取所有启用项目的在线人数
+func (s *StatService) GetAllProjectsOnlineCount(ctx context.Context) ([]response.AllProjectsOnlineStatItem, error) {
+	if cache.GlobalCache == nil {
+		return nil, apperr.New(constant.StatServiceUnavailable)
+	}
+
+	// 查询所有启用的项目
+	var projects []struct {
+		ID   uint
+		Name string
+	}
+	if err := s.db.WithContext(ctx).Table("question_projects").
+		Select("id, name").
+		Where("is_active = ? AND deleted_at IS NULL", true).
+		Order("sort ASC, id ASC").
+		Scan(&projects).Error; err != nil {
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询启用项目列表失败: %w", err))
+	}
+
+	now := float64(time.Now().Unix())
+	minScore := now - 60
+	maxScore := now + 1
+
+	items := make([]response.AllProjectsOnlineStatItem, 0, len(projects))
+	for _, p := range projects {
+		key := fmt.Sprintf("online:project:%d", p.ID)
+		count, err := cache.GlobalCache.ZCount(ctx, key, minScore, maxScore)
+		if err != nil {
+			count = 0 // Redis 查询失败时降级为0
+		}
+		items = append(items, response.AllProjectsOnlineStatItem{
+			ProjectID:   p.ID,
+			ProjectName: p.Name,
+			OnlineCount: count,
+		})
+	}
+
+	return items, nil
+}
+
 func (s *StatService) GetCountdownCountsByUser(ctx context.Context, page, pageSize int) ([]response.AdminUserCountStatResponse, int64, error) {
 	return s.getUserCountStats(ctx, "countdowns", page, pageSize)
 }

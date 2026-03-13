@@ -449,6 +449,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				adminStats.GET("/countdowns/by-user", statHandler.GetCountdownCountsByUser)
 				adminStats.GET("/studytasks/by-user", statHandler.GetStudyTaskCountsByUser)
 				adminStats.GET("/gpa-backups/by-user", statHandler.GetGPABackupCountsByUser)
+				adminStats.GET("/projects/online", statHandler.GetAllProjectsOnlineCount) // 获取所有启用项目在线人数
 			}
 
 			// 通知管理（管理员）
