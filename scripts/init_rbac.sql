@@ -45,7 +45,11 @@ INSERT INTO `permissions` (`permission_tag`, `name`, `description`, `created_at`
 ('question.project.manage', '题库项目管理', '', NOW(), NOW()),
 ('question', '刷题访问', '', NOW(), NOW()),
 ('question.manage', '题目管理', '', NOW(), NOW()),
-('notification.get', '通知后台查看', '', NOW(), NOW()),
+('pomodoro', '番茄钟', '', NOW(), NOW()),
+('dictionary', '每日一词', '', NOW(), NOW()),
+('organization.get', '组织查询', '', NOW(), NOW()),
+('notification.get', '通知查看', '', NOW(), NOW()),
+('notification.get.admin', '通知后台查看', '', NOW(), NOW()),
 
 -- 管理权限
 ('review.manage', '点评管理', '', NOW(), NOW()),
@@ -66,6 +70,7 @@ INSERT INTO `permissions` (`permission_tag`, `name`, `description`, `created_at`
 ('feature.manage', '功能管理', '', NOW(), NOW()),
 ('user.manage', '用户管理', '', NOW(), NOW()),
 ('material.manage', '资料管理', '', NOW(), NOW()),
+('organization.manage', '组织管理', '', NOW(), NOW()),
 ('s3.manage', 'S3管理', '', NOW(), NOW())
 ON DUPLICATE KEY UPDATE 
     `name` = VALUES(`name`),
@@ -89,11 +94,11 @@ WHERE `permission_tag` IN (
     'user.get', 'user.update', 'oss.token.get', 
     'review.create', 'review.get.self',
     'coursetable.get', 'coursetable.class.search', 'coursetable.class.update.own', 'coursetable.update',
-    'failrate', 'point.get', 'point.spend',
+    'failrate', 'point.get', 'point.spend', 'statistic.get',
     'contribution.get', 'contribution.create',
     'countdown', 'studytask',
     'material.get', 'material.rate', 'material.download', 'material.category.get',
-    'question', 'notification.get'
+    'question', 'pomodoro', 'dictionary', 'organization.get', 'notification.get'
 );
 
 -- 绑定活跃用户权限
@@ -116,7 +121,7 @@ SELECT
 FROM `permissions`
 WHERE `permission_tag` IN (
     'contribution.manage',
-    'notification.get', 'notification.create', 'notification.publish',
+    'notification.get.admin', 'notification.create', 'notification.publish',
     'notification.update', 'notification.approve', 'notification.schedule'
 );
 

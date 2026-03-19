@@ -38,6 +38,7 @@ const (
 	PermissionPomodoro            = "pomodoro"              // basic_user
 	PermissionDictionary          = "dictionary"            // basic_user
 	PermissionChatStudy           = "chat.study"            // basic_user
+	PermissionOrganizationGet     = "organization.get"      // basic_user
 
 	PermissionReviewManage               = "review.manage"
 	PermissionCourseTableManage          = "coursetable.manage"
@@ -64,4 +65,5 @@ const (
 	PermissionUserManage                 = "user.manage"
 	PermissionMaterialManage             = "material.manage"
 	PermissionS3Manage                   = "s3.manage"
+	PermissionOrganizationManage         = "organization.manage"
 )

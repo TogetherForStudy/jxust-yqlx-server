@@ -76,11 +76,11 @@ func (s *FeatureService) GetUserFeatures(ctx context.Context, userID uint) ([]st
 	now := time.Now()
 
 	err := s.db.WithContext(ctx).
-		Table("user_feature_whitelists").
-		Select("DISTINCT user_feature_whitelists.feature_key").
-		Joins("INNER JOIN features ON user_feature_whitelists.feature_key = features.feature_key").
-		Where("user_feature_whitelists.user_id = ? AND (user_feature_whitelists.expires_at IS NULL OR user_feature_whitelists.expires_at > ?) AND features.is_enabled = ?", userID, now, true).
-		Pluck("feature_key", &features).Error
+		Model(&models.UserFeatureWhitelist{}).
+		Distinct("user_feature_whitelist.feature_key").
+		Joins("INNER JOIN features ON user_feature_whitelist.feature_key = features.feature_key").
+		Where("user_feature_whitelist.user_id = ? AND (user_feature_whitelist.expires_at IS NULL OR user_feature_whitelist.expires_at > ?) AND features.is_enabled = ?", userID, now, true).
+		Pluck("user_feature_whitelist.feature_key", &features).Error
 
 	if err != nil {
 		return nil, apperr.Wrap(constant.CommonInternal, err)

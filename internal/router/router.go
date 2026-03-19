@@ -68,6 +68,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	dictionaryService := services.NewDictionaryService(db)
 	chatService := services.NewChatService(db, cfg)
 	userActivityService := services.NewUserActivityService(db, rbacService)
+	organizationService := services.NewOrganizationService(db)
 
 	// 初始化处理器
 	rbacHandler := handlers.NewRBACHandler(rbacService)
@@ -93,6 +94,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	dictionaryHandler := handlers.NewDictionaryHandler(dictionaryService)
 	chatHandler := handlers.NewChatHandler(chatService)
 	userActivityHandler := handlers.NewUserActivityHandler(userActivityService)
+	organizationHandler := handlers.NewOrganizationHandler(organizationService)
 
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
@@ -353,6 +355,13 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				notifications.GET("/:id", middleware.RequirePermission(rbacService, constant.PermissionNotificationGet), notificationHandler.GetNotificationByID) // 获取通知详情
 			}
 
+			// 组织（需认证）
+			organizations := authorized.Group("/organizations")
+			{
+				organizations.GET("/", middleware.RequirePermission(rbacService, constant.PermissionOrganizationGet), organizationHandler.ListOrganizations)
+				organizations.GET("/:id", middleware.RequirePermission(rbacService, constant.PermissionOrganizationGet), organizationHandler.GetOrganizationByID)
+			}
+
 			// 通知分类（需认证）
 			categories := authorized.Group("/categories")
 			{
@@ -490,6 +499,16 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				featureAdmin.POST("/:key/whitelist", middleware.IdempotencyRecommended(ca), featureHandler.GrantFeature)            // 授予权限（幂等性保护）
 				featureAdmin.POST("/:key/whitelist/batch", middleware.IdempotencyRecommended(ca), featureHandler.BatchGrantFeature) // 批量授予权限（幂等性保护）
 				featureAdmin.DELETE("/:key/whitelist/:uid", featureHandler.RevokeFeature)                                           // 撤销权限
+			}
+
+			organizationAdmin := authorized.Group("/admin/organizations")
+			organizationAdmin.Use(middleware.RequirePermission(rbacService, constant.PermissionOrganizationManage))
+			{
+				organizationAdmin.GET("", organizationHandler.AdminListOrganizations)
+				organizationAdmin.GET("/:id", organizationHandler.AdminGetOrganizationByID)
+				organizationAdmin.POST("", middleware.IdempotencyRecommended(ca), organizationHandler.AdminCreateOrganization)
+				organizationAdmin.PUT("/:id", organizationHandler.AdminUpdateOrganization)
+				organizationAdmin.DELETE("/:id", organizationHandler.AdminDeleteOrganization)
 			}
 
 			// 用户管理（管理员）

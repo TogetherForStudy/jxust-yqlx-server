@@ -185,6 +185,11 @@ const (
 	UserActivityQueryFailed ResCode = 36001
 )
 
+// 37xxx: 组织相关
+const (
+	OrganizationNotFound ResCode = 37001
+)
+
 var ErrorMetaMap = map[ResCode]ErrorMeta{
 	SuccessCode:                         {HTTPStatus: http.StatusOK, Message: "Success"},
 	CommonRouteNotFound:                 {HTTPStatus: http.StatusNotFound, Message: "路由不存在"},
@@ -279,6 +284,7 @@ var ErrorMetaMap = map[ResCode]ErrorMeta{
 	StoreFileNotFound:                   {HTTPStatus: http.StatusNotFound, Message: "文件不存在"},
 	StoreFileStreamFailed:               {HTTPStatus: http.StatusInternalServerError, Message: "文件流传输失败"},
 	UserActivityQueryFailed:             {HTTPStatus: http.StatusInternalServerError, Message: "查询登录天数失败"},
+	OrganizationNotFound:                {HTTPStatus: http.StatusNotFound, Message: "组织不存在"},
 }
 
 func LookupErrorMeta(code ResCode) (ErrorMeta, bool) {

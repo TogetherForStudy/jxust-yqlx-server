@@ -85,6 +85,7 @@ func (s *RBACService) SeedDefaults(ctx context.Context) error {
 		{PermissionTag: constant.PermissionPomodoro, Name: "番茄钟", Description: ""},
 		{PermissionTag: constant.PermissionDictionary, Name: "每日一词", Description: ""},
 		{PermissionTag: constant.PermissionChatStudy, Name: "学习对话", Description: ""},
+		{PermissionTag: constant.PermissionOrganizationGet, Name: "组织查询", Description: ""},
 		{PermissionTag: constant.PermissionNotificationGet, Name: "通知查看", Description: ""},
 
 		{PermissionTag: constant.PermissionReviewManage, Name: "点评管理", Description: ""},
@@ -106,6 +107,7 @@ func (s *RBACService) SeedDefaults(ctx context.Context) error {
 		{PermissionTag: constant.PermissionUserManage, Name: "用户管理", Description: ""},
 		{PermissionTag: constant.PermissionMaterialManage, Name: "资料管理", Description: ""},
 		{PermissionTag: constant.PermissionS3Manage, Name: "S3管理", Description: ""},
+		{PermissionTag: constant.PermissionOrganizationManage, Name: "组织管理", Description: ""},
 	}
 
 	allPermissionTags := make([]string, 0, len(permissionSeeds))
@@ -142,6 +144,7 @@ func (s *RBACService) SeedDefaults(ctx context.Context) error {
 			constant.PermissionPomodoro,
 			constant.PermissionDictionary,
 			constant.PermissionChatStudy,
+			constant.PermissionOrganizationGet,
 		},
 		constant.RoleTagUserActive: {
 			constant.PermissionCourseTableClassUpdateAll,

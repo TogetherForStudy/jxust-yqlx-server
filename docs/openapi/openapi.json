@@ -320,6 +320,42 @@
         },
         "type": "object"
       },
+      "models_Organization": {
+        "properties": {
+          "affiliation": {
+            "type": "string"
+          },
+          "campus": {
+            "type": "string"
+          },
+          "contact": {
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "introduction": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "organization_type": {
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "models_Permission": {
         "properties": {
           "created_at": {
@@ -872,6 +908,43 @@
         ],
         "type": "object"
       },
+      "request_CreateOrganizationRequest": {
+        "properties": {
+          "affiliation": {
+            "maxLength": 255,
+            "type": "string"
+          },
+          "campus": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "contact": {
+            "maxLength": 255,
+            "type": "string"
+          },
+          "introduction": {
+            "maxLength": 1000,
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 255,
+            "type": "string"
+          },
+          "organization_type": {
+            "maxLength": 100,
+            "type": "string"
+          }
+        },
+        "required": [
+          "affiliation",
+          "campus",
+          "contact",
+          "introduction",
+          "name",
+          "organization_type"
+        ],
+        "type": "object"
+      },
       "request_CreatePermissionRequest": {
         "properties": {
           "description": {
@@ -1323,6 +1396,41 @@
         },
         "type": "object"
       },
+      "request_UpdateOrganizationRequest": {
+        "properties": {
+          "affiliation": {
+            "maxLength": 255,
+            "nullable": true,
+            "type": "string"
+          },
+          "campus": {
+            "maxLength": 100,
+            "nullable": true,
+            "type": "string"
+          },
+          "contact": {
+            "maxLength": 255,
+            "nullable": true,
+            "type": "string"
+          },
+          "introduction": {
+            "maxLength": 1000,
+            "nullable": true,
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 255,
+            "nullable": true,
+            "type": "string"
+          },
+          "organization_type": {
+            "maxLength": 100,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "request_UpdateProfileRequest": {
         "properties": {
           "avatar": {
@@ -1489,6 +1597,34 @@
           "total_points": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "response_AllProjectsOnlineStatItem": {
+        "properties": {
+          "online_count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "project_id": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "project_name": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "response_AllProjectsOnlineStatResponse": {
+        "properties": {
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/response_AllProjectsOnlineStatItem"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -7667,6 +7803,670 @@
         "x-permission": "notification.pin"
       }
     },
+    "/api/v0/admin/organizations": {
+      "get": {
+        "operationId": "get_api_v0_admin_organizations",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "organization_type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "affiliation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "campus",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "properties": {
+                        "data": {
+                          "items": {
+                            "$ref": "#/components/schemas/models_Organization"
+                          },
+                          "type": "array"
+                        },
+                        "page": {
+                          "format": "int32",
+                          "type": "integer"
+                        },
+                        "size": {
+                          "format": "int32",
+                          "type": "integer"
+                        },
+                        "total": {
+                          "format": "int64",
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "data",
+                        "total",
+                        "page",
+                        "size"
+                      ],
+                      "type": "object"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员获取组织列表",
+        "tags": [
+          "Organizations"
+        ],
+        "x-permission": "organization.manage"
+      },
+      "post": {
+        "operationId": "post_api_v0_admin_organizations",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "$ref": "#/components/parameters/XIdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/request_CreateOrganizationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "$ref": "#/components/schemas/models_Organization"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员创建组织",
+        "tags": [
+          "Organizations"
+        ],
+        "x-permission": "organization.manage"
+      }
+    },
+    "/api/v0/admin/organizations/{id}": {
+      "delete": {
+        "operationId": "delete_api_v0_admin_organizations_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "description": "组织 ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员删除组织",
+        "tags": [
+          "Organizations"
+        ],
+        "x-permission": "organization.manage"
+      },
+      "get": {
+        "operationId": "get_api_v0_admin_organizations_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "description": "组织 ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "$ref": "#/components/schemas/models_Organization"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员获取组织详情",
+        "tags": [
+          "Organizations"
+        ],
+        "x-permission": "organization.manage"
+      },
+      "put": {
+        "operationId": "put_api_v0_admin_organizations_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "description": "组织 ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/request_UpdateOrganizationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "$ref": "#/components/schemas/models_Organization"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "管理员更新组织",
+        "tags": [
+          "Organizations"
+        ],
+        "x-permission": "organization.manage"
+      }
+    },
     "/api/v0/admin/questions": {
       "get": {
         "operationId": "get_api_v0_admin_questions",
@@ -10583,6 +11383,104 @@
           }
         ],
         "summary": "管理员按用户统计绩点备份数量",
+        "tags": [
+          "AdminStats"
+        ],
+        "x-permission": "statistic.manage"
+      }
+    },
+    "/api/v0/admin/stats/projects/online": {
+      "get": {
+        "operationId": "get_api_v0_admin_stats_projects_online",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "$ref": "#/components/schemas/response_AllProjectsOnlineStatResponse"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "获取所有启用项目在线人数",
         "tags": [
           "AdminStats"
         ],
@@ -18439,6 +19337,301 @@
         "x-permission": "notification.get"
       }
     },
+    "/api/v0/organizations/": {
+      "get": {
+        "operationId": "get_api_v0_organizations",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "organization_type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "affiliation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "campus",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "properties": {
+                        "data": {
+                          "items": {
+                            "$ref": "#/components/schemas/models_Organization"
+                          },
+                          "type": "array"
+                        },
+                        "page": {
+                          "format": "int32",
+                          "type": "integer"
+                        },
+                        "size": {
+                          "format": "int32",
+                          "type": "integer"
+                        },
+                        "total": {
+                          "format": "int64",
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "data",
+                        "total",
+                        "page",
+                        "size"
+                      ],
+                      "type": "object"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "获取组织列表",
+        "tags": [
+          "Organizations"
+        ],
+        "x-permission": "organization.get"
+      }
+    },
+    "/api/v0/organizations/{id}": {
+      "get": {
+        "operationId": "get_api_v0_organizations_id",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/XRequestID"
+          },
+          {
+            "description": "组织 ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "RequestId": {
+                      "description": "请求唯一标识",
+                      "type": "string"
+                    },
+                    "Result": {
+                      "$ref": "#/components/schemas/models_Organization"
+                    },
+                    "StatusCode": {
+                      "description": "业务状态码，成功固定为 0",
+                      "example": 0,
+                      "format": "int32",
+                      "type": "integer"
+                    },
+                    "StatusMessage": {
+                      "description": "业务状态说明",
+                      "example": "Success",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "StatusCode",
+                    "StatusMessage",
+                    "RequestId",
+                    "Result"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "错误响应"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "获取组织详情",
+        "tags": [
+          "Organizations"
+        ],
+        "x-permission": "organization.get"
+      }
+    },
     "/api/v0/oss/token": {
       "post": {
         "operationId": "post_api_v0_oss_token",
@@ -23420,6 +24613,10 @@
     {
       "description": "词典",
       "name": "Dictionary"
+    },
+    {
+      "description": "组织信息",
+      "name": "Organizations"
     },
     {
       "description": "功能管理",

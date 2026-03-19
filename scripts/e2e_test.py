@@ -51,6 +51,9 @@ class E2ETestClient:
         self.admin_user_id: Optional[int] = None
         self.operator_user_id: Optional[int] = None
         self.notification_category_id: Optional[int] = None
+        self.e2e_coursetable_id: Optional[int] = None
+        self.e2e_coursetable_class_id: Optional[str] = None
+        self.e2e_coursetable_semester: Optional[str] = None
         self.results: list[TestResult] = []
 
     def _url(self, path: str) -> str:
@@ -231,6 +234,70 @@ class E2ETestClient:
         except Exception as e:
             self._record("创建测试分类", False, str(e))
             return None
+
+    def _create_admin_coursetable_fixture(self, class_id: Optional[str] = None, semester: str = "2099-2100-1", record_name: str = "管理员创建课表") -> Optional[dict]:
+        if not self.admin_token:
+            self._record(record_name, False, "缺少管理员 token")
+            return None
+
+        target_class_id = class_id or f"E2E-CLASS-{uuid.uuid4().hex[:8]}"
+        try:
+            resp = self._post_json(
+                "/admin/coursetables",
+                use_admin=True,
+                json={
+                    "class_id": target_class_id,
+                    "semester": semester,
+                    "course_data": {
+                        "1": {
+                            "name": "E2E课程",
+                            "teacher": "E2E老师",
+                            "location": "E2E教室",
+                        }
+                    },
+                },
+            )
+            if resp.status_code != 200:
+                self._record(record_name, False, f"status={resp.status_code}, body={resp.text}")
+                return None
+
+            course_table_id = self._extract_result(resp).get("id")
+            passed = bool(course_table_id)
+            self._record(record_name, passed, f"status={resp.status_code}, id={course_table_id}")
+            if not passed:
+                return None
+
+            return {
+                "id": int(course_table_id),
+                "class_id": target_class_id,
+                "semester": semester,
+            }
+        except Exception as e:
+            self._record(record_name, False, str(e))
+            return None
+
+    def ensure_user_course_table_ready(self) -> bool:
+        if self.e2e_coursetable_id and self.e2e_coursetable_class_id and self.e2e_coursetable_semester:
+            return True
+
+        fixture = self._create_admin_coursetable_fixture(record_name="准备课程表测试数据")
+        if not fixture:
+            return False
+
+        try:
+            bind_resp = self._put_json("/coursetable/class", json={"class_id": fixture["class_id"]})
+            if bind_resp.status_code != 200:
+                self._record("绑定E2E课程表班级", False, f"status={bind_resp.status_code}, body={bind_resp.text}")
+                return False
+
+            self.e2e_coursetable_id = fixture["id"]
+            self.e2e_coursetable_class_id = fixture["class_id"]
+            self.e2e_coursetable_semester = fixture["semester"]
+            self._record("绑定E2E课程表班级", True, f"class_id={self.e2e_coursetable_class_id}")
+            return True
+        except Exception as e:
+            self._record("绑定E2E课程表班级", False, str(e))
+            return False
 
     # ==================== 认证相关 ====================
 
@@ -602,14 +669,16 @@ class E2ETestClient:
 
     def test_get_course_table(self) -> bool:
         """测试获取课程表"""
+        if not self.ensure_user_course_table_ready():
+            return False
+
         try:
             resp = self.client.get(
                 self._url("/coursetable/"),
                 headers=self._headers(),
-                params={"semester": "2024-2025-1"}
+                params={"semester": self.e2e_coursetable_semester}
             )
-            # 如果用户未绑定班级返回 400，也算正常
-            passed = resp.status_code in [200, 400]
+            passed = resp.status_code == 200
             self._record("获取课程表", passed, f"status={resp.status_code}")
             return passed
         except Exception as e:
@@ -1522,6 +1591,16 @@ class E2ETestClient:
             self._record("管理员审核通知", False, str(e))
             return False
 
+    def test_admin_submit_notification_for_review(self, notification_id: int) -> bool:
+        try:
+            resp = self._post_json(f"/admin/notifications/{notification_id}/publish", use_admin=True, json={})
+            passed = resp.status_code == 200
+            self._record("管理员提交通知审核", passed, f"status={resp.status_code}, id={notification_id}")
+            return passed
+        except Exception as e:
+            self._record("管理员提交通知审核", False, str(e))
+            return False
+
     def test_admin_publish_notification(self, notification_id: int) -> bool:
         try:
             resp = self._post_json(f"/admin/notifications/{notification_id}/publish-admin", use_admin=True, json={})
@@ -1573,32 +1652,8 @@ class E2ETestClient:
             return False
 
     def test_admin_create_coursetable(self) -> Optional[int]:
-        class_id = f"E2E-CLASS-{uuid.uuid4().hex[:8]}"
-        try:
-            resp = self._post_json(
-                "/admin/coursetables",
-                use_admin=True,
-                json={
-                    "class_id": class_id,
-                    "semester": "2099-2100-1",
-                    "course_data": {
-                        "1": {
-                            "name": "E2E课程",
-                            "teacher": "E2E老师",
-                            "location": "E2E教室",
-                        }
-                    },
-                },
-            )
-            if resp.status_code != 200:
-                self._record("管理员创建课表", False, f"status={resp.status_code}, body={resp.text}")
-                return None
-            coursetable_id = self._extract_result(resp).get("id")
-            self._record("管理员创建课表", bool(coursetable_id), f"status={resp.status_code}, id={coursetable_id}")
-            return int(coursetable_id) if coursetable_id else None
-        except Exception as e:
-            self._record("管理员创建课表", False, str(e))
-            return None
+        fixture = self._create_admin_coursetable_fixture()
+        return int(fixture["id"]) if fixture else None
 
     def test_admin_list_coursetables(self) -> bool:
         try:
@@ -1654,12 +1709,102 @@ class E2ETestClient:
 
     def test_admin_reset_coursetable_bind_count(self, user_id: int) -> bool:
         try:
-            resp = self._post_json(f"/admin/users/{user_id}/coursetable-bind-count/reset", use_admin=True, json={})
+            resp = self._post_json(f"/coursetable/reset/{user_id}", use_admin=True, json={})
             passed = resp.status_code == 200
             self._record("管理员重置课表绑定次数", passed, f"status={resp.status_code}, user_id={user_id}")
             return passed
         except Exception as e:
             self._record("管理员重置课表绑定次数", False, str(e))
+            return False
+
+    def test_list_organizations(self) -> bool:
+        try:
+            resp = self._get("/organizations/", params={"page": 1, "page_size": 10})
+            passed = resp.status_code == 200
+            self._record("获取组织列表", passed, f"status={resp.status_code}")
+            return passed
+        except Exception as e:
+            self._record("获取组织列表", False, str(e))
+            return False
+
+    def test_get_organization_detail(self, organization_id: int) -> bool:
+        try:
+            resp = self._get(f"/organizations/{organization_id}")
+            passed = resp.status_code == 200
+            self._record("获取组织详情", passed, f"status={resp.status_code}, id={organization_id}")
+            return passed
+        except Exception as e:
+            self._record("获取组织详情", False, str(e))
+            return False
+
+    def test_admin_create_organization(self) -> Optional[int]:
+        try:
+            resp = self._post_json(
+                "/admin/organizations",
+                use_admin=True,
+                json={
+                    "name": f"E2E组织-{uuid.uuid4().hex[:8]}",
+                    "organization_type": "学生组织",
+                    "affiliation": "校团委",
+                    "campus": "红旗校区",
+                    "introduction": "这是 E2E 创建的组织介绍",
+                    "contact": "e2e@example.com",
+                },
+            )
+            organization_id = self._extract_result(resp).get("id") if resp.status_code == 200 else None
+            passed = resp.status_code == 200 and bool(organization_id)
+            self._record("管理员创建组织", passed, f"status={resp.status_code}, id={organization_id}")
+            return int(organization_id) if passed else None
+        except Exception as e:
+            self._record("管理员创建组织", False, str(e))
+            return None
+
+    def test_admin_list_organizations(self) -> bool:
+        try:
+            resp = self._get("/admin/organizations", use_admin=True, params={"page": 1, "page_size": 10})
+            passed = resp.status_code == 200
+            self._record("管理员获取组织列表", passed, f"status={resp.status_code}")
+            return passed
+        except Exception as e:
+            self._record("管理员获取组织列表", False, str(e))
+            return False
+
+    def test_admin_get_organization_detail(self, organization_id: int) -> bool:
+        try:
+            resp = self._get(f"/admin/organizations/{organization_id}", use_admin=True)
+            passed = resp.status_code == 200
+            self._record("管理员获取组织详情", passed, f"status={resp.status_code}, id={organization_id}")
+            return passed
+        except Exception as e:
+            self._record("管理员获取组织详情", False, str(e))
+            return False
+
+    def test_admin_update_organization(self, organization_id: int) -> bool:
+        try:
+            resp = self._put_json(
+                f"/admin/organizations/{organization_id}",
+                use_admin=True,
+                json={
+                    "campus": "三江校区",
+                    "contact": "updated-e2e@example.com",
+                    "introduction": "这是 E2E 更新后的组织介绍",
+                },
+            )
+            passed = resp.status_code == 200
+            self._record("管理员更新组织", passed, f"status={resp.status_code}, id={organization_id}")
+            return passed
+        except Exception as e:
+            self._record("管理员更新组织", False, str(e))
+            return False
+
+    def test_admin_delete_organization(self, organization_id: int) -> bool:
+        try:
+            resp = self._delete(f"/admin/organizations/{organization_id}", use_admin=True)
+            passed = resp.status_code == 200
+            self._record("管理员删除组织", passed, f"status={resp.status_code}, id={organization_id}")
+            return passed
+        except Exception as e:
+            self._record("管理员删除组织", False, str(e))
             return False
 
     def test_admin_create_failrate(self) -> Optional[int]:
@@ -1967,17 +2112,14 @@ class E2ETestClient:
     def test_get_user_features(self) -> bool:
         """测试获取用户功能列表"""
         try:
-            resp = self.client.get(
-                self._url("/user/features"),
-                headers=self._headers()
-            )
+            resp = self._get("/user/features")
             passed = resp.status_code == 200
             if passed:
                 result = resp.json().get("Result", {})
                 features = result.get("features", [])
                 self._record("获取用户功能列表", True, f"features={features}")
             else:
-                self._record("获取用户功能列表", False, f"status={resp.status_code}")
+                self._record("获取用户功能列表", False, f"status={resp.status_code}, body={resp.text}")
             return passed
         except Exception as e:
             self._record("获取用户功能列表", False, str(e))
@@ -2337,6 +2479,13 @@ class E2ETestClient:
             self.test_get_system_online()
             self.test_get_dictionary_word()
 
+            print("\n🏢 组织接口测试")
+            print("-" * 40)
+            organization_id = self.test_admin_create_organization() if self.admin_token else None
+            self.test_list_organizations()
+            if organization_id:
+                self.test_get_organization_detail(organization_id)
+
             # 幂等性接口测试
             print("\n🔁 幂等性接口测试")
             print("-" * 40)
@@ -2470,6 +2619,7 @@ class E2ETestClient:
             if notification_id:
                 self.test_admin_get_notification_detail(notification_id)
                 self.test_admin_update_notification(notification_id)
+                self.test_admin_submit_notification_for_review(notification_id)
                 self.test_admin_approve_notification(notification_id)
                 self.test_admin_publish_notification(notification_id)
                 self.test_admin_pin_notification(notification_id)
@@ -2493,6 +2643,12 @@ class E2ETestClient:
 
             print("\n🧩 新增后台接口测试")
             print("-" * 40)
+            self.test_admin_list_organizations()
+            organization_id = self.test_admin_create_organization()
+            if organization_id:
+                self.test_admin_get_organization_detail(organization_id)
+                self.test_admin_update_organization(organization_id)
+                self.test_admin_delete_organization(organization_id)
             self.test_admin_list_coursetables()
             if self.basic_user_id:
                 self.test_admin_reset_coursetable_bind_count(self.basic_user_id)

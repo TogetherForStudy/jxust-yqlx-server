@@ -15,6 +15,12 @@ INSERT IGNORE INTO `permissions` (`permission_tag`, `name`, `description`, `crea
 ('review.create', '发布点评', '', NOW(), NOW()),
 ('coursetable.get', '查看课表', '', NOW(), NOW()),
 ('coursetable.manage', '课表管理', '', NOW(), NOW()),
+('pomodoro', '番茄钟', '', NOW(), NOW()),
+('dictionary', '每日一词', '', NOW(), NOW()),
+('statistic.get', '统计查看', '', NOW(), NOW()),
+('organization.get', '组织查询', '', NOW(), NOW()),
+('organization.manage', '组织管理', '', NOW(), NOW()),
+('notification.get.admin', '通知后台查看', '', NOW(), NOW()),
 ('failrate.manage', '挂科率管理', '', NOW(), NOW()),
 ('statistic.manage', '后台统计管理', '', NOW(), NOW()),
 ('question.project.manage', '题库项目管理', '', NOW(), NOW()),
@@ -28,7 +34,7 @@ SELECT
     NOW() as created_at,
     NOW() as updated_at
 FROM `permissions`
-WHERE `permission_tag` IN ('user.get', 'user.update', 'review.create', 'coursetable.get');
+WHERE `permission_tag` IN ('user.get', 'user.update', 'review.create', 'coursetable.get', 'pomodoro', 'dictionary', 'statistic.get', 'organization.get');
 
 -- 验证初始化结果
 SELECT 'RBAC初始化完成' as status;
