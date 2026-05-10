@@ -4,8 +4,7 @@
 
 本模块实现了基于 LLM 的聊天对话功能，旨在帮助用户高效学习。支持与 MCP (Model Context Protocol) 集成，可连接 RAGFlow 知识库和内置功能。
 
-- **统一消息存储**: 所有对话消息存储为 `[]*schema.Message` JSON 格式，支持完整的 eino 消息兼容性
-- **智能缓存**: 使用 Redis 缓存消息，减少数据库查询，提高响应速度
+- **结构化消息存储**: 对话元信息与消息明细分表存储，消息保留 `schema.Message` 原始 JSON 以兼容 eino
 - **流式处理**: 用户消息+历史消息自动合并，后端负责获取完整上下文并保存响应
 - **简化 API**: 前端只需发送单个用户消息，后端自动处理上下文管理
 
@@ -108,7 +107,7 @@ LLM_BASE_URL=https://api.openai.com/v1
 
 **端点:** `GET /api/v0/chat/conversations/:id`
 
-**说明:** 获取对话的所有历史消息（仅包含 User 和 Assistant 角色），使用缓存加速
+**说明:** 获取对话的所有历史消息
 
 **响应:**
 ```json
@@ -169,7 +168,7 @@ LLM_BASE_URL=https://api.openai.com/v1
 
 **端点:** `GET /api/v0/chat/conversations/:id/export`
 
-**说明:** 导出对话的完整信息，包括所有消息（仅 User 和 Assistant 角色）
+**说明:** 导出对话的完整信息，包括所有消息
 
 **响应:**
 ```json
@@ -205,8 +204,8 @@ LLM_BASE_URL=https://api.openai.com/v1
 
 **说明:** 
 - 前端发送单个用户消息
-- 后端自动加载历史消息，合并新消息，调用 LLM
-- 流式返回响应，并自动保存完整对话到数据库和缓存
+- 后端自动加载历史消息，追加保存新消息，调用 LLM
+- 流式返回响应，并自动保存本轮 Agent 消息到数据库
 - **注意**: 此端点返回原始 SSE 流，不被包装在 `Response` 结构中
 
 **请求体:**
@@ -233,6 +232,8 @@ data: {"type":"content","content":"goroutine 之间通信的管道..."}
 
 data: {"type":"tool_call","function":"search","arguments":{"query":"go channel"}}
 
+data: {"type":"tool_result","tool_call_id":"call_123","tool_name":"search","content":"工具返回内容"}
+
 data: {"type":"end","message_count":15,"usage":{"prompt_tokens":100,"completion_tokens":150,"total_tokens":250}}
 ```
 
@@ -241,6 +242,7 @@ data: {"type":"end","message_count":15,"usage":{"prompt_tokens":100,"completion_
 - `content`: 内容增量（可多次发送）
 - `reasoning`: 模型推理过程（可选）
 - `tool_call`: 工具调用事件
+- `tool_result`: 工具返回结果
 - `end`: 对话结束，包含统计信息
 
 POST /api/v0/chat/conversation
@@ -286,7 +288,6 @@ POST /api/v0/chat/conversation
 - `id`: 对话 ID
 - `user_id`: 用户 ID
 - `title`: 对话标题
-- `messages`: 完整的消息列表 JSON，格式为 `[]*schema.Message`
 - `created_at`: 创建时间
 - `updated_at`: 更新时间
 - `last_message_at`: 最后消息时间
@@ -354,14 +355,14 @@ curl http://localhost:8085/api/v0/chat/conversations/1/export \
    - 前端构建 `schema.Message` 对象（仅需 role 和 content）
    - 发送到后端，包含 `conversation_id`
 3. **后端处理**:
-   - 从缓存/数据库加载完整的 `[]*schema.Message`
-   - 合并新消息（用户消息）到消息列表
+   - 从数据库加载完整的 `[]*schema.Message`
+   - 先追加保存用户消息
    - 调用 LLM 进行对话
    - 流式返回 SSE 事件
-   - 保存完整的消息列表到数据库和缓存
+   - 追加保存本轮 Agent 产生的 Assistant/Tool 消息
 4. **前端渲染**: 
    - 接收 SSE 事件，实时显示内容
-   - 加载对话时，获取历史消息并渲染（仅 User 和 Assistant 角色）
+   - 加载对话时，获取历史消息并渲染
 
 ## TODO
 
@@ -378,22 +379,18 @@ curl http://localhost:8085/api/v0/chat/conversations/1/export \
    - 流式响应的超时和重试机制
 
 3. **MCP 工具集成**
-   - 集成 RAGFlow MCP 客户端
-   - 实现工具调用记录和日志
-   - 添加 gojxust 内置 MCP 工具
-   - 工具调用结果的自动集成
+   - 完善工具调用审计与管理后台可观测性
+   - 增加更多 gojxust 内置 MCP 工具
+   - 支持用户自定义 MCP client
 
 4. **高级功能**
    - 自动生成对话标题
-   - 上下文窗口管理和消息压缩
    - 对话搜索和过滤
    - 工具调用可视化和结果展示
 
 5. **优化**
-   - 大消息列表的分页加载支持
    - 并发请求的速率限制
    - 数据库查询优化（索引、分区）
-   - 消息存储压缩
 
 ## 开发指南
 
@@ -402,43 +399,41 @@ curl http://localhost:8085/api/v0/chat/conversations/1/export \
 **消息存储流程：**
 
 ```
-Frontend                Backend                Database/Cache
+Frontend                Backend                Database
    |                       |                          |
    |-- 发送单个消息 ------->|                          |
    |                       |                          |
    |                       |-- 加载历史消息 --------->|
    |                       |<-- 返回 []*Message ---|
    |                       |                          |
-   |                       |-- 合并新消息到列表      |
+   |                       |-- 追加保存用户消息      |
    |                       |                          |
    |                       |-- 调用 LLM 流式处理   |
    |<-- 流式响应 SSE -------|                          |
    |                       |                          |
-   |                       |-- 保存完整消息列表 ---->|
+   |                       |-- 追加保存Agent消息 ---->|
    |                       |<-- 确认保存 ----------|
 ```
 
 ### 关键实现细节
 
 1. **GetMessages()**: 
-   - 优先从 Redis 缓存读取 `conversation:messages:{id}`
-   - 缓存未命中，从数据库 `Conversation.Messages` JSON 字段读取
-   - 更新 Redis 缓存（30分钟过期）
+   - 从数据库 `conversation_messages` 表按 `created_at ASC, id ASC` 读取
+   - 根据 `raw_message` 组装 `[]*schema.Message`
    - 返回 `[]*schema.Message`
 
 2. **StreamChat()**:
    - 接收单个用户消息 `*schema.Message`
    - 调用 `GetMessages()` 获取历史消息
-   - 将新消息追加到列表
+   - 将用户消息追加保存到 `conversation_messages`
    - 传递给 LLM 进行推理
    - 流式返回 SSE 事件
-   - 在后台 Goroutine 中保存完整消息列表
+   - 在后台 Goroutine 中追加保存本轮 Agent 消息
 
-3. **SaveMessages()**:
-   - 将 `[]*schema.Message` Marshal 为 JSON
-   - 更新 `Conversation.Messages` 字段
+3. **AppendMessages()**:
+   - 将单条消息拆出 role/content/tool 信息
+   - 同时保存完整 `schema.Message` 到 `raw_message`
    - 更新 `last_message_at` 和 `updated_at` 时间戳
-   - 更新 Redis 缓存
 
 ### 添加新的 MCP 工具
 
@@ -446,39 +441,32 @@ Frontend                Backend                Database/Cache
 2. 工具调用会自动记录到 `schema.Message.ToolCalls`
 3. 工具结果包含在对话历史中
 
-### 消息过滤
+### 消息返回
 
-- `ChooseConversation()`: 返回前端时仅过滤 User 和 Assistant 角色
-- 系统消息和工具调用消息存储在数据库，但不返回给前端
+- `ChooseConversation()`: 返回当前会话的全部消息
+- 系统消息和工具调用消息存储在数据库，并按原始顺序返回
 - 支持工具调用过程的完整记录和复现
 
 ## 注意事项
 
 - 所有 API 需要用户认证（JWT Token）
 - 对话和消息会自动关联到当前用户
-- 消息列表以 JSON 格式存储，完全兼容 eino 的 `schema.Message`
-- 系统消息、工具消息存储在数据库中保持完整上下文，但不返回给前端
-- 缓存使用 Redis，Key 格式: `conversation:messages:{conversation_id}`
+- 消息以独立行存储，`raw_message` 保留完整 `schema.Message`
+- 系统消息、工具消息存储在数据库中保持完整上下文，并返回给前端
 - SSE 流式响应需要客户端正确处理 EventSource API
-- 并发对同一对话的更新是安全的（数据库级别的最后一个更新获胜）
+- 并发对同一对话追加消息不会覆盖已有消息
 
 ## 性能考虑
 
 | 操作 | 时间复杂度 | 备注 |
 |------|----------|------|
-| GetMessages (缓存命中) | O(1) | 网络 I/O |
-| GetMessages (缓存未命中) | O(n) | n = 消息数量，包含 JSON 解析 |
-| SaveMessages | O(n) | n = 消息数量，包含 JSON 序列化 |
+| GetMessages | O(n) | n = 消息数量，包含数据库读取和 JSON 解析 |
+| AppendMessages | O(k) | k = 本次追加的消息数量 |
 | StreamChat | O(n) | 取决于 LLM 响应流速 |
-
-**优化建议：**
-- 对于大对话（>1000条消息），考虑实现消息分页存储
-- 定期清理过期缓存，避免内存溢出
 - 使用数据库连接池，配置合理的连接数
 
 ## 参考文档
 
 - [eino 文档](https://www.cloudwego.io/docs/eino/)
 - [eino MCP 集成](https://www.cloudwego.io/docs/eino/ecosystem_integration/tool/tool_mcp/)
-- [Redis 缓存策略](https://redis.io/topics/lru-cache)
 - [SSE 规范](https://html.spec.whatwg.org/multipage/server-sent-events.html)

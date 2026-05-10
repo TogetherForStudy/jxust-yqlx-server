@@ -111,7 +111,9 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	mcpGroup := api.Group("/mcp")
 	{
 		mcpGroup.Use(middleware.AuthMiddleware(cfg, ca))
+		mcpGroup.Use(middleware.RequirePermission(rbacService, constant.PermissionChatStudy))
 		mcpHandler := handlers.NewMCPHandler(
+			rbacService,
 			heroService,
 			notificationService,
 			authService,

@@ -11,7 +11,6 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 
 	json "github.com/bytedance/sonic"
-	"github.com/cloudwego/eino/schema"
 	"github.com/gin-gonic/gin"
 )
 
@@ -149,7 +148,7 @@ func (h *ChatHandler) UpdateConversation(c *gin.Context) {
 	helper.SuccessResponse(c, "ok")
 }
 
-// ChooseConversation 选择对话并返回历史消息（只返回User和Assistant角色的消息）
+// ChooseConversation 选择对话并返回历史消息
 func (h *ChatHandler) ChooseConversation(c *gin.Context) {
 	conversationID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -169,15 +168,7 @@ func (h *ChatHandler) ChooseConversation(c *gin.Context) {
 		return
 	}
 
-	// 过滤消息，只返回 User 和 Assistant 角色
-	filteredMessages := make([]*schema.Message, 0, len(messages))
-	for _, msg := range messages {
-		if msg.Role == schema.User || msg.Role == schema.Assistant {
-			filteredMessages = append(filteredMessages, msg)
-		}
-	}
-
-	helper.SuccessResponse(c, filteredMessages)
+	helper.SuccessResponse(c, messages)
 }
 
 // ExportConversation 导出对话
@@ -258,11 +249,12 @@ func (h *ChatHandler) StreamConversation(c *gin.Context) {
 
 	c.Writer.Flush()
 
-	for {
+	for outputChan != nil || errChan != nil {
 		select {
 		case msg, ok := <-outputChan:
 			if !ok {
-				return
+				outputChan = nil
+				continue
 			}
 			write, err := c.Writer.Write([]byte(msg))
 			if err != nil {
@@ -275,25 +267,30 @@ func (h *ChatHandler) StreamConversation(c *gin.Context) {
 				return
 			}
 			c.Writer.Flush()
-		case err := <-errChan:
-			if err != nil {
-				errorEvent := map[string]interface{}{
-					"type":  "error",
-					"error": err.Error(),
+		case err, ok := <-errChan:
+			if !ok {
+				errChan = nil
+				continue
+			}
+			if err == nil {
+				continue
+			}
+			errorEvent := map[string]interface{}{
+				"type":  "error",
+				"error": err.Error(),
+			}
+			if data, jsonErr := json.Marshal(errorEvent); jsonErr == nil {
+				write, err := c.Writer.Write([]byte("data: " + string(data) + "\n\n"))
+				if err != nil {
+					logger.ErrorGin(c, map[string]any{
+						"action":          "sse-error-message-write-failed",
+						"written_bytes":   write,
+						"conversation_id": req.ConversationID,
+						"error":           err.Error(),
+					})
+					return
 				}
-				if data, jsonErr := json.Marshal(errorEvent); jsonErr == nil {
-					write, err := c.Writer.Write([]byte("data: " + string(data) + "\n\n"))
-					if err != nil {
-						logger.ErrorGin(c, map[string]any{
-							"action":          "sse-error-message-write-failed",
-							"written_bytes":   write,
-							"conversation_id": req.ConversationID,
-							"error":           err.Error(),
-						})
-						return
-					}
-					c.Writer.Flush()
-				}
+				c.Writer.Flush()
 			}
 			return
 		case <-c.Request.Context().Done():

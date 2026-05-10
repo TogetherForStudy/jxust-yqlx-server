@@ -84,5 +84,6 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.UserActivity{},
 		&models.Dictionary{},
 		&models.Conversation{},
+		&models.ConversationMessage{},
 	)
 }

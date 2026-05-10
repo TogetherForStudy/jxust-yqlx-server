@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
@@ -19,6 +21,7 @@ import (
 	einomcp "github.com/cloudwego/eino-ext/components/tool/mcp"
 	einomodel "github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
+	einotoolutils "github.com/cloudwego/eino/components/tool/utils"
 
 	json "github.com/bytedance/sonic"
 	"github.com/cloudwego/eino/adk"
@@ -26,10 +29,26 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/client/transport"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
 type mcpClient map[string]*client.Client
+
+func (m mcpClient) Close(ctx context.Context) {
+	for name, cli := range m {
+		if cli == nil {
+			continue
+		}
+		if err := cli.Close(); err != nil {
+			logger.WarnCtx(ctx, map[string]any{
+				"action": "close_mcp_client",
+				"name":   name,
+				"error":  err.Error(),
+			})
+		}
+	}
+}
 
 // redisCheckPointStore 使用 Redis 实现的 CheckPointStore，用于 Agent 中断恢复
 type redisCheckPointStore struct {
@@ -80,30 +99,35 @@ func NewChatService(db *gorm.DB, cfg *config.Config) *ChatService {
 }
 
 // initRAGFlowMCP 初始化 RAGFlow MCP 客户端
-func (s *ChatService) initRAGFlowMCP(ctx context.Context) (*client.Client, error) {
-	// TODO: 根据 eino 的 MCP 集成文档实现
-	// 参考: https://www.cloudwego.io/docs/eino/ecosystem_integration/tool/tool_mcp/
-	// todo: ragflow sse endpoint 还需要 session_id 参数
-	mcpClient, err := client.NewSSEMCPClient(s.cfg.LLM.RAGFlowMCPURL, //fmt.Sprintf("%s/messages/?session_id=%s", s.cfg.LLM.RAGFlowMCPURL, sessionId),
-		transport.WithHeaders(
-			map[string]string{
-				"api_key": s.cfg.LLM.RAGFlowAPIKey, // global api key
-			}),
-		// transport.WithHTTPTimeout(30*time.Second),
-		transport.WithSSELogger(logger.L()),
-		transport.WithHTTPClient(s.httpClient),
+func (s *ChatService) initRAGFlowMCP(ctx context.Context, userID, conversationID uint) (*client.Client, error) {
+	if s.cfg.LLM.RAGFlowMCPURL == "" {
+		return nil, nil
+	}
+
+	ragflowURL, err := ragflowMCPURLWithSession(s.cfg.LLM.RAGFlowMCPURL, fmt.Sprintf("u%d-c%d", userID, conversationID))
+	if err != nil {
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("invalid ragflow mcp url: %w", err))
+	}
+
+	headers := ragflowMCPHeaders(s.cfg.LLM.RAGFlowAPIKey)
+	mcpClient, err := client.NewStreamableHttpClient(ragflowURL,
+		transport.WithHTTPHeaders(headers),
+		transport.WithHTTPTimeout(30*time.Second),
+		transport.WithHTTPLogger(logger.L()),
+		transport.WithHTTPBasicClient(s.httpClient),
 	)
 	if err != nil {
 		logger.ErrorCtx(ctx, map[string]any{
 			"action": "init_ragflow_mcp_client",
 			"stage":  "new_client",
 			"error":  err.Error(),
-			"url":    s.cfg.LLM.RAGFlowMCPURL,
+			"url":    ragflowURL,
 		})
 		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to create ragflow mcp client: %w", err))
 	}
 	err = mcpClient.Start(ctx)
 	if err != nil {
+		_ = mcpClient.Close()
 		logger.ErrorCtx(ctx, map[string]any{
 			"action": "init_ragflow_mcp_client",
 			"stage":  "start_client",
@@ -113,6 +137,7 @@ func (s *ChatService) initRAGFlowMCP(ctx context.Context) (*client.Client, error
 	}
 	_, err = mcpClient.Initialize(ctx, mcp.InitializeRequest{})
 	if err != nil {
+		_ = mcpClient.Close()
 		logger.ErrorCtx(ctx, map[string]any{
 			"action": "init_ragflow_mcp_client",
 			"stage":  "initialize",
@@ -121,6 +146,42 @@ func (s *ChatService) initRAGFlowMCP(ctx context.Context) (*client.Client, error
 		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to initialize ragflow mcp client: %w", err))
 	}
 	return mcpClient, nil
+}
+
+func ragflowMCPURLWithSession(rawURL, sessionID string) (string, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "", err
+	}
+	query := u.Query()
+	query.Set("session_id", sessionID)
+	u.RawQuery = query.Encode()
+	return u.String(), nil
+}
+
+func ragflowMCPHeaders(apiKey string) map[string]string {
+	headers := make(map[string]string)
+	rawToken, bearerToken := normalizeBearerToken(apiKey)
+	if rawToken == "" {
+		return headers
+	}
+	headers["api_key"] = rawToken
+	headers["Authorization"] = bearerToken
+	return headers
+}
+
+func normalizeBearerToken(apiKey string) (string, string) {
+	token := strings.TrimSpace(apiKey)
+	if token == "" {
+		return "", ""
+	}
+	if strings.HasPrefix(strings.ToLower(token), "bearer ") {
+		token = strings.TrimSpace(token[len("bearer "):])
+	}
+	if token == "" {
+		return "", ""
+	}
+	return token, "Bearer " + token
 }
 
 // CreateConversation 创建新对话
@@ -168,7 +229,7 @@ func (s *ChatService) ListConversations(ctx context.Context, userID uint, page, 
 	}
 
 	if err := s.db.WithContext(ctx).
-		Where("user_id = ? AND deleted_at = null", userID).
+		Where("user_id = ?", userID).
 		Order("updated_at DESC").
 		Limit(pageSize).
 		Offset(offset).
@@ -239,7 +300,6 @@ func (s *ChatService) deleteConversationInfoCache(ctx context.Context, userID, c
 
 func (s *ChatService) deleteConversationAllCaches(ctx context.Context, userID, conversationID uint) {
 	_ = cache.GlobalCache.Delete(ctx, fmt.Sprintf(constant.CacheKeyConversationInfo, userID, conversationID))
-	_ = cache.GlobalCache.Delete(ctx, fmt.Sprintf(constant.CacheKeyConversationMessages, userID, conversationID))
 }
 
 // GetConversation 获取对话详情
@@ -249,9 +309,9 @@ func (s *ChatService) GetConversation(ctx context.Context, userID, conversationI
 
 // DeleteConversation 删除对话
 func (s *ChatService) DeleteConversation(ctx context.Context, userID, conversationID uint) error {
-	result := s.db.WithContext(ctx).Model(models.Conversation{}).
+	result := s.db.WithContext(ctx).
 		Where("id = ? AND user_id = ?", conversationID, userID).
-		Update("deleted_at", time.Now())
+		Delete(&models.Conversation{})
 
 	if result.Error != nil {
 		logger.ErrorCtx(ctx, map[string]any{
@@ -281,7 +341,7 @@ func (s *ChatService) DeleteConversation(ctx context.Context, userID, conversati
 func (s *ChatService) UpdateConversation(ctx context.Context, userID, conversationID uint, title string) error {
 	result := s.db.WithContext(ctx).
 		Model(&models.Conversation{}).
-		Where("id = ? AND user_id = ? AND deleted_at = null", conversationID, userID).
+		Where("id = ? AND user_id = ?", conversationID, userID).
 		Update("title", title)
 
 	if result.Error != nil {
@@ -308,115 +368,181 @@ func (s *ChatService) UpdateConversation(ctx context.Context, userID, conversati
 	return nil
 }
 
-// GetMessages 获取对话的所有消息（使用缓存，不存在则从数据库构建缓存）
-func (s *ChatService) GetMessages(ctx context.Context, userID, conversationID uint) ([]*schema.Message, error) {
-	// 验证对话属于用户（带缓存）
-	conv, err := s.getOwnedConversation(ctx, userID, conversationID)
+func schemaMessageToConversationMessage(userID, conversationID uint, checkpointID string, msg *schema.Message) (*models.ConversationMessage, error) {
+	rawMessage, err := json.Marshal(msg)
 	if err != nil {
 		return nil, err
 	}
 
-	// 尝试从缓存获取
-	cacheKey := fmt.Sprintf(constant.CacheKeyConversationMessages, userID, conversationID)
-	if cachedData, err := cache.GlobalCache.Get(ctx, cacheKey); err == nil && cachedData != "" {
-		var messages []*schema.Message
-		if err := json.Unmarshal([]byte(cachedData), &messages); err == nil {
-			return messages, nil
+	var toolCalls []byte
+	if len(msg.ToolCalls) > 0 {
+		toolCalls, err = json.Marshal(msg.ToolCalls)
+		if err != nil {
+			return nil, err
 		}
-		logger.WarnCtx(ctx, map[string]any{
-			"action":          "get_messages_cache_unmarshal",
+	}
+
+	return &models.ConversationMessage{
+		ConversationID:   conversationID,
+		UserID:           userID,
+		CheckpointID:     checkpointID,
+		Role:             string(msg.Role),
+		Content:          msg.Content,
+		ReasoningContent: msg.ReasoningContent,
+		ToolCallID:       msg.ToolCallID,
+		ToolName:         msg.ToolName,
+		ToolCalls:        datatypes.JSON(toolCalls),
+		RawMessage:       datatypes.JSON(rawMessage),
+	}, nil
+}
+
+func conversationMessageToSchemaMessage(row *models.ConversationMessage) (*schema.Message, error) {
+	if len(row.RawMessage) > 0 {
+		var msg schema.Message
+		if err := json.Unmarshal(row.RawMessage, &msg); err == nil {
+			return &msg, nil
+		}
+	}
+
+	msg := &schema.Message{
+		Role:             schema.RoleType(row.Role),
+		Content:          row.Content,
+		ReasoningContent: row.ReasoningContent,
+		ToolCallID:       row.ToolCallID,
+		ToolName:         row.ToolName,
+	}
+	if len(row.ToolCalls) > 0 {
+		if err := json.Unmarshal(row.ToolCalls, &msg.ToolCalls); err != nil {
+			return nil, err
+		}
+	}
+	return msg, nil
+}
+
+// GetMessages 获取对话的所有消息
+func (s *ChatService) GetMessages(ctx context.Context, userID, conversationID uint) ([]*schema.Message, error) {
+	// 验证对话属于用户（带缓存）
+	if _, err := s.getOwnedConversation(ctx, userID, conversationID); err != nil {
+		return nil, err
+	}
+
+	var rows []models.ConversationMessage
+	if err := s.db.WithContext(ctx).
+		Where("conversation_id = ? AND user_id = ?", conversationID, userID).
+		Order("created_at ASC, id ASC").
+		Find(&rows).Error; err != nil {
+		logger.ErrorCtx(ctx, map[string]any{
+			"action":          "get_messages",
 			"user_id":         userID,
 			"conversation_id": conversationID,
 			"error":           err.Error(),
 		})
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to get messages: %w", err))
 	}
 
-	// 从数据库加载
-	messages := []*schema.Message{}
-	if len(conv.Messages) > 0 {
-		if err := json.Unmarshal(conv.Messages, &messages); err != nil {
+	messages := make([]*schema.Message, 0, len(rows))
+	for i := range rows {
+		msg, err := conversationMessageToSchemaMessage(&rows[i])
+		if err != nil {
 			logger.ErrorCtx(ctx, map[string]any{
 				"action":          "get_messages_unmarshal",
 				"user_id":         userID,
 				"conversation_id": conversationID,
+				"message_id":      rows[i].ID,
 				"error":           err.Error(),
 			})
-			return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to unmarshal messages: %w", err))
+			return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to unmarshal message: %w", err))
 		}
-	}
-
-	// 更新缓存
-	if data, err := json.Marshal(messages); err == nil {
-		expiration := 30 * time.Minute
-		err := cache.GlobalCache.Set(ctx, cacheKey, string(data), &expiration)
-		if err != nil {
-			logger.ErrorCtx(ctx, map[string]any{
-				"action":          "get_messages_set_cache",
-				"user_id":         userID,
-				"conversation_id": conversationID,
-				"error":           err.Error(),
-			})
-			return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to cache messages: %w", err))
-		}
+		messages = append(messages, msg)
 	}
 
 	return messages, nil
 }
 
-// SaveMessages 保存完整的消息列表到数据库和缓存
-func (s *ChatService) SaveMessages(ctx context.Context, userID, conversationID uint, messages []*schema.Message) error {
-	messagesJSON, err := json.Marshal(messages)
-	if err != nil {
-		logger.ErrorCtx(ctx, map[string]any{
-			"action":          "save_messages_marshal",
-			"user_id":         userID,
-			"conversation_id": conversationID,
-			"messages":        messages,
-			"error":           err.Error(),
-		})
-		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to marshal messages: %w", err))
+// AppendMessages 追加消息到对话消息表
+func (s *ChatService) AppendMessages(ctx context.Context, userID, conversationID uint, checkpointID string, messages []*schema.Message) error {
+	records := make([]models.ConversationMessage, 0, len(messages))
+	for _, msg := range messages {
+		if msg == nil {
+			continue
+		}
+		record, err := schemaMessageToConversationMessage(userID, conversationID, checkpointID, msg)
+		if err != nil {
+			logger.ErrorCtx(ctx, map[string]any{
+				"action":          "append_messages_marshal",
+				"user_id":         userID,
+				"conversation_id": conversationID,
+				"error":           err.Error(),
+			})
+			return apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to marshal message: %w", err))
+		}
+		records = append(records, *record)
+	}
+	if len(records) == 0 {
+		return nil
 	}
 
-	// 更新数据库
 	now := time.Now()
-	if err := s.db.WithContext(ctx).Model(&models.Conversation{}).
-		Where("id = ?", conversationID).
-		Updates(map[string]interface{}{
-			"messages":        messagesJSON,
-			"last_message_at": now,
-			"updated_at":      now,
-		}).Error; err != nil {
-		logger.ErrorCtx(ctx, map[string]any{
-			"action":          "save_messages_update_db",
-			"user_id":         userID,
-			"messages":        messages,
-			"conversation_id": conversationID,
-			"error":           err.Error(),
-		})
-		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to save messages to db: %w", err))
-	}
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var conv models.Conversation
+		if err := tx.Select("id").
+			Where("id = ? AND user_id = ?", conversationID, userID).
+			First(&conv).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return apperr.New(constant.ConversationNotFound)
+			}
+			logger.ErrorCtx(ctx, map[string]any{
+				"action":          "append_messages_get_conversation",
+				"user_id":         userID,
+				"conversation_id": conversationID,
+				"error":           err.Error(),
+			})
+			return apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to get conversation: %w", err))
+		}
 
-	// 更新缓存
-	cacheKey := fmt.Sprintf(constant.CacheKeyConversationMessages, userID, conversationID)
-	expiration := 30 * time.Minute
-	err = cache.GlobalCache.Set(ctx, cacheKey, string(messagesJSON), &expiration)
+		if err := tx.Create(&records).Error; err != nil {
+			logger.ErrorCtx(ctx, map[string]any{
+				"action":          "append_messages_create",
+				"user_id":         userID,
+				"conversation_id": conversationID,
+				"error":           err.Error(),
+			})
+			return apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to append messages: %w", err))
+		}
+
+		result := tx.Model(&models.Conversation{}).
+			Where("id = ? AND user_id = ?", conversationID, userID).
+			Updates(map[string]interface{}{
+				"last_message_at": now,
+				"updated_at":      now,
+			})
+		if result.Error != nil {
+			logger.ErrorCtx(ctx, map[string]any{
+				"action":          "append_messages_update_conversation",
+				"user_id":         userID,
+				"conversation_id": conversationID,
+				"error":           result.Error.Error(),
+			})
+			return apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to update conversation: %w", result.Error))
+		}
+		if result.RowsAffected == 0 {
+			return apperr.New(constant.ConversationNotFound)
+		}
+		return nil
+	})
 	if err != nil {
-		logger.ErrorCtx(ctx, map[string]any{
-			"action":          "save_messages_set_cache",
-			"user_id":         userID,
-			"conversation_id": conversationID,
-			"messages":        messages,
-			"error":           err.Error(),
-		})
-		return apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to cache messages: %w", err))
+		return err
 	}
 
 	s.deleteConversationInfoCache(ctx, userID, conversationID)
 	return nil
 }
 
-// todo: mcp server 除了系统内置的 mcp client 之外，还可以支持用户自定义的 mcp client
-func (s *ChatService) prepareUserMcpClient(ctx context.Context, userID uint, userToken string) (mcpClient, error) {
+func (s *ChatService) initYQLXMCP(ctx context.Context, userID uint, userToken string) (*client.Client, error) {
+	if userToken == "" {
+		return nil, fmt.Errorf("missing user token")
+	}
+
 	yqlxMcpClient, err := client.NewStreamableHttpClient(fmt.Sprintf("%s://%s/api/mcp", s.cfg.Scheme, s.cfg.Host), // yqlx自身的 MCP 转发接口 //todo:使用github.com/mark3labs/mcp-go/mcp重构后直接走api调用，不过网络栈
 		transport.WithHTTPHeaders(
 			map[string]string{
@@ -436,6 +562,7 @@ func (s *ChatService) prepareUserMcpClient(ctx context.Context, userID uint, use
 		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("%s", msg))
 	}
 	if err := yqlxMcpClient.Start(ctx); err != nil {
+		_ = yqlxMcpClient.Close()
 		logger.ErrorCtx(ctx, map[string]any{
 			"action":  "prepare_user_mcp_client",
 			"stage":   "start_yqlx_mcp_client",
@@ -446,6 +573,7 @@ func (s *ChatService) prepareUserMcpClient(ctx context.Context, userID uint, use
 	}
 	_, err = yqlxMcpClient.Initialize(ctx, mcp.InitializeRequest{})
 	if err != nil {
+		_ = yqlxMcpClient.Close()
 		logger.ErrorCtx(ctx, map[string]any{
 			"action":  "prepare_user_mcp_client",
 			"stage":   "init_yqlx_mcp_client",
@@ -454,23 +582,135 @@ func (s *ChatService) prepareUserMcpClient(ctx context.Context, userID uint, use
 		})
 		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to initialize user mcp client: %w", err))
 	}
-	// 初始化 RAGFlow MCP 工具
-	// todo: sessionId 应该是每个用户唯一的，可以用 userID 或者其他方式生成
-	ragMcpClient, err := s.initRAGFlowMCP(ctx)
+
+	return yqlxMcpClient, nil
+}
+
+// todo: mcp server 除了系统内置的 mcp client 之外，还可以支持用户自定义的 mcp client
+func (s *ChatService) prepareUserMcpClient(ctx context.Context, userID, conversationID uint, userToken string) mcpClient {
+	clients := make(mcpClient)
+
+	yqlxMcpClient, err := s.initYQLXMCP(ctx, userID, userToken)
 	if err != nil {
-		logger.ErrorCtx(ctx, map[string]any{
+		logger.WarnCtx(ctx, map[string]any{
+			"action":  "prepare_user_mcp_client",
+			"stage":   "init_yqlx_mcp_client",
+			"user_id": userID,
+			"error":   err.Error(),
+		})
+	} else if yqlxMcpClient != nil {
+		clients["yqlx"] = yqlxMcpClient
+	}
+
+	ragMcpClient, err := s.initRAGFlowMCP(ctx, userID, conversationID)
+	if err != nil {
+		logger.WarnCtx(ctx, map[string]any{
 			"action":  "prepare_user_mcp_client",
 			"stage":   "init_ragflow_mcp_client",
 			"user_id": userID,
 			"error":   err.Error(),
 		})
-		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("failed to init ragflow mcp: %w", err))
+	} else if ragMcpClient != nil {
+		clients["ragflow"] = ragMcpClient
 	}
-	m := map[string]*client.Client{
-		"yqlx":    yqlxMcpClient,
-		"ragflow": ragMcpClient,
+
+	return clients
+}
+
+func (s *ChatService) loadMCPTools(ctx context.Context, userID, conversationID uint, userToken string) ([]einotool.BaseTool, mcpClient) {
+	clients := s.prepareUserMcpClient(ctx, userID, conversationID, userToken)
+	allTools := make([]einotool.BaseTool, 0)
+	for name, cli := range clients {
+		if cli == nil {
+			continue
+		}
+		tools, err := einomcp.GetTools(ctx, &einomcp.Config{Cli: cli})
+		if err != nil {
+			logger.WarnCtx(ctx, map[string]any{
+				"action":  "stream_chat_get_mcp_tools",
+				"user_id": userID,
+				"name":    name,
+				"msg":     "Failed to load MCP tools, skipping",
+				"error":   err.Error(),
+			})
+			continue
+		}
+		tools = wrapAgentToolsWithFailureResults(ctx, tools, name, userID, conversationID)
+		allTools = append(allTools, tools...)
 	}
-	return m, nil
+
+	logger.InfoCtx(ctx, map[string]any{
+		"action":          "stream_chat_loaded_mcp_tools",
+		"user_id":         userID,
+		"conversation_id": conversationID,
+		"tool_count":      len(allTools),
+		"client_count":    len(clients),
+	})
+
+	return allTools, clients
+}
+
+func wrapAgentToolsWithFailureResults(ctx context.Context, tools []einotool.BaseTool, source string, userID, conversationID uint) []einotool.BaseTool {
+	if len(tools) == 0 {
+		return tools
+	}
+
+	wrappedTools := make([]einotool.BaseTool, 0, len(tools))
+	for _, t := range tools {
+		if t == nil {
+			continue
+		}
+
+		toolName := "unknown"
+		if info, err := t.Info(ctx); err != nil {
+			logger.WarnCtx(ctx, map[string]any{
+				"action":          "agent_tool_info_before_wrap",
+				"user_id":         userID,
+				"conversation_id": conversationID,
+				"source":          source,
+				"error":           err.Error(),
+			})
+		} else if info != nil && info.Name != "" {
+			toolName = info.Name
+		}
+
+		nameForHandler := toolName
+		wrappedTools = append(wrappedTools, einotoolutils.WrapToolWithErrorHandler(t, func(ctx context.Context, err error) string {
+			logger.WarnCtx(ctx, map[string]any{
+				"action":          "agent_tool_failed_as_result",
+				"user_id":         userID,
+				"conversation_id": conversationID,
+				"source":          source,
+				"tool_name":       nameForHandler,
+				"error":           err.Error(),
+			})
+			return agentToolFailureResult(nameForHandler, err.Error())
+		}))
+	}
+
+	return wrappedTools
+}
+
+func agentToolFailureResult(toolName, errMsg string) string {
+	payload := map[string]any{
+		"success":   false,
+		"tool_name": toolName,
+		"error":     errMsg,
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return `{"success":false,"error":"tool call failed"}`
+	}
+	return string(data)
+}
+
+func unknownAgentToolHandler(ctx context.Context, name, input string) (string, error) {
+	logger.WarnCtx(ctx, map[string]any{
+		"action":    "agent_unknown_tool_as_result",
+		"tool_name": name,
+		"arguments": input,
+	})
+	return agentToolFailureResult(name, fmt.Sprintf("tool %s not found", name)), nil
 }
 
 // streamEventProcessor 处理 Agent 事件流并输出到通道
@@ -480,9 +720,9 @@ type streamEventProcessor struct {
 	userID         uint
 	conversationID uint
 	checkpointID   string
-	messages       []*schema.Message
 	conv           *models.Conversation
 	service        *ChatService
+	mcpClients     mcpClient
 	outputChan     chan string
 	errChan        chan error
 	startEventType string // "start" 或 "resume_start"
@@ -491,13 +731,12 @@ type streamEventProcessor struct {
 func (p *streamEventProcessor) process(iter *adk.AsyncIterator[*adk.AgentEvent]) {
 	defer close(p.outputChan)
 	defer close(p.errChan)
+	defer p.mcpClients.Close(p.ctx)
 
-	var fullContent string
-	var fullToolCalls []schema.ToolCall
 	var usage *schema.TokenUsage
+	var turnMessages []*schema.Message
 	messageCount := 0
 
-	// 发送开始事件
 	startEvent := map[string]interface{}{
 		"type":          p.startEventType,
 		"checkpoint_id": p.checkpointID,
@@ -506,7 +745,6 @@ func (p *streamEventProcessor) process(iter *adk.AsyncIterator[*adk.AgentEvent])
 		p.outputChan <- "data: " + string(data) + "\n\n"
 	}
 
-	// 遍历 Agent 事件
 	for {
 		event, ok := iter.Next()
 		if !ok {
@@ -521,12 +759,14 @@ func (p *streamEventProcessor) process(iter *adk.AsyncIterator[*adk.AgentEvent])
 				"checkpoint_id":   p.checkpointID,
 				"error":           event.Err.Error(),
 			})
+			p.saveMessages(turnMessages)
 			p.errChan <- event.Err
 			return
 		}
 
-		// 处理中断事件
 		if event.Action != nil && event.Action.Interrupted != nil {
+			p.saveMessages(turnMessages)
+
 			interruptEvent := map[string]interface{}{
 				"type":          "interrupt",
 				"checkpoint_id": p.checkpointID,
@@ -544,7 +784,6 @@ func (p *streamEventProcessor) process(iter *adk.AsyncIterator[*adk.AgentEvent])
 			return
 		}
 
-		// 处理消息输出
 		if event.Output == nil || event.Output.MessageOutput == nil {
 			continue
 		}
@@ -552,11 +791,11 @@ func (p *streamEventProcessor) process(iter *adk.AsyncIterator[*adk.AgentEvent])
 		msgOutput := event.Output.MessageOutput
 		messageCount++
 
-		// 处理流式消息
 		if msgOutput.IsStreaming {
-			st := msgOutput.MessageStream
+			isToolStream := msgOutput.Role == schema.Tool
+			var chunks []*schema.Message
 			for {
-				recv, err := st.Recv()
+				recv, err := msgOutput.MessageStream.Recv()
 				if err == io.EOF {
 					break
 				}
@@ -568,88 +807,67 @@ func (p *streamEventProcessor) process(iter *adk.AsyncIterator[*adk.AgentEvent])
 						"checkpoint_id":   p.checkpointID,
 						"error":           err.Error(),
 					})
+					p.saveMessages(turnMessages)
 					p.errChan <- err
 					return
 				}
 
-				// 累积并发送内容
-				if recv.Content != "" {
-					fullContent += recv.Content
-					contentEvent := map[string]interface{}{
-						"type":    "content",
-						"content": recv.Content,
-					}
-					if data, err := json.Marshal(contentEvent); err == nil {
-						p.outputChan <- "data: " + string(data) + "\n\n"
-					}
+				chunks = append(chunks, recv)
+				if !isToolStream {
+					p.emitStreamingChunk(recv)
 				}
-
-				// 处理 reasoning content
-				if recv.ReasoningContent != "" {
-					reasoningEvent := map[string]interface{}{
-						"type":    "reasoning",
-						"content": recv.ReasoningContent,
-					}
-					if data, err := json.Marshal(reasoningEvent); err == nil {
-						p.outputChan <- "data: " + string(data) + "\n\n"
-					}
-				}
-
-				// 累积工具调用
-				if len(recv.ToolCalls) > 0 {
-					fullToolCalls = append(fullToolCalls, recv.ToolCalls...)
-					for _, tc := range recv.ToolCalls {
-						toolCallEvent := map[string]interface{}{
-							"type":      "tool_call",
-							"tool_call": tc,
-							"function":  tc.Function.Name,
-							"arguments": tc.Function.Arguments,
-						}
-						if data, err := json.Marshal(toolCallEvent); err == nil {
-							p.outputChan <- "data: " + string(data) + "\n\n"
-						}
-					}
-				}
-
-				// 保存 usage 信息
 				if recv.ResponseMeta != nil && recv.ResponseMeta.Usage != nil {
 					usage = recv.ResponseMeta.Usage
 				}
 			}
-		} else {
-			// 非流式消息（如工具调用结果）
-			msg, err := msgOutput.GetMessage()
-			if err != nil {
-				logger.ErrorCtx(p.ctx, map[string]any{
-					"action":          "agent_get_message",
-					"user_id":         p.userID,
-					"conversation_id": p.conversationID,
-					"checkpoint_id":   p.checkpointID,
-					"error":           err.Error(),
-				})
-				continue
-			}
 
-			// 发送工具结果事件
-			if msg.Role == schema.Tool {
-				toolResultEvent := map[string]interface{}{
-					"type":         "tool_result",
-					"tool_call_id": msg.ToolCallID,
-					"content":      msg.Content,
+			if len(chunks) > 0 {
+				msg, err := schema.ConcatMessages(chunks)
+				if err != nil {
+					logger.WarnCtx(p.ctx, map[string]any{
+						"action":          "agent_stream_concat_message",
+						"user_id":         p.userID,
+						"conversation_id": p.conversationID,
+						"checkpoint_id":   p.checkpointID,
+						"error":           err.Error(),
+					})
+				} else {
+					if msg.Role == "" {
+						msg.Role = msgOutput.Role
+					}
+					if msg.ToolName == "" {
+						msg.ToolName = msgOutput.ToolName
+					}
+					if msg.Role == schema.Tool {
+						p.emitToolResult(msg)
+					}
+					turnMessages = appendAgentMessage(turnMessages, msg)
 				}
-				if data, err := json.Marshal(toolResultEvent); err == nil {
-					p.outputChan <- "data: " + string(data) + "\n\n"
-				}
 			}
-
-			// 累积 Assistant 消息内容
-			if msg.Role == schema.Assistant && msg.Content != "" {
-				fullContent += msg.Content
-			}
-			if len(msg.ToolCalls) > 0 {
-				fullToolCalls = append(fullToolCalls, msg.ToolCalls...)
-			}
+			continue
 		}
+
+		msg, err := msgOutput.GetMessage()
+		if err != nil {
+			logger.ErrorCtx(p.ctx, map[string]any{
+				"action":          "agent_get_message",
+				"user_id":         p.userID,
+				"conversation_id": p.conversationID,
+				"checkpoint_id":   p.checkpointID,
+				"error":           err.Error(),
+			})
+			continue
+		}
+		if msg.Role == "" {
+			msg.Role = msgOutput.Role
+		}
+		if msg.ToolName == "" {
+			msg.ToolName = msgOutput.ToolName
+		}
+		if msg.Role == schema.Tool {
+			p.emitToolResult(msg)
+		}
+		turnMessages = appendAgentMessage(turnMessages, msg)
 	}
 
 	logger.InfoCtx(p.ctx, map[string]any{
@@ -660,28 +878,8 @@ func (p *streamEventProcessor) process(iter *adk.AsyncIterator[*adk.AgentEvent])
 		"message_count":   messageCount,
 	})
 
-	// 构建助手响应消息
-	assistantMsg := &schema.Message{
-		Role:    schema.Assistant,
-		Content: fullContent,
-	}
-	if len(fullToolCalls) > 0 {
-		assistantMsg.ToolCalls = fullToolCalls
-	}
-
-	// 添加助手响应到消息列表
-	p.messages = append(p.messages, assistantMsg)
-
-	// 保存更新后的消息列表到数据库和缓存
-	if err := p.service.SaveMessages(p.ctx, p.userID, p.conv.ID, p.messages); err != nil {
-		logger.ErrorCtx(p.ctx, map[string]any{
-			"action":          "agent_save_messages",
-			"user_id":         p.userID,
-			"conversation_id": p.conversationID,
-			"checkpoint_id":   p.checkpointID,
-			"error":           err.Error(),
-		})
-	}
+	// 保存本轮 Agent 产生的消息
+	p.saveMessages(turnMessages)
 
 	// 发送结束事件
 	endEvent := map[string]interface{}{
@@ -697,6 +895,77 @@ func (p *streamEventProcessor) process(iter *adk.AsyncIterator[*adk.AgentEvent])
 	}
 	if data, err := json.Marshal(endEvent); err == nil {
 		p.outputChan <- "data: " + string(data) + "\n\n"
+	}
+}
+
+func (p *streamEventProcessor) emitStreamingChunk(recv *schema.Message) {
+	if recv.Content != "" {
+		contentEvent := map[string]interface{}{
+			"type":    "content",
+			"content": recv.Content,
+		}
+		if data, err := json.Marshal(contentEvent); err == nil {
+			p.outputChan <- "data: " + string(data) + "\n\n"
+		}
+	}
+
+	if recv.ReasoningContent != "" {
+		reasoningEvent := map[string]interface{}{
+			"type":    "reasoning",
+			"content": recv.ReasoningContent,
+		}
+		if data, err := json.Marshal(reasoningEvent); err == nil {
+			p.outputChan <- "data: " + string(data) + "\n\n"
+		}
+	}
+
+	for _, tc := range recv.ToolCalls {
+		toolCallEvent := map[string]interface{}{
+			"type":      "tool_call",
+			"tool_call": tc,
+			"function":  tc.Function.Name,
+			"arguments": tc.Function.Arguments,
+		}
+		if data, err := json.Marshal(toolCallEvent); err == nil {
+			p.outputChan <- "data: " + string(data) + "\n\n"
+		}
+	}
+}
+
+func (p *streamEventProcessor) emitToolResult(msg *schema.Message) {
+	toolResultEvent := map[string]interface{}{
+		"type":         "tool_result",
+		"tool_call_id": msg.ToolCallID,
+		"tool_name":    msg.ToolName,
+		"content":      msg.Content,
+	}
+	if data, err := json.Marshal(toolResultEvent); err == nil {
+		p.outputChan <- "data: " + string(data) + "\n\n"
+	}
+}
+
+func appendAgentMessage(messages []*schema.Message, msg *schema.Message) []*schema.Message {
+	if msg == nil {
+		return messages
+	}
+	if msg.Role == schema.Assistant || msg.Role == schema.Tool {
+		return append(messages, msg)
+	}
+	return messages
+}
+
+func (p *streamEventProcessor) saveMessages(messages []*schema.Message) {
+	if len(messages) == 0 || p.service == nil || p.conv == nil {
+		return
+	}
+	if err := p.service.AppendMessages(context.WithoutCancel(p.ctx), p.userID, p.conv.ID, p.checkpointID, messages); err != nil {
+		logger.ErrorCtx(p.ctx, map[string]any{
+			"action":          "agent_save_messages",
+			"user_id":         p.userID,
+			"conversation_id": p.conversationID,
+			"checkpoint_id":   p.checkpointID,
+			"error":           err.Error(),
+		})
 	}
 }
 
@@ -738,7 +1007,8 @@ func (s *ChatService) createAgent(ctx context.Context, tools []einotool.BaseTool
 		Model:       chatModel,
 		ToolsConfig: adk.ToolsConfig{
 			ToolsNodeConfig: compose.ToolsNodeConfig{
-				Tools: tools,
+				Tools:               tools,
+				UnknownToolsHandler: unknownAgentToolHandler,
 			},
 		},
 		MaxIterations: 15, //todo: 配置化
@@ -769,7 +1039,7 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 		return nil, nil, err
 	}
 
-	// 获取完整的会话消息（使用缓存，不存在则从数据库构建）
+	// 获取完整的会话消息
 	messages, err := s.GetMessages(ctx, userID, conversationID)
 	if err != nil {
 		logger.ErrorCtx(ctx, map[string]any{
@@ -781,51 +1051,34 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 		return nil, nil, err
 	}
 
-	var allTools []einotool.BaseTool
 	isResume := checkpointID != ""
 
-	// 新对话：合并新消息，加载工具
+	// 新对话：合并新消息
 	if !isResume {
 		if newMessage == nil {
 			return nil, nil, apperr.New(constant.ConversationMessageRequired)
 		}
-		messages = append(messages, newMessage)
-
-		// MCP 工具为"增强能力"，不应阻塞基础聊天能力。
-		mcpClients, err := s.prepareUserMcpClient(ctx, userID, userToken)
-		if err != nil {
-			logger.WarnCtx(ctx, map[string]any{
-				"action":  "stream_chat_prepare_mcp_client",
-				"user_id": userID,
-				"msg":     "MCP client unavailable, fallback to no-tools chat",
-				"error":   err.Error(),
+		checkpointID = fmt.Sprintf("%d:%d:%d", userID, conversationID, time.Now().UnixNano())
+		if err := s.AppendMessages(ctx, userID, conversationID, checkpointID, []*schema.Message{newMessage}); err != nil {
+			logger.ErrorCtx(ctx, map[string]any{
+				"action":          "stream_chat_append_user_message",
+				"user_id":         userID,
+				"conversation_id": conversationID,
+				"checkpoint_id":   checkpointID,
+				"error":           err.Error(),
 			})
-		} else {
-			for _, cli := range mcpClients {
-				tools, err := einomcp.GetTools(ctx, &einomcp.Config{Cli: cli})
-				if err != nil {
-					logger.WarnCtx(ctx, map[string]any{
-						"action":  "stream_chat_get_mcp_tools",
-						"user_id": userID,
-						"msg":     "Failed to load MCP tools, skipping",
-						"error":   err.Error(),
-					})
-					continue
-				}
-				allTools = append(allTools, tools...)
-			}
+			return nil, nil, err
 		}
-		logger.InfoCtx(ctx, map[string]any{
-			"action":          "stream_chat_loaded_mcp_tools",
-			"user_id":         userID,
-			"conversation_id": conversationID,
-			"tool_count":      len(allTools),
-		})
+		messages = append(messages, newMessage)
 	}
+
+	// MCP 工具为增强能力，不应阻塞基础聊天能力。resume 也需要加载工具以恢复中断点。
+	allTools, mcpClients := s.loadMCPTools(ctx, userID, conversationID, userToken)
 
 	// 创建 Agent
 	agent, err := s.createAgent(ctx, allTools)
 	if err != nil {
+		mcpClients.Close(ctx)
 		logger.ErrorCtx(ctx, map[string]any{
 			"action":          "stream_chat_create_agent",
 			"user_id":         userID,
@@ -853,6 +1106,7 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 		}
 		iter, err = runner.Resume(ctx, checkpointID, adk.WithToolOptions(toolOpts))
 		if err != nil {
+			mcpClients.Close(ctx)
 			logger.ErrorCtx(ctx, map[string]any{
 				"action":          "stream_chat_resume_agent",
 				"user_id":         userID,
@@ -878,9 +1132,6 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 			}
 		}
 
-		// 生成新的 checkpointID
-		checkpointID = fmt.Sprintf("%d:%d:%d", userID, conversationID, time.Now().UnixNano())
-
 		// 运行 Agent
 		iter = runner.Run(ctx, inputMessages, adk.WithCheckPointID(checkpointID))
 		startEventType = "start"
@@ -896,9 +1147,9 @@ func (s *ChatService) StreamChat(ctx context.Context, userID, conversationID uin
 		userID:         userID,
 		conversationID: conversationID,
 		checkpointID:   checkpointID,
-		messages:       messages,
 		conv:           conv,
 		service:        s,
+		mcpClients:     mcpClients,
 		outputChan:     outputChan,
 		errChan:        errChan,
 		startEventType: startEventType,

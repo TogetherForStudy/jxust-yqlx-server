@@ -540,9 +540,25 @@ type Conversation struct {
 	ID            uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:会话ID"`
 	UserID        uint           `json:"user_id" gorm:"not null;index:idx_user_updated;comment:用户ID"`
 	Title         string         `json:"title" gorm:"type:varchar(200);not null;comment:会话标题"`
-	Messages      datatypes.JSON `json:"messages" gorm:"type:json;comment:完整会话消息[]*schema.Message"`
 	CreatedAt     time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
 	UpdatedAt     time.Time      `json:"updated_at" gorm:"type:datetime;index:idx_user_updated;comment:更新时间"`
 	LastMessageAt *time.Time     `json:"last_message_at" gorm:"type:datetime;comment:最后消息时间"`
 	DeletedAt     gorm.DeletedAt `json:"-" gorm:"comment:软删除时间"`
+}
+
+// ConversationMessage 对话消息模型
+type ConversationMessage struct {
+	ID               uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:消息ID"`
+	ConversationID   uint           `json:"conversation_id" gorm:"not null;index:idx_conversation_message_conversation_created,priority:1;index:idx_conversation_message_user_conversation,priority:2;comment:会话ID"`
+	UserID           uint           `json:"user_id" gorm:"not null;index:idx_conversation_message_user_conversation,priority:1;comment:用户ID"`
+	CheckpointID     string         `json:"checkpoint_id" gorm:"type:varchar(100);index:idx_conversation_message_checkpoint;comment:Agent checkpoint ID"`
+	Role             string         `json:"role" gorm:"type:varchar(20);not null;index:idx_conversation_message_role;comment:消息角色"`
+	Content          string         `json:"content" gorm:"type:longtext;comment:消息正文"`
+	ReasoningContent string         `json:"reasoning_content" gorm:"type:longtext;comment:推理内容"`
+	ToolCallID       string         `json:"tool_call_id" gorm:"type:varchar(191);comment:工具调用ID"`
+	ToolName         string         `json:"tool_name" gorm:"type:varchar(191);comment:工具名称"`
+	ToolCalls        datatypes.JSON `json:"tool_calls" gorm:"type:json;comment:工具调用列表"`
+	RawMessage       datatypes.JSON `json:"raw_message" gorm:"type:json;comment:eino schema.Message原始JSON"`
+	CreatedAt        time.Time      `json:"created_at" gorm:"type:datetime;index:idx_conversation_message_conversation_created,priority:2;comment:创建时间"`
+	UpdatedAt        time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
 }
