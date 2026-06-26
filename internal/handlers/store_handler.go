@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"io"
-	"net/http"
 	"strconv"
 	"time"
 
@@ -48,7 +47,7 @@ func (h *StoreHandler) UploadFile(c *gin.Context) {
 			"message": "读取上传文件失败",
 			"error":   err.Error(),
 		})
-		helper.ErrorResponse(c, http.StatusBadRequest, "file upload failed")
+		helper.HandleErrCode(c, constant.StoreFileUploadFailed)
 		return
 	}
 
@@ -60,7 +59,7 @@ func (h *StoreHandler) UploadFile(c *gin.Context) {
 			"error":     err.Error(),
 			"file_name": file.Filename,
 		})
-		helper.ErrorResponse(c, http.StatusInternalServerError, "failed to open file")
+		helper.HandleErrCode(c, constant.StoreFileOpenFailed)
 		return
 	}
 	defer src.Close()
@@ -75,7 +74,7 @@ func (h *StoreHandler) UploadFile(c *gin.Context) {
 				"error":   err.Error(),
 				"tags":    tagsStr,
 			})
-			helper.ErrorResponse(c, http.StatusBadRequest, "invalid tags format")
+			helper.HandleErrCode(c, constant.StoreInvalidTags)
 			return
 		}
 	}
@@ -93,7 +92,7 @@ func (h *StoreHandler) UploadFile(c *gin.Context) {
 			"file_name": file.Filename,
 			"mime_type": mimeType,
 		})
-		helper.ErrorResponse(c, http.StatusInternalServerError, "failed to store file")
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -120,7 +119,7 @@ func (h *StoreHandler) DeleteFile(c *gin.Context) {
 			"error":       err.Error(),
 			"resource_id": resourceID,
 		})
-		helper.ErrorResponse(c, http.StatusInternalServerError, "failed to delete file")
+		helper.HandleError(c, err)
 		return
 	}
 	helper.SuccessResponse(c, gin.H{"message": "file deleted successfully"})
@@ -144,7 +143,7 @@ func (h *StoreHandler) ListFiles(c *gin.Context) {
 			"message": "获取文件列表失败",
 			"error":   err.Error(),
 		})
-		helper.ErrorResponse(c, http.StatusInternalServerError, "failed to list files")
+		helper.HandleError(c, err)
 		return
 	}
 	helper.SuccessResponse(c, files)
@@ -168,7 +167,7 @@ func (h *StoreHandler) ListExpiredFiles(c *gin.Context) {
 			"message": "获取过期文件列表失败",
 			"error":   err.Error(),
 		})
-		helper.ErrorResponse(c, http.StatusInternalServerError, "failed to list expired files")
+		helper.HandleError(c, err)
 		return
 	}
 	helper.SuccessResponse(c, files)
@@ -195,18 +194,18 @@ func (h *StoreHandler) GetFileURL(c *gin.Context) {
 			"message": "请求参数绑定失败",
 			"error":   err.Error(),
 		})
-		helper.ValidateResponse(c, "invalid request parameters")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	resourceID := c.Param("resource_id")
 	expires := time.Duration(req.Expires) * time.Minute
 	if req.Expires == 0 {
-		expires = constant.DefaultExpired
+		expires = constant.DefaultPresignedURLExpiration
 	}
 	openid := helper.GetOpenID(c)
 	if openid == "" {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "failed to get user info")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
@@ -219,7 +218,7 @@ func (h *StoreHandler) GetFileURL(c *gin.Context) {
 			"resource_id": resourceID,
 			"expires":     expires.String(),
 		})
-		helper.ErrorResponse(c, http.StatusInternalServerError, "failed to get file url")
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -248,7 +247,7 @@ func (h *StoreHandler) GetFileStream(c *gin.Context) {
 			"error":       err.Error(),
 			"resource_id": resourceID,
 		})
-		helper.ErrorResponse(c, http.StatusNotFound, "file not found")
+		helper.HandleError(c, err)
 		return
 	}
 	defer obj.Close()
@@ -266,7 +265,7 @@ func (h *StoreHandler) GetFileStream(c *gin.Context) {
 			"resource_id": resourceID,
 			"file_name":   s3Data.FileName,
 		})
-		helper.ErrorResponse(c, http.StatusInternalServerError, "failed to stream file")
+		helper.HandleErrCode(c, constant.StoreFileStreamFailed)
 		return
 	}
 }

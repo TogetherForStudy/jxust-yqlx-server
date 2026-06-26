@@ -1,12 +1,12 @@
 package handlers
 
 import (
-	"net/http"
 	"strconv"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
 	"github.com/gin-gonic/gin"
@@ -33,7 +33,7 @@ func (h *PointsHandler) GetUserPoints(c *gin.Context) {
 		// 解析 user_id 参数
 		parsedUserID, err := strconv.ParseUint(userIDStr, 10, 32)
 		if err != nil {
-			helper.ValidateResponse(c, "无效的用户ID参数")
+			helper.HandleErrCode(c, constant.CommonBadRequest)
 			return
 		}
 
@@ -45,7 +45,7 @@ func (h *PointsHandler) GetUserPoints(c *gin.Context) {
 		} else {
 			// 非管理员只能查询自己的积分
 			if uint(parsedUserID) != currentUserID {
-				helper.ErrorResponse(c, http.StatusForbidden, "无权查看其他用户的积分")
+				helper.HandleErrCode(c, constant.CommonForbidden)
 				return
 			}
 			targetUserID = uint(parsedUserID)
@@ -54,7 +54,7 @@ func (h *PointsHandler) GetUserPoints(c *gin.Context) {
 
 	result, err := h.pointsService.GetUserPoints(c, targetUserID)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -65,13 +65,13 @@ func (h *PointsHandler) GetUserPoints(c *gin.Context) {
 func (h *PointsHandler) GetPointsTransactions(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	var req request.GetPointsTransactionsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
@@ -94,7 +94,7 @@ func (h *PointsHandler) GetPointsTransactions(c *gin.Context) {
 
 	result, err := h.pointsService.GetPointsTransactions(c, userID, &req)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -105,19 +105,19 @@ func (h *PointsHandler) GetPointsTransactions(c *gin.Context) {
 func (h *PointsHandler) SpendPoints(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	var req request.SpendPointsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	err := h.pointsService.SpendPoints(c, userID, &req)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -135,7 +135,7 @@ func (h *PointsHandler) GetUserPointsStats(c *gin.Context) {
 		// 解析 user_id 参数
 		parsedUserID, err := strconv.ParseUint(userIDStr, 10, 32)
 		if err != nil {
-			helper.ValidateResponse(c, "无效的用户ID参数")
+			helper.HandleErrCode(c, constant.CommonBadRequest)
 			return
 		}
 
@@ -147,7 +147,7 @@ func (h *PointsHandler) GetUserPointsStats(c *gin.Context) {
 		} else {
 			// 非管理员只能查询自己的积分
 			if uint(parsedUserID) != currentUserID {
-				helper.ErrorResponse(c, http.StatusForbidden, "无权查看其他用户的积分")
+				helper.HandleErrCode(c, constant.CommonForbidden)
 				return
 			}
 			targetUserID = uint(parsedUserID)
@@ -156,7 +156,7 @@ func (h *PointsHandler) GetUserPointsStats(c *gin.Context) {
 
 	result, err := h.pointsService.GetUserPointsStats(c, targetUserID)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -167,13 +167,13 @@ func (h *PointsHandler) GetUserPointsStats(c *gin.Context) {
 func (h *PointsHandler) GrantPoints(c *gin.Context) {
 	var req request.GrantPointsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	err := h.pointsService.GrantPoints(c, req.UserID, req.Points, req.Description)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 

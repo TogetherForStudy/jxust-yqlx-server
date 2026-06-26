@@ -1,14 +1,15 @@
 package handlers
 
 import (
-	"net/http"
 	"strconv"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/gin-gonic/gin"
 )
 
@@ -26,7 +27,7 @@ func NewRBACHandler(svc *services.RBACService) *RBACHandler {
 func (h *RBACHandler) ListRoles(c *gin.Context) {
 	roles, roleUserCountMap, roleUserIDsMap, err := h.svc.ListRolesWithUsers(c.Request.Context())
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -52,7 +53,7 @@ func (h *RBACHandler) ListRoles(c *gin.Context) {
 func (h *RBACHandler) CreateRole(c *gin.Context) {
 	var req request.CreateRoleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, err.Error())
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
@@ -62,7 +63,7 @@ func (h *RBACHandler) CreateRole(c *gin.Context) {
 		Description: req.Description,
 	}
 	if err := h.svc.CreateRole(c.Request.Context(), role); err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 	helper.SuccessResponse(c, role)
@@ -72,13 +73,13 @@ func (h *RBACHandler) CreateRole(c *gin.Context) {
 func (h *RBACHandler) UpdateRole(c *gin.Context) {
 	id, err := parseUintParam(c.Param("id"))
 	if err != nil {
-		helper.ValidateResponse(c, "invalid id")
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
 	var req request.UpdateRoleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, err.Error())
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
@@ -89,7 +90,7 @@ func (h *RBACHandler) UpdateRole(c *gin.Context) {
 		updates["description"] = *req.Description
 	}
 	if err := h.svc.UpdateRole(c.Request.Context(), id, updates); err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 	helper.SuccessResponse(c, gin.H{"id": id})
@@ -99,11 +100,11 @@ func (h *RBACHandler) UpdateRole(c *gin.Context) {
 func (h *RBACHandler) DeleteRole(c *gin.Context) {
 	id, err := parseUintParam(c.Param("id"))
 	if err != nil {
-		helper.ValidateResponse(c, "invalid id")
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 	if err := h.svc.DeleteRole(c.Request.Context(), id); err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 	helper.SuccessResponse(c, gin.H{"id": id})
@@ -113,7 +114,7 @@ func (h *RBACHandler) DeleteRole(c *gin.Context) {
 func (h *RBACHandler) ListPermissions(c *gin.Context) {
 	perms, err := h.svc.ListPermissions(c.Request.Context())
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 	helper.SuccessResponse(c, perms)
@@ -123,7 +124,7 @@ func (h *RBACHandler) ListPermissions(c *gin.Context) {
 func (h *RBACHandler) CreatePermission(c *gin.Context) {
 	var req request.CreatePermissionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, err.Error())
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 	perm := &models.Permission{
@@ -132,7 +133,7 @@ func (h *RBACHandler) CreatePermission(c *gin.Context) {
 		Description:   req.Description,
 	}
 	if err := h.svc.CreatePermission(c.Request.Context(), perm); err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 	helper.SuccessResponse(c, perm)
@@ -142,16 +143,16 @@ func (h *RBACHandler) CreatePermission(c *gin.Context) {
 func (h *RBACHandler) UpdateRolePermissions(c *gin.Context) {
 	roleID, err := parseUintParam(c.Param("id"))
 	if err != nil {
-		helper.ValidateResponse(c, "invalid id")
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 	var req request.UpdateRolePermissionsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, err.Error())
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 	if err := h.svc.UpdateRolePermissions(c.Request.Context(), roleID, req.PermissionIDs); err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 	helper.SuccessResponse(c, gin.H{"role_id": roleID})
@@ -161,16 +162,16 @@ func (h *RBACHandler) UpdateRolePermissions(c *gin.Context) {
 func (h *RBACHandler) UpdateUserRoles(c *gin.Context) {
 	userID, err := parseUintParam(c.Param("id"))
 	if err != nil {
-		helper.ValidateResponse(c, "invalid id")
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 	var req request.UpdateUserRolesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, err.Error())
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 	if err := h.svc.UpdateUserRoles(c.Request.Context(), userID, req.RoleIDs); err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 	helper.SuccessResponse(c, gin.H{"user_id": userID})
@@ -180,12 +181,12 @@ func (h *RBACHandler) UpdateUserRoles(c *gin.Context) {
 func (h *RBACHandler) GetUserPermissions(c *gin.Context) {
 	userID, err := parseUintParam(c.Param("id"))
 	if err != nil {
-		helper.ValidateResponse(c, "invalid id")
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 	perms, err := h.svc.GetUserPermissions(c.Request.Context(), userID)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 	helper.SuccessResponse(c, gin.H{
@@ -198,7 +199,7 @@ func (h *RBACHandler) GetUserPermissions(c *gin.Context) {
 func (h *RBACHandler) ListRolesWithPermissions(c *gin.Context) {
 	roles, rolePermMap, err := h.svc.GetRolesWithPermissions(c.Request.Context())
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 

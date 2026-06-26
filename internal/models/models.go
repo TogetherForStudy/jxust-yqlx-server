@@ -127,6 +127,20 @@ type SystemConfig struct {
 	DeletedAt   gorm.DeletedAt `json:"-" gorm:"comment:软删除时间"`
 }
 
+// Organization 组织信息模型
+type Organization struct {
+	ID               uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:组织ID"`
+	Name             string         `json:"name" gorm:"type:varchar(255);not null;index:idx_organization_name;comment:组织名称"`
+	OrganizationType string         `json:"organization_type" gorm:"type:varchar(100);not null;index:idx_organization_type;comment:组织类型"`
+	Affiliation      string         `json:"affiliation" gorm:"type:varchar(255);not null;index:idx_organization_affiliation;comment:组织所属"`
+	Campus           string         `json:"campus" gorm:"type:varchar(100);not null;index:idx_organization_campus;comment:组织校区"`
+	Introduction     string         `json:"introduction" gorm:"type:text;not null;comment:组织介绍"`
+	Contact          string         `json:"contact" gorm:"type:varchar(255);not null;comment:联系方式"`
+	CreatedAt        time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
+	UpdatedAt        time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
+	DeletedAt        gorm.DeletedAt `json:"-" gorm:"comment:软删除时间"`
+}
+
 // BindRecord 绑定记录表：记录用户访问绑定接口次数与成功绑定次数
 type BindRecord struct {
 	ID        uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:记录ID"`
@@ -135,6 +149,21 @@ type BindRecord struct {
 	CreatedAt time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
 	UpdatedAt time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"comment:软删除时间"`
+}
+
+// GPABackup 用户绩点计算数据备份
+type GPABackup struct {
+	ID        uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:绩点备份ID"`
+	UserID    uint           `json:"user_id" gorm:"not null;index:idx_gpa_backup_user_created;comment:用户ID"`
+	Title     string         `json:"title" gorm:"type:varchar(200);not null;comment:备份标题"`
+	Data      datatypes.JSON `json:"data" gorm:"type:json;not null;comment:绩点计算原始JSON"`
+	CreatedAt time.Time      `json:"created_at" gorm:"type:datetime;index:idx_gpa_backup_user_created;comment:创建时间"`
+	UpdatedAt time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
+	DeletedAt gorm.DeletedAt `json:"-" gorm:"comment:软删除时间"`
+}
+
+func (GPABackup) TableName() string {
+	return "gpa_backups"
 }
 
 // ==================== 通知/日程系统模型 ====================
@@ -511,9 +540,25 @@ type Conversation struct {
 	ID            uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:会话ID"`
 	UserID        uint           `json:"user_id" gorm:"not null;index:idx_user_updated;comment:用户ID"`
 	Title         string         `json:"title" gorm:"type:varchar(200);not null;comment:会话标题"`
-	Messages      datatypes.JSON `json:"messages" gorm:"type:json;comment:完整会话消息[]*schema.Message"`
 	CreatedAt     time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
 	UpdatedAt     time.Time      `json:"updated_at" gorm:"type:datetime;index:idx_user_updated;comment:更新时间"`
 	LastMessageAt *time.Time     `json:"last_message_at" gorm:"type:datetime;comment:最后消息时间"`
 	DeletedAt     gorm.DeletedAt `json:"-" gorm:"comment:软删除时间"`
+}
+
+// ConversationMessage 对话消息模型
+type ConversationMessage struct {
+	ID               uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:消息ID"`
+	ConversationID   uint           `json:"conversation_id" gorm:"not null;index:idx_conversation_message_conversation_created,priority:1;index:idx_conversation_message_user_conversation,priority:2;comment:会话ID"`
+	UserID           uint           `json:"user_id" gorm:"not null;index:idx_conversation_message_user_conversation,priority:1;comment:用户ID"`
+	CheckpointID     string         `json:"checkpoint_id" gorm:"type:varchar(100);index:idx_conversation_message_checkpoint;comment:Agent checkpoint ID"`
+	Role             string         `json:"role" gorm:"type:varchar(20);not null;index:idx_conversation_message_role;comment:消息角色"`
+	Content          string         `json:"content" gorm:"type:longtext;comment:消息正文"`
+	ReasoningContent string         `json:"reasoning_content" gorm:"type:longtext;comment:推理内容"`
+	ToolCallID       string         `json:"tool_call_id" gorm:"type:varchar(191);comment:工具调用ID"`
+	ToolName         string         `json:"tool_name" gorm:"type:varchar(191);comment:工具名称"`
+	ToolCalls        datatypes.JSON `json:"tool_calls" gorm:"type:json;comment:工具调用列表"`
+	RawMessage       datatypes.JSON `json:"raw_message" gorm:"type:json;comment:eino schema.Message原始JSON"`
+	CreatedAt        time.Time      `json:"created_at" gorm:"type:datetime;index:idx_conversation_message_conversation_created,priority:2;comment:创建时间"`
+	UpdatedAt        time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
 }

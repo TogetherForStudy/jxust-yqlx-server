@@ -1,10 +1,9 @@
 package middleware
 
 import (
-	"net/http"
-
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/gin-gonic/gin"
 )
 
@@ -14,13 +13,13 @@ func RequirePermission(rbac *services.RBACService, permissions ...string) gin.Ha
 	return func(c *gin.Context) {
 		userIDVal, exists := c.Get("user_id")
 		if !exists {
-			helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+			helper.HandleErrCode(c, constant.AuthMissingUserContext)
 			c.Abort()
 			return
 		}
 		userID, ok := userIDVal.(uint)
 		if !ok {
-			helper.ErrorResponse(c, http.StatusUnauthorized, "用户信息异常")
+			helper.HandleErrCode(c, constant.CommonUnauthorized)
 			c.Abort()
 			return
 		}
@@ -28,7 +27,7 @@ func RequirePermission(rbac *services.RBACService, permissions ...string) gin.Ha
 		// 获取用户权限快照
 		snap, err := rbac.GetUserPermissionSnapshot(c, userID)
 		if err != nil {
-			helper.ErrorResponse(c, http.StatusInternalServerError, "权限校验失败")
+			helper.HandleError(c, err)
 			c.Abort()
 			return
 		}
@@ -53,7 +52,7 @@ func RequirePermission(rbac *services.RBACService, permissions ...string) gin.Ha
 			}
 		}
 
-		helper.ErrorResponse(c, http.StatusForbidden, "权限不足")
+		helper.HandleErrCode(c, constant.CommonForbidden)
 		c.Abort()
 	}
 }

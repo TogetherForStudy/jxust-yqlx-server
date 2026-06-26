@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"sync"
 	"time"
 
-	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -26,13 +25,16 @@ const (
 )
 
 var logFormat string
+var runningLevel string
 
 func L() *zap.SugaredLogger {
 	return zlog
 }
 func init() {
 	once.Do(func() {
-		logFormat = os.Getenv(constant.ENV_LogFormatStr)
+		runtimeCfg := config.NewRuntime()
+		logFormat = runtimeCfg.LogFormat
+		runningLevel = runtimeCfg.RunningLevel
 		zlog = NewLogger()
 		zlog = zlog.WithOptions(zap.AddCallerSkip(1))
 	})
@@ -40,8 +42,7 @@ func init() {
 
 func NewLogger() *zap.SugaredLogger {
 	atom := zap.NewAtomicLevel()
-	logLevel := os.Getenv(constant.ENV_RUNNING_LEVEL)
-	switch logLevel {
+	switch runningLevel {
 	case "debug":
 		atom.SetLevel(zap.DebugLevel)
 	case "warning":

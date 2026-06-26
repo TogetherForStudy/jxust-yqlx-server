@@ -1,12 +1,12 @@
 package handlers
 
 import (
-	"net/http"
 	"strconv"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 
 	"github.com/gin-gonic/gin"
 )
@@ -25,19 +25,19 @@ func NewContributionHandler(contributionService *services.ContributionService) *
 func (h *ContributionHandler) CreateContribution(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	var req request.CreateContributionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	err := h.contributionService.CreateContribution(c, userID, &req)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -48,13 +48,13 @@ func (h *ContributionHandler) CreateContribution(c *gin.Context) {
 func (h *ContributionHandler) GetContributions(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	var req request.GetContributionsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
@@ -74,7 +74,7 @@ func (h *ContributionHandler) GetContributions(c *gin.Context) {
 
 	result, err := h.contributionService.GetContributions(c, userID, &req)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -85,24 +85,20 @@ func (h *ContributionHandler) GetContributions(c *gin.Context) {
 func (h *ContributionHandler) GetContributionByID(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, "无效的投稿ID")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	result, err := h.contributionService.GetContributionByID(c, uint(id), userID)
 	if err != nil {
-		if err.Error() == "投稿不存在" {
-			helper.ErrorResponse(c, http.StatusNotFound, err.Error())
-			return
-		}
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -113,26 +109,26 @@ func (h *ContributionHandler) GetContributionByID(c *gin.Context) {
 func (h *ContributionHandler) ReviewContribution(c *gin.Context) {
 	reviewerID := helper.GetUserID(c)
 	if reviewerID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, "无效的投稿ID")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	var req request.ReviewContributionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	err = h.contributionService.ReviewContribution(c, uint(id), reviewerID, &req)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -143,13 +139,13 @@ func (h *ContributionHandler) ReviewContribution(c *gin.Context) {
 func (h *ContributionHandler) GetUserContributionStats(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	result, err := h.contributionService.GetUserContributionStats(c, userID)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -160,7 +156,7 @@ func (h *ContributionHandler) GetUserContributionStats(c *gin.Context) {
 func (h *ContributionHandler) GetAdminContributionStats(c *gin.Context) {
 	result, err := h.contributionService.GetAdminContributionStats(c)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 

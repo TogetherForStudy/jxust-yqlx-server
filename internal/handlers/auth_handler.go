@@ -1,12 +1,16 @@
 package handlers
 
 import (
-	"net/http"
+	"errors"
+	"io"
+	"strconv"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 
 	"github.com/gin-gonic/gin"
@@ -25,25 +29,16 @@ func NewAuthHandler(authService *services.AuthService, rbacService *services.RBA
 }
 
 // WechatLogin 微信小程序登录
-// @Summary 微信小程序登录
-// @Description 通过微信授权码登录获取JWT token
-// @Tags 认证
-// @Accept json
-// @Produce json
-// @Param body body services.WechatLoginRequest true "登录请求"
-// @Success 200 {object} utils.Response{data=services.WechatLoginResponse}
-// @Failure 400 {object} utils.Response
-// @Router /api/auth/wechat-login [post]
 func (h *AuthHandler) WechatLogin(c *gin.Context) {
 	var req request.WechatLoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
-	result, err := h.authService.WechatLogin(c, req.Code)
+	result, err := h.authService.WechatLogin(c.Request.Context(), req.Code, c.Request.UserAgent())
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -51,58 +46,104 @@ func (h *AuthHandler) WechatLogin(c *gin.Context) {
 }
 
 // MockWechatLogin 模拟微信小程序登录 - 仅用于测试
-// @Summary 模拟微信小程序登录
-// @Description 模拟微信登录返回信息，用于测试其他接口。支持的测试用户类型：normal(普通用户), admin(管理员), new_user(新用户)
-// @Tags 认证
-// @Accept json
-// @Produce json
-// @Param body body request.MockWechatLoginRequest true "模拟登录请求"
-// @Success 200 {object} utils.Response{data=services.WechatLoginResponse}
-// @Failure 400 {object} utils.Response
-// @Router /api/auth/mock-wechat-login [post]
 func (h *AuthHandler) MockWechatLogin(c *gin.Context) {
 	var req request.MockWechatLoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
-	result, err := h.authService.MockWechatLogin(c, req.TestUser)
+	result, err := h.authService.MockWechatLogin(c.Request.Context(), req.TestUser, c.Request.UserAgent())
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
 	helper.SuccessResponse(c, result)
 }
 
+// AdminLogin 管理界面手机号密码登录
+func (h *AuthHandler) AdminLogin(c *gin.Context) {
+	var req request.AdminLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
+		return
+	}
+
+	result, err := h.authService.AdminLogin(c.Request.Context(), req.Phone, req.Password, c.Request.UserAgent())
+	if err != nil {
+		helper.HandleError(c, err)
+		return
+	}
+
+	helper.SuccessResponse(c, result)
+}
+
+func (h *AuthHandler) RefreshToken(c *gin.Context) {
+	var req request.RefreshTokenRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
+		return
+	}
+
+	result, err := h.authService.RefreshToken(c.Request.Context(), req.RefreshToken, c.Request.UserAgent())
+	if err != nil {
+		helper.HandleError(c, err)
+		return
+	}
+
+	helper.SuccessResponse(c, result)
+}
+
+func (h *AuthHandler) Logout(c *gin.Context) {
+	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
+		return
+	}
+
+	sid := helper.GetAuthSessionID(c)
+	if err := h.authService.Logout(c.Request.Context(), userID, sid); err != nil {
+		helper.HandleError(c, err)
+		return
+	}
+
+	helper.SuccessResponse(c, gin.H{"message": "退出成功"})
+}
+
+func (h *AuthHandler) LogoutAll(c *gin.Context) {
+	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
+		return
+	}
+
+	deleted, err := h.authService.LogoutAll(c.Request.Context(), userID)
+	if err != nil {
+		helper.HandleError(c, err)
+		return
+	}
+
+	helper.SuccessResponse(c, gin.H{"message": "已退出全部设备", "deleted_session_count": deleted})
+}
+
 // GetProfile 获取用户资料
-// @Summary 获取当前用户资料
-// @Description 获取当前登录用户的详细信息
-// @Tags 用户
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Success 200 {object} utils.Response{data=models.User}
-// @Failure 401 {object} utils.Response
-// @Router /api/user/profile [get]
 func (h *AuthHandler) GetProfile(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
-	user, err := h.authService.GetUserByID(c, userID)
+	user, err := h.authService.GetUserByID(c.Request.Context(), userID)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusNotFound, "用户不存在")
+		helper.HandleError(c, err)
 		return
 	}
 
-	// 获取角色标签（RBAC新逻辑）
 	var roleTags []string
 	if h.rbacService != nil {
-		if snap, err := h.rbacService.GetUserPermissionSnapshot(c, user.ID); err != nil {
+		if snap, err := h.rbacService.GetUserPermissionSnapshot(c.Request.Context(), user.ID); err != nil {
 			logger.WarnGin(c, map[string]any{
 				"action":         "get_user_roles",
 				"message":        "获取用户角色失败",
@@ -124,7 +165,7 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 		College:   user.College,
 		Major:     user.Major,
 		ClassID:   user.ClassID,
-		Role:      user.Role, // 向前兼容字段
+		Role:      user.Role,
 		RoleTags:  roleTags,
 		Status:    user.Status,
 		CreatedAt: user.CreatedAt,
@@ -135,33 +176,19 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 }
 
 // UpdateProfile 更新用户资料
-// @Summary 更新用户资料
-// @Description 更新当前登录用户的资料信息
-// @Tags 用户
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Param body body UpdateProfileRequest true "用户资料"
-// @Success 200 {object} utils.Response
-// @Failure 400 {object} utils.Response
-// @Router /api/user/profile [put]
 func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	var req request.UpdateProfileRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
-	// 构建更新 map，只包含前端传递的字段（指针不为 nil 的字段）
-	// 这样可以区分"未传递"和"空值"：
-	// - 指针为 nil：字段未传递，不更新
-	// - 指针不为 nil：字段已传递，更新（即使值为空字符串）
 	updates := make(map[string]any)
 	if req.Nickname != nil {
 		updates["nickname"] = *req.Nickname
@@ -188,10 +215,117 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 		updates["class_id"] = *req.ClassID
 	}
 
-	if err := h.authService.UpdateUserProfile(c, userID, updates); err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, "更新失败")
+	if err := h.authService.UpdateUserProfile(c.Request.Context(), userID, updates); err != nil {
+		helper.HandleError(c, err)
 		return
 	}
 
 	helper.SuccessResponse(c, gin.H{"message": "更新成功"})
+}
+
+func (h *AuthHandler) KickUser(c *gin.Context) {
+	targetUserID, err := parsePathUserID(c)
+	if err != nil {
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
+		return
+	}
+
+	operatorUserID := helper.GetUserID(c)
+	deleted, err := h.authService.KickUser(c.Request.Context(), operatorUserID, targetUserID)
+	if err != nil {
+		helper.HandleError(c, err)
+		return
+	}
+
+	helper.SuccessResponse(c, gin.H{"message": "用户已踢下线", "deleted_session_count": deleted})
+}
+
+func (h *AuthHandler) BanUser(c *gin.Context) {
+	targetUserID, err := parsePathUserID(c)
+	if err != nil {
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
+		return
+	}
+
+	var req request.BanUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
+		return
+	}
+
+	operatorUserID := helper.GetUserID(c)
+	deleted, err := h.authService.BanUser(c.Request.Context(), operatorUserID, targetUserID, req.DurationSeconds, req.Reason)
+	if err != nil {
+		helper.HandleError(c, err)
+		return
+	}
+
+	helper.SuccessResponse(c, gin.H{"message": "封禁成功", "deleted_session_count": deleted})
+}
+
+func (h *AuthHandler) UnbanUser(c *gin.Context) {
+	targetUserID, err := parsePathUserID(c)
+	if err != nil {
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
+		return
+	}
+
+	operatorUserID := helper.GetUserID(c)
+	if err := h.authService.UnbanUser(c.Request.Context(), operatorUserID, targetUserID); err != nil {
+		helper.HandleError(c, err)
+		return
+	}
+
+	helper.SuccessResponse(c, gin.H{"message": "解封成功"})
+}
+
+func (h *AuthHandler) GetUserDetail(c *gin.Context) {
+	targetUserID, err := parsePathUserID(c)
+	if err != nil {
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
+		return
+	}
+
+	result, err := h.authService.GetUserAuthDetail(c.Request.Context(), targetUserID)
+	if err != nil {
+		helper.HandleError(c, err)
+		return
+	}
+
+	helper.SuccessResponse(c, result)
+}
+
+func (h *AuthHandler) SetAdminLoginCredentials(c *gin.Context) {
+	targetUserID, err := parsePathUserID(c)
+	if err != nil {
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
+		return
+	}
+
+	operatorUserID := helper.GetUserID(c)
+	if operatorUserID == 0 {
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
+		return
+	}
+
+	var req request.AdminLoginCredentialsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
+		return
+	}
+
+	if err := h.authService.SetAdminLoginCredentials(c.Request.Context(), operatorUserID, targetUserID, req.Phone, req.Password); err != nil {
+		helper.HandleError(c, err)
+		return
+	}
+
+	helper.SuccessResponse(c, gin.H{"message": "后台登录凭据更新成功"})
+}
+
+func parsePathUserID(c *gin.Context) (uint, error) {
+	userID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		return 0, errors.New("无效的用户ID")
+	}
+	return uint(userID), nil
 }

@@ -1,14 +1,15 @@
 package handlers
 
 import (
-	"net/http"
 	"strconv"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 
 	"github.com/gin-gonic/gin"
 )
@@ -33,13 +34,13 @@ func NewFeatureHandler(featureService *services.FeatureService) *FeatureHandler 
 func (h *FeatureHandler) GetUserFeatures(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	features, err := h.featureService.GetUserFeatures(c.Request.Context(), userID)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, "获取功能列表失败")
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -63,7 +64,7 @@ func (h *FeatureHandler) GetUserFeatures(c *gin.Context) {
 func (h *FeatureHandler) ListFeatures(c *gin.Context) {
 	features, err := h.featureService.ListFeatures(c.Request.Context())
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, "获取功能列表失败")
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -97,7 +98,7 @@ func (h *FeatureHandler) GetFeature(c *gin.Context) {
 
 	feature, err := h.featureService.GetFeature(c, featureKey)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusNotFound, "功能不存在")
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -115,7 +116,7 @@ func (h *FeatureHandler) GetFeature(c *gin.Context) {
 func (h *FeatureHandler) CreateFeature(c *gin.Context) {
 	var req request.CreateFeatureRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "请求参数错误: "+err.Error())
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
@@ -134,7 +135,7 @@ func (h *FeatureHandler) CreateFeature(c *gin.Context) {
 
 	err := h.featureService.CreateFeature(c.Request.Context(), feature)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -155,7 +156,7 @@ func (h *FeatureHandler) UpdateFeature(c *gin.Context) {
 
 	var req request.UpdateFeatureRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "请求参数错误: "+err.Error())
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
@@ -172,13 +173,13 @@ func (h *FeatureHandler) UpdateFeature(c *gin.Context) {
 	}
 
 	if len(updates) == 0 {
-		helper.ValidateResponse(c, "没有需要更新的字段")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	err := h.featureService.UpdateFeature(c.Request.Context(), featureKey, updates)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, "更新功能失败")
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -198,7 +199,7 @@ func (h *FeatureHandler) DeleteFeature(c *gin.Context) {
 
 	err := h.featureService.DeleteFeature(c.Request.Context(), featureKey)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, "删除功能失败")
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -230,7 +231,7 @@ func (h *FeatureHandler) ListWhitelist(c *gin.Context) {
 
 	whitelists, total, err := h.featureService.ListWhitelist(c.Request.Context(), featureKey, page, pageSize)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, "获取白名单失败")
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -286,7 +287,7 @@ func (h *FeatureHandler) GrantFeature(c *gin.Context) {
 
 	var req request.GrantFeatureRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "请求参数错误: "+err.Error())
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
@@ -299,7 +300,7 @@ func (h *FeatureHandler) GrantFeature(c *gin.Context) {
 	)
 
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -321,7 +322,7 @@ func (h *FeatureHandler) BatchGrantFeature(c *gin.Context) {
 
 	var req request.BatchGrantFeatureRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "请求参数错误: "+err.Error())
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
@@ -334,7 +335,7 @@ func (h *FeatureHandler) BatchGrantFeature(c *gin.Context) {
 	)
 
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -354,13 +355,13 @@ func (h *FeatureHandler) RevokeFeature(c *gin.Context) {
 	featureKey := c.Param("key")
 	userID, err := strconv.ParseUint(c.Param("uid"), 10, 32)
 	if err != nil {
-		helper.ValidateResponse(c, "无效的用户ID")
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
 	err = h.featureService.RevokeFeatureFromUser(c.Request.Context(), uint(userID), featureKey)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, "撤销权限失败")
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -378,13 +379,13 @@ func (h *FeatureHandler) RevokeFeature(c *gin.Context) {
 func (h *FeatureHandler) GetUserFeatureDetails(c *gin.Context) {
 	userID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		helper.ValidateResponse(c, "无效的用户ID")
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
 	whitelists, err := h.featureService.GetUserFeatureDetails(c.Request.Context(), uint(userID))
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, "获取用户功能详情失败")
+		helper.HandleError(c, err)
 		return
 	}
 

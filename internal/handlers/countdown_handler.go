@@ -1,12 +1,12 @@
 package handlers
 
 import (
-	"net/http"
 	"strconv"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 
 	"github.com/gin-gonic/gin"
 )
@@ -25,19 +25,19 @@ func NewCountdownHandler(countdownService *services.CountdownService) *Countdown
 func (h *CountdownHandler) CreateCountdown(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	var req request.CreateCountdownRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	result, err := h.countdownService.CreateCountdown(c, userID, &req)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -48,13 +48,13 @@ func (h *CountdownHandler) CreateCountdown(c *gin.Context) {
 func (h *CountdownHandler) GetCountdowns(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	result, err := h.countdownService.GetCountdowns(c, userID)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -65,24 +65,20 @@ func (h *CountdownHandler) GetCountdowns(c *gin.Context) {
 func (h *CountdownHandler) GetCountdownByID(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, "无效的倒数日ID")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	result, err := h.countdownService.GetCountdownByID(c, uint(id), userID)
 	if err != nil {
-		if err.Error() == "倒数日不存在或无权限访问" {
-			helper.ErrorResponse(c, http.StatusNotFound, err.Error())
-			return
-		}
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -93,26 +89,26 @@ func (h *CountdownHandler) GetCountdownByID(c *gin.Context) {
 func (h *CountdownHandler) UpdateCountdown(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, "无效的倒数日ID")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	var req request.UpdateCountdownRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	result, err := h.countdownService.UpdateCountdown(c, uint(id), userID, &req)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -123,20 +119,20 @@ func (h *CountdownHandler) UpdateCountdown(c *gin.Context) {
 func (h *CountdownHandler) DeleteCountdown(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, "无效的倒数日ID")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	err = h.countdownService.DeleteCountdown(c, uint(id), userID)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 

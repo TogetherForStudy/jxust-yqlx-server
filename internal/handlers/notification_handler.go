@@ -1,12 +1,12 @@
 package handlers
 
 import (
-	"net/http"
 	"strconv"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 
 	"github.com/gin-gonic/gin"
 )
@@ -25,19 +25,19 @@ func NewNotificationHandler(notificationService *services.NotificationService) *
 func (h *NotificationHandler) CreateNotification(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	var req request.CreateNotificationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	result, err := h.notificationService.CreateNotification(c, userID, &req)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -48,7 +48,7 @@ func (h *NotificationHandler) CreateNotification(c *gin.Context) {
 func (h *NotificationHandler) GetNotifications(c *gin.Context) {
 	var req request.GetNotificationsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
@@ -68,7 +68,7 @@ func (h *NotificationHandler) GetNotifications(c *gin.Context) {
 
 	result, err := h.notificationService.GetNotifications(c, &req)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -80,17 +80,13 @@ func (h *NotificationHandler) GetNotificationByID(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, "无效的通知ID")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	result, err := h.notificationService.GetNotificationByID(c, uint(id))
 	if err != nil {
-		if err.Error() == "通知不存在" {
-			helper.ErrorResponse(c, http.StatusNotFound, err.Error())
-			return
-		}
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -102,17 +98,13 @@ func (h *NotificationHandler) GetNotificationAdminByID(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, "无效的通知ID")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	result, err := h.notificationService.GetNotificationAdminByID(c, uint(id))
 	if err != nil {
-		if err.Error() == "通知不存在" {
-			helper.ErrorResponse(c, http.StatusNotFound, err.Error())
-			return
-		}
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -123,26 +115,26 @@ func (h *NotificationHandler) GetNotificationAdminByID(c *gin.Context) {
 func (h *NotificationHandler) UpdateNotification(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, "无效的通知ID")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	var req request.UpdateNotificationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	result, err := h.notificationService.UpdateNotification(c, uint(id), userID, &req)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -153,20 +145,20 @@ func (h *NotificationHandler) UpdateNotification(c *gin.Context) {
 func (h *NotificationHandler) PublishNotification(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, "无效的通知ID")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	err = h.notificationService.PublishNotification(c, uint(id), userID)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -177,20 +169,20 @@ func (h *NotificationHandler) PublishNotification(c *gin.Context) {
 func (h *NotificationHandler) PublishNotificationAdmin(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, "无效的通知ID")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	err = h.notificationService.PublishNotificationAdmin(c, uint(id), userID)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -203,19 +195,19 @@ func (h *NotificationHandler) ConvertToSchedule(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, "无效的通知ID")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	var req request.ConvertToScheduleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	err = h.notificationService.ConvertToSchedule(c, uint(id), &req)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -226,20 +218,20 @@ func (h *NotificationHandler) ConvertToSchedule(c *gin.Context) {
 func (h *NotificationHandler) DeleteNotification(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, "无效的通知ID")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	err = h.notificationService.DeleteNotification(c, uint(id), userID)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -250,13 +242,13 @@ func (h *NotificationHandler) DeleteNotification(c *gin.Context) {
 func (h *NotificationHandler) CreateCategory(c *gin.Context) {
 	var req request.CreateCategoryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	result, err := h.notificationService.CreateCategory(c, &req)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -267,7 +259,7 @@ func (h *NotificationHandler) CreateCategory(c *gin.Context) {
 func (h *NotificationHandler) GetCategories(c *gin.Context) {
 	result, err := h.notificationService.GetCategories(c)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -279,19 +271,19 @@ func (h *NotificationHandler) UpdateCategory(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 8)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, "无效的分类ID")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	var req request.UpdateCategoryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	result, err := h.notificationService.UpdateCategory(c, uint8(id), &req)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -302,26 +294,26 @@ func (h *NotificationHandler) UpdateCategory(c *gin.Context) {
 func (h *NotificationHandler) ApproveNotification(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, "无效的通知ID")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	var req request.ApproveNotificationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	err = h.notificationService.ApproveNotification(c, uint(id), userID, &req)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -332,7 +324,7 @@ func (h *NotificationHandler) ApproveNotification(c *gin.Context) {
 func (h *NotificationHandler) GetNotificationStats(c *gin.Context) {
 	result, err := h.notificationService.GetNotificationStats(c)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -343,7 +335,7 @@ func (h *NotificationHandler) GetNotificationStats(c *gin.Context) {
 func (h *NotificationHandler) GetAdminNotifications(c *gin.Context) {
 	var req request.GetNotificationsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
@@ -363,7 +355,7 @@ func (h *NotificationHandler) GetAdminNotifications(c *gin.Context) {
 
 	result, err := h.notificationService.GetAdminNotifications(c, &req)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -376,13 +368,13 @@ func (h *NotificationHandler) PinNotification(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, "无效的通知ID")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	err = h.notificationService.PinNotification(c, uint(id))
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -394,13 +386,13 @@ func (h *NotificationHandler) UnpinNotification(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, "无效的通知ID")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	err = h.notificationService.UnpinNotification(c, uint(id))
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 

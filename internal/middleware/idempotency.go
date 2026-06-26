@@ -18,7 +18,8 @@ import (
 
 // IdempotencyResponse 缓存的响应结构
 type IdempotencyResponse struct {
-	StatusCode int         `json:"status_code"`
+	HTTPStatus int         `json:"http_status"`
+	BizCode    int         `json:"biz_code"`
 	Body       string      `json:"body"`
 	Headers    http.Header `json:"headers"`
 }
@@ -110,11 +111,7 @@ func idempotencyMiddlewareWithTTL(c *gin.Context, ca cache.Cache, strict bool, t
 	idempotencyKey := c.GetHeader(constant.IdempotencyKey)
 	if idempotencyKey == "" {
 		if strict {
-			c.JSON(http.StatusBadRequest, dto.Response{
-				RequestId:     helper.GetRequestID(c),
-				StatusCode:    http.StatusBadRequest,
-				StatusMessage: "缺少幂等性Key，请在Header中添加 X-Idempotency-Key",
-			})
+			helper.HandleErrCode(c, constant.CommonBadRequest)
 			c.Abort()
 			return
 		}
@@ -166,12 +163,7 @@ func idempotencyMiddlewareWithTTL(c *gin.Context, ca cache.Cache, strict bool, t
 	}
 
 	if !locked {
-		// 无法获取锁，说明有相同请求正在处理中
-		c.JSON(http.StatusConflict, dto.Response{
-			RequestId:     helper.GetRequestID(c),
-			StatusCode:    http.StatusConflict,
-			StatusMessage: "请求正在处理中，请稍后重试",
-		})
+		helper.HandleErrCode(c, constant.CommonConflict)
 		c.Abort()
 		return
 	}
@@ -220,7 +212,7 @@ func idempotencyMiddlewareWithTTL(c *gin.Context, ca cache.Cache, strict bool, t
 		}
 		c.Header("X-Idempotency-Replayed", "true")
 
-		c.Data(resp.StatusCode, "application/json; charset=utf-8", []byte(resp.Body))
+		c.Data(resp.HTTPStatus, "application/json; charset=utf-8", []byte(resp.Body))
 		c.Abort()
 		return
 	}
@@ -249,11 +241,12 @@ func idempotencyMiddlewareWithTTL(c *gin.Context, ca cache.Cache, strict bool, t
 	// 继续处理请求
 	c.Next()
 
-	// 请求处理完成后，缓存成功的响应
-	if c.Writer.Status() < 400 {
+	// 请求处理完成后，仅缓存业务成功的响应
+	if c.Writer.Status() < 400 && responseBizCode(writer.body.Bytes()) == int(constant.SuccessCode) {
 		// 仅缓存成功的响应
 		resp := IdempotencyResponse{
-			StatusCode: c.Writer.Status(),
+			HTTPStatus: c.Writer.Status(),
+			BizCode:    responseBizCode(writer.body.Bytes()),
 			Body:       writer.body.String(),
 			Headers:    c.Writer.Header().Clone(),
 		}
@@ -298,4 +291,16 @@ func idempotencyMiddlewareWithTTL(c *gin.Context, ca cache.Cache, strict bool, t
 			})
 		}
 	}
+}
+
+func responseBizCode(body []byte) int {
+	if len(body) == 0 {
+		return -1
+	}
+
+	var resp dto.Response
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return -1
+	}
+	return resp.StatusCode
 }

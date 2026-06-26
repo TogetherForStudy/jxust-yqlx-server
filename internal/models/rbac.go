@@ -3,70 +3,7 @@ package models
 import (
 	"time"
 
-	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"gorm.io/gorm"
-)
-
-// 角色标识常量
-const (
-	RoleTagUserBasic    = constant.RoleTagUserBasic
-	RoleTagUserActive   = constant.RoleTagUserActive
-	RoleTagUserVerified = constant.RoleTagUserVerified
-	RoleTagOperator     = constant.RoleTagOperator
-	RoleTagAdmin        = constant.RoleTagAdmin
-)
-
-// PermissionTag 常量便于复用（仅存储需要鉴权的接口，开放接口不入库）
-const (
-	PermissionUserGet                   = constant.PermissionUserGet
-	PermissionUserUpdate                = constant.PermissionUserUpdate
-	PermissionOSSTokenGet               = constant.PermissionOSSTokenGet
-	PermissionReviewCreate              = constant.PermissionReviewCreate
-	PermissionReviewGetSelf             = constant.PermissionReviewGetSelf
-	PermissionCourseTableGet            = constant.PermissionCourseTableGet
-	PermissionCourseTableClassSearch    = constant.PermissionCourseTableClassSearch
-	PermissionCourseTableClassUpdate    = constant.PermissionCourseTableClassUpdate
-	PermissionCourseTableClassUpdateAll = constant.PermissionCourseTableClassUpdateAll
-	PermissionCourseTableUpdate         = constant.PermissionCourseTableUpdate
-	PermissionFailRate                  = constant.PermissionFailRate
-	PermissionPointGet                  = constant.PermissionPointGet
-	PermissionPointSpend                = constant.PermissionPointSpend
-	PermissionStatisticGet              = constant.PermissionStatisticGet
-
-	PermissionContributionGet     = constant.PermissionContributionGet
-	PermissionContributionCreate  = constant.PermissionContributionCreate
-	PermissionCountdown           = constant.PermissionCountdown
-	PermissionStudyTask           = constant.PermissionStudyTask
-	PermissionMaterialGet         = constant.PermissionMaterialGet
-	PermissionMaterialRate        = constant.PermissionMaterialRate
-	PermissionMaterialDownload    = constant.PermissionMaterialDownload
-	PermissionMaterialCategoryGet = constant.PermissionMaterialCategoryGet
-	PermissionQuestion            = constant.PermissionQuestion
-	PermissionPomodoro            = constant.PermissionPomodoro
-	PermissionDictionary          = constant.PermissionDictionary
-	PermissionChatStudy           = constant.PermissionChatStudy
-
-	PermissionReviewManage               = constant.PermissionReviewManage
-	PermissionCourseTableManage          = constant.PermissionCourseTableManage
-	PermissionHeroManage                 = constant.PermissionHeroManage
-	PermissionConfigManage               = constant.PermissionConfigManage
-	PermissionPointManage                = constant.PermissionPointManage
-	PermissionContributionManage         = constant.PermissionContributionManage
-	PermissionNotificationGet            = constant.PermissionNotificationGet
-	PermissionNotificationGetAdmin       = constant.PermissionNotificationGetAdmin
-	PermissionNotificationCreate         = constant.PermissionNotificationCreate
-	PermissionNotificationPublish        = constant.PermissionNotificationPublish
-	PermissionNotificationUpdate         = constant.PermissionNotificationUpdate
-	PermissionNotificationApprove        = constant.PermissionNotificationApprove
-	PermissionNotificationSchedule       = constant.PermissionNotificationSchedule
-	PermissionNotificationPin            = constant.PermissionNotificationPin
-	PermissionNotificationDelete         = constant.PermissionNotificationDelete
-	PermissionNotificationPublishAdmin   = constant.PermissionNotificationPublishAdmin
-	PermissionNotificationCategoryManage = constant.PermissionNotificationCategoryManage
-	PermissionFeatureManage              = constant.PermissionFeatureManage
-	PermissionUserManage                 = constant.PermissionUserManage
-	PermissionMaterialManage             = constant.PermissionMaterialManage
-	PermissionS3Manage                   = constant.PermissionS3Manage
 )
 
 // Role 角色模型

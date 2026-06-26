@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"net/http"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
@@ -26,6 +25,7 @@ type MCPHandler struct {
 
 // mcpToolHandlers holds all services and provides tool handler methods
 type mcpToolHandlers struct {
+	rbacService         *services.RBACService
 	heroService         *services.HeroService
 	notificationService *services.NotificationService
 	authService         *services.AuthService
@@ -38,6 +38,7 @@ type mcpToolHandlers struct {
 
 // NewMCPHandler creates a new MCP handler with GoJxust service tools
 func NewMCPHandler(
+	rbacService *services.RBACService,
 	heroService *services.HeroService,
 	notificationService *services.NotificationService,
 	authService *services.AuthService,
@@ -49,6 +50,7 @@ func NewMCPHandler(
 ) *MCPHandler {
 	// Create tool handlers with services
 	th := &mcpToolHandlers{
+		rbacService:         rbacService,
 		heroService:         heroService,
 		notificationService: notificationService,
 		authService:         authService,
@@ -79,7 +81,7 @@ func (h *MCPHandler) Handle(c *gin.Context) {
 	// Get user info from Gin context (set by AuthMiddleware)
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
@@ -95,6 +97,22 @@ type mcpContextKey string
 func getUserFromContext(ctx context.Context) uint {
 	userID, _ := ctx.Value(mcpContextKey(constant.MCPUserIDKey)).(uint)
 	return userID
+}
+
+func (th *mcpToolHandlers) requirePermission(ctx context.Context, permission string) error {
+	userID := getUserFromContext(ctx)
+	if userID == 0 {
+		return fmt.Errorf("用户未认证")
+	}
+
+	ok, err := th.rbacService.CheckPermission(ctx, userID, permission)
+	if err != nil {
+		return fmt.Errorf("校验权限失败: %w", err)
+	}
+	if !ok {
+		return fmt.Errorf("权限不足: %s", permission)
+	}
+	return nil
 }
 
 // registerTools registers all MCP tools
@@ -263,6 +281,10 @@ func (th *mcpToolHandlers) handleListHeroes(ctx context.Context, req mcp.CallToo
 }
 
 func (th *mcpToolHandlers) handleNotifications(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if err := th.requirePermission(ctx, constant.PermissionNotificationGet); err != nil {
+		return nil, err
+	}
+
 	var params NotificationsParams
 	if err := req.BindArguments(&params); err != nil {
 		return nil, fmt.Errorf("参数解析失败: %w", err)
@@ -311,6 +333,10 @@ func (th *mcpToolHandlers) handleUserProfile(ctx context.Context, req mcp.CallTo
 
 	switch params.Action {
 	case "get":
+		if err := th.requirePermission(ctx, constant.PermissionUserGet); err != nil {
+			return nil, err
+		}
+
 		user, err := th.authService.GetUserByID(ctx, userID)
 		if err != nil {
 			return nil, fmt.Errorf("获取用户信息失败: %w", err)
@@ -319,6 +345,10 @@ func (th *mcpToolHandlers) handleUserProfile(ctx context.Context, req mcp.CallTo
 		data, _ := sonic.Marshal(result)
 		return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(string(data))}}, nil
 	case "update":
+		if err := th.requirePermission(ctx, constant.PermissionUserUpdate); err != nil {
+			return nil, err
+		}
+
 		updates := make(map[string]any)
 		if params.Nickname != "" {
 			updates["nickname"] = params.Nickname
@@ -345,6 +375,10 @@ func (th *mcpToolHandlers) handleUserProfile(ctx context.Context, req mcp.CallTo
 }
 
 func (th *mcpToolHandlers) handleTeacherReview(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if err := th.requirePermission(ctx, constant.PermissionReviewCreate); err != nil {
+		return nil, err
+	}
+
 	var params TeacherReviewParams
 	if err := req.BindArguments(&params); err != nil {
 		return nil, fmt.Errorf("参数解析失败: %w", err)
@@ -390,6 +424,10 @@ func (th *mcpToolHandlers) handleTeacherReview(ctx context.Context, req mcp.Call
 }
 
 func (th *mcpToolHandlers) handleGetCourseTable(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if err := th.requirePermission(ctx, constant.PermissionCourseTableGet); err != nil {
+		return nil, err
+	}
+
 	var params GetCourseTableParams
 	if err := req.BindArguments(&params); err != nil {
 		return nil, fmt.Errorf("参数解析失败: %w", err)
@@ -408,6 +446,10 @@ func (th *mcpToolHandlers) handleGetCourseTable(ctx context.Context, req mcp.Cal
 }
 
 func (th *mcpToolHandlers) handleEditCourseCell(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if err := th.requirePermission(ctx, constant.PermissionCourseTableUpdate); err != nil {
+		return nil, err
+	}
+
 	var params EditCourseCellParams
 	if err := req.BindArguments(&params); err != nil {
 		return nil, fmt.Errorf("参数解析失败: %w", err)
@@ -428,6 +470,10 @@ func (th *mcpToolHandlers) handleEditCourseCell(ctx context.Context, req mcp.Cal
 }
 
 func (th *mcpToolHandlers) handleQueryFailRate(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if err := th.requirePermission(ctx, constant.PermissionFailRate); err != nil {
+		return nil, err
+	}
+
 	var params QueryFailRateParams
 	if err := req.BindArguments(&params); err != nil {
 		return nil, fmt.Errorf("参数解析失败: %w", err)
@@ -457,6 +503,10 @@ func (th *mcpToolHandlers) handleQueryFailRate(ctx context.Context, req mcp.Call
 }
 
 func (th *mcpToolHandlers) handleCountdown(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if err := th.requirePermission(ctx, constant.PermissionCountdown); err != nil {
+		return nil, err
+	}
+
 	var params CountdownParams
 	if err := req.BindArguments(&params); err != nil {
 		return nil, fmt.Errorf("参数解析失败: %w", err)
@@ -529,6 +579,10 @@ func (th *mcpToolHandlers) handleCountdown(ctx context.Context, req mcp.CallTool
 }
 
 func (th *mcpToolHandlers) handleStudyTask(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if err := th.requirePermission(ctx, constant.PermissionStudyTask); err != nil {
+		return nil, err
+	}
+
 	var params StudyTaskParams
 	if err := req.BindArguments(&params); err != nil {
 		return nil, fmt.Errorf("参数解析失败: %w", err)

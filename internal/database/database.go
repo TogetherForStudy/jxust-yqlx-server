@@ -59,7 +59,9 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.FailRate{},
 		&models.Hero{},
 		&models.SystemConfig{},
+		&models.Organization{},
 		&models.BindRecord{},
+		&models.GPABackup{},
 		&models.S3Resource{},
 		&models.S3Data{},
 		&models.StudyTask{},
@@ -80,6 +82,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.UserProjectUsage{},
 		&models.UserQuestionUsage{},
 		&models.UserActivity{},
+		&models.Dictionary{},
 		&models.Conversation{},
+		&models.ConversationMessage{},
 	)
 }

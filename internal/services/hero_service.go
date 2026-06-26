@@ -2,10 +2,11 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 
 	"gorm.io/gorm"
@@ -23,10 +24,10 @@ func (s *HeroService) Create(ctx context.Context, name string, sort int, isShow 
 	// name 唯一
 	var cnt int64
 	if err := s.db.WithContext(ctx).Model(&models.Hero{}).Where("name = ?", name).Count(&cnt).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	if cnt > 0 {
-		return nil, fmt.Errorf("名称已存在")
+		return nil, apperr.New(constant.HeroNameExists)
 	}
 
 	hero := &models.Hero{
@@ -37,7 +38,7 @@ func (s *HeroService) Create(ctx context.Context, name string, sort int, isShow 
 		UpdatedAt: time.Now(),
 	}
 	if err := s.db.WithContext(ctx).Create(hero).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	return hero, nil
 }
@@ -46,10 +47,10 @@ func (s *HeroService) Update(ctx context.Context, id uint, name string, sort *in
 	// 如果修改 name，需要确保唯一（排除自身）
 	var cnt int64
 	if err := s.db.WithContext(ctx).Model(&models.Hero{}).Where("name = ? AND id <> ?", name, id).Count(&cnt).Error; err != nil {
-		return err
+		return apperr.Wrap(constant.CommonInternal, err)
 	}
 	if cnt > 0 {
-		return fmt.Errorf("名称已存在")
+		return apperr.New(constant.HeroNameExists)
 	}
 	updates := map[string]any{
 		"name":       name,
@@ -61,20 +62,26 @@ func (s *HeroService) Update(ctx context.Context, id uint, name string, sort *in
 	if isShow != nil {
 		updates["is_show"] = *isShow
 	}
-	return s.db.WithContext(ctx).Model(&models.Hero{}).Where("id = ?", id).Updates(updates).Error
+	if err := s.db.WithContext(ctx).Model(&models.Hero{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		return apperr.Wrap(constant.CommonInternal, err)
+	}
+	return nil
 }
 
 func (s *HeroService) Delete(ctx context.Context, id uint) error {
-	return s.db.WithContext(ctx).Unscoped().Delete(&models.Hero{}, id).Error
+	if err := s.db.WithContext(ctx).Unscoped().Delete(&models.Hero{}, id).Error; err != nil {
+		return apperr.Wrap(constant.CommonInternal, err)
+	}
+	return nil
 }
 
 func (s *HeroService) Get(ctx context.Context, id uint) (*models.Hero, error) {
 	var m models.Hero
 	if err := s.db.WithContext(ctx).First(&m, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("未找到")
+			return nil, apperr.New(constant.HeroNotFound)
 		}
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	return &m, nil
 }
@@ -83,7 +90,7 @@ func (s *HeroService) Get(ctx context.Context, id uint) (*models.Hero, error) {
 func (s *HeroService) ListAll(ctx context.Context) ([]string, error) {
 	var list []models.Hero
 	if err := s.db.WithContext(ctx).Model(&models.Hero{}).Where("is_show = ?", true).Order("sort ASC").Find(&list).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	names := make([]string, 0, len(list))
 	for _, it := range list {
@@ -111,7 +118,7 @@ func (s *HeroService) SearchHeroes(ctx context.Context, query string, isShow *bo
 
 	// 先获取总数
 	if err := queryBuilder.Count(&total).Error; err != nil {
-		return nil, 0, err
+		return nil, 0, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 分页查询
@@ -120,7 +127,7 @@ func (s *HeroService) SearchHeroes(ctx context.Context, query string, isShow *bo
 		Offset(pagination.Offset).
 		Limit(pagination.Size).
 		Find(&list).Error; err != nil {
-		return nil, 0, err
+		return nil, 0, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	return list, total, nil

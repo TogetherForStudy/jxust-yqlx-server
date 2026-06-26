@@ -1,16 +1,16 @@
 package handlers
 
 import (
-	"net/http"
 	"strconv"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/logger"
 
 	json "github.com/bytedance/sonic"
-	"github.com/cloudwego/eino/schema"
 	"github.com/gin-gonic/gin"
 )
 
@@ -28,7 +28,7 @@ func NewChatHandler(service *services.ChatService) *ChatHandler {
 func (h *ChatHandler) CreateConversation(c *gin.Context) {
 	var req dto.CreateConversationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, err.Error())
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
@@ -39,7 +39,7 @@ func (h *ChatHandler) CreateConversation(c *gin.Context) {
 			"action": "service-create-conversation",
 			"error":  err.Error(),
 		})
-		helper.ErrorResponse(c, http.StatusInternalServerError, "Failed to create conversation")
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -56,7 +56,7 @@ func (h *ChatHandler) CreateConversation(c *gin.Context) {
 func (h *ChatHandler) ListConversations(c *gin.Context) {
 	var req dto.ListConversationsRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		helper.ValidateResponse(c, err.Error())
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
@@ -74,7 +74,7 @@ func (h *ChatHandler) ListConversations(c *gin.Context) {
 			"action": "service-list-conversations",
 			"error":  err.Error(),
 		})
-		helper.ErrorResponse(c, http.StatusInternalServerError, "Failed to list conversations")
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -101,7 +101,7 @@ func (h *ChatHandler) ListConversations(c *gin.Context) {
 func (h *ChatHandler) DeleteConversation(c *gin.Context) {
 	conversationID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		helper.ValidateResponse(c, "Invalid conversation ID")
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
@@ -112,7 +112,7 @@ func (h *ChatHandler) DeleteConversation(c *gin.Context) {
 			"conversation_id": conversationID,
 			"error":           err.Error(),
 		})
-		helper.ErrorResponse(c, http.StatusInternalServerError, "Failed to delete conversation")
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -123,13 +123,13 @@ func (h *ChatHandler) DeleteConversation(c *gin.Context) {
 func (h *ChatHandler) UpdateConversation(c *gin.Context) {
 	conversationID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		helper.ValidateResponse(c, "Invalid conversation ID")
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
 	var req dto.UpdateConversationRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, err.Error())
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
@@ -141,18 +141,18 @@ func (h *ChatHandler) UpdateConversation(c *gin.Context) {
 			"title":           req.Title,
 			"error":           err.Error(),
 		})
-		helper.ErrorResponse(c, http.StatusInternalServerError, "Failed to update conversation")
+		helper.HandleError(c, err)
 		return
 	}
 
 	helper.SuccessResponse(c, "ok")
 }
 
-// ChooseConversation 选择对话并返回历史消息（只返回User和Assistant角色的消息）
+// ChooseConversation 选择对话并返回历史消息
 func (h *ChatHandler) ChooseConversation(c *gin.Context) {
 	conversationID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		helper.ValidateResponse(c, "Invalid conversation ID")
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
@@ -164,26 +164,18 @@ func (h *ChatHandler) ChooseConversation(c *gin.Context) {
 			"conversation_id": conversationID,
 			"error":           err.Error(),
 		})
-		helper.ErrorResponse(c, http.StatusInternalServerError, "Failed to get conversation messages")
+		helper.HandleError(c, err)
 		return
 	}
 
-	// 过滤消息，只返回 User 和 Assistant 角色
-	filteredMessages := make([]*schema.Message, 0, len(messages))
-	for _, msg := range messages {
-		if msg.Role == schema.User || msg.Role == schema.Assistant {
-			filteredMessages = append(filteredMessages, msg)
-		}
-	}
-
-	helper.SuccessResponse(c, filteredMessages)
+	helper.SuccessResponse(c, messages)
 }
 
 // ExportConversation 导出对话
 func (h *ChatHandler) ExportConversation(c *gin.Context) {
 	conversationID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		helper.ValidateResponse(c, "Invalid conversation ID")
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
@@ -195,7 +187,7 @@ func (h *ChatHandler) ExportConversation(c *gin.Context) {
 			"conversation_id": conversationID,
 			"error":           err.Error(),
 		})
-		helper.ErrorResponse(c, http.StatusInternalServerError, "Failed to export conversation")
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -215,13 +207,13 @@ func (h *ChatHandler) ExportConversation(c *gin.Context) {
 func (h *ChatHandler) StreamConversation(c *gin.Context) {
 	var req dto.ChatRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, err.Error())
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
 		return
 	}
 
 	// 验证请求：新对话需要 message，恢复需要 checkpoint_id
 	if !req.IsResume() && req.Message == nil {
-		helper.ValidateResponse(c, "message is required for new conversation")
+		helper.HandleErrCode(c, constant.ConversationMessageRequired)
 		return
 	}
 
@@ -244,7 +236,7 @@ func (h *ChatHandler) StreamConversation(c *gin.Context) {
 			"checkpoint_id":   req.CheckpointID,
 			"error":           err.Error(),
 		})
-		helper.ErrorResponse(c, http.StatusInternalServerError, "Failed to stream conversation")
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -257,11 +249,12 @@ func (h *ChatHandler) StreamConversation(c *gin.Context) {
 
 	c.Writer.Flush()
 
-	for {
+	for outputChan != nil || errChan != nil {
 		select {
 		case msg, ok := <-outputChan:
 			if !ok {
-				return
+				outputChan = nil
+				continue
 			}
 			write, err := c.Writer.Write([]byte(msg))
 			if err != nil {
@@ -274,25 +267,30 @@ func (h *ChatHandler) StreamConversation(c *gin.Context) {
 				return
 			}
 			c.Writer.Flush()
-		case err := <-errChan:
-			if err != nil {
-				errorEvent := map[string]interface{}{
-					"type":  "error",
-					"error": err.Error(),
+		case err, ok := <-errChan:
+			if !ok {
+				errChan = nil
+				continue
+			}
+			if err == nil {
+				continue
+			}
+			errorEvent := map[string]interface{}{
+				"type":  "error",
+				"error": err.Error(),
+			}
+			if data, jsonErr := json.Marshal(errorEvent); jsonErr == nil {
+				write, err := c.Writer.Write([]byte("data: " + string(data) + "\n\n"))
+				if err != nil {
+					logger.ErrorGin(c, map[string]any{
+						"action":          "sse-error-message-write-failed",
+						"written_bytes":   write,
+						"conversation_id": req.ConversationID,
+						"error":           err.Error(),
+					})
+					return
 				}
-				if data, jsonErr := json.Marshal(errorEvent); jsonErr == nil {
-					write, err := c.Writer.Write([]byte("data: " + string(data) + "\n\n"))
-					if err != nil {
-						logger.ErrorGin(c, map[string]any{
-							"action":          "sse-error-message-write-failed",
-							"written_bytes":   write,
-							"conversation_id": req.ConversationID,
-							"error":           err.Error(),
-						})
-						return
-					}
-					c.Writer.Flush()
-				}
+				c.Writer.Flush()
 			}
 			return
 		case <-c.Request.Context().Done():

@@ -1,5 +1,7 @@
 package response
 
+import "time"
+
 // FailRateItem 挂科率列表项
 type FailRateItem struct {
 	ID         uint    `json:"id"`
@@ -15,4 +17,14 @@ type FailRateListResponse struct {
 	Total int64          `json:"total,omitempty"`
 	Page  int            `json:"page,omitempty"`
 	Size  int            `json:"size,omitempty"`
+}
+
+type AdminFailRateResponse struct {
+	ID         uint      `json:"id"`
+	CourseName string    `json:"course_name"`
+	Department string    `json:"department"`
+	Semester   string    `json:"semester"`
+	FailRate   float64   `json:"failrate"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }

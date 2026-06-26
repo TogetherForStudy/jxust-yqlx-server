@@ -1,13 +1,12 @@
 package handlers
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 )
 
 type StatHandler struct {
@@ -35,7 +34,7 @@ func (h *StatHandler) GetSystemOnlineCount(c *gin.Context) {
 
 	count, err := h.statService.GetSystemOnlineCount(ctx)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -61,22 +60,15 @@ func (h *StatHandler) GetProjectOnlineCount(c *gin.Context) {
 		ProjectID uint `uri:"project_id" binding:"required"`
 	}
 	if err := c.ShouldBindUri(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	ctx := c.Request.Context()
 
-	// 获取当前用户ID（如果已登录）
-	userID := helper.GetUserID(c)
-	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
-		return
-	}
-
-	count, err := h.statService.GetProjectOnlineCount(ctx, req.ProjectID, userID)
+	count, err := h.statService.GetProjectOnlineCount(ctx, req.ProjectID)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 

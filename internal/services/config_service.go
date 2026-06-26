@@ -2,10 +2,11 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 	"gorm.io/gorm"
 )
@@ -22,10 +23,10 @@ func NewConfigService(db *gorm.DB) *ConfigService {
 func (s *ConfigService) Create(ctx context.Context, key, value, valueType, description string) (*models.SystemConfig, error) {
 	var cnt int64
 	if err := s.db.WithContext(ctx).Model(&models.SystemConfig{}).Where("`key` = ?", key).Count(&cnt).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	if cnt > 0 {
-		return nil, fmt.Errorf("key已存在")
+		return nil, apperr.New(constant.ConfigKeyExists)
 	}
 
 	if valueType == "" {
@@ -41,7 +42,7 @@ func (s *ConfigService) Create(ctx context.Context, key, value, valueType, descr
 		UpdatedAt:   time.Now(),
 	}
 	if err := s.db.WithContext(ctx).Create(m).Error; err != nil {
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	return m, nil
 }
@@ -61,10 +62,10 @@ func (s *ConfigService) Update(ctx context.Context, key, value, valueType string
 	}
 	tx := s.db.WithContext(ctx).Model(&models.SystemConfig{}).Where("`key` = ?", key).Updates(updates)
 	if tx.Error != nil {
-		return tx.Error
+		return apperr.Wrap(constant.CommonInternal, tx.Error)
 	}
 	if tx.RowsAffected == 0 {
-		return fmt.Errorf("未找到key")
+		return apperr.New(constant.ConfigKeyNotFound)
 	}
 	return nil
 }
@@ -73,10 +74,10 @@ func (s *ConfigService) Update(ctx context.Context, key, value, valueType string
 func (s *ConfigService) Delete(ctx context.Context, key string) error {
 	tx := s.db.WithContext(ctx).Where("`key` = ?", key).Delete(&models.SystemConfig{})
 	if tx.Error != nil {
-		return tx.Error
+		return apperr.Wrap(constant.CommonInternal, tx.Error)
 	}
 	if tx.RowsAffected == 0 {
-		return fmt.Errorf("未找到key")
+		return apperr.New(constant.ConfigKeyNotFound)
 	}
 	return nil
 }
@@ -86,9 +87,9 @@ func (s *ConfigService) GetByKey(ctx context.Context, key string) (*models.Syste
 	var m models.SystemConfig
 	if err := s.db.WithContext(ctx).Where("`key` = ?", key).First(&m).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("未找到key")
+			return nil, apperr.New(constant.ConfigKeyNotFound)
 		}
-		return nil, err
+		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
 	return &m, nil
 }
@@ -107,7 +108,7 @@ func (s *ConfigService) SearchConfigs(ctx context.Context, query string, page, s
 
 	// 先获取总数
 	if err := queryBuilder.Count(&total).Error; err != nil {
-		return nil, 0, err
+		return nil, 0, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	// 分页查询
@@ -116,7 +117,7 @@ func (s *ConfigService) SearchConfigs(ctx context.Context, query string, page, s
 		Offset(pagination.Offset).
 		Limit(pagination.Size).
 		Find(&list).Error; err != nil {
-		return nil, 0, err
+		return nil, 0, apperr.Wrap(constant.CommonInternal, err)
 	}
 
 	return list, total, nil

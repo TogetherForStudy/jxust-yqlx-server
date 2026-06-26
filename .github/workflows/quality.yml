@@ -33,7 +33,7 @@ jobs:
     if: github.event_name != 'pull_request' || (!github.event.pull_request.draft && !contains(github.event.pull_request.title, 'WIP'))
     strategy:
       matrix:
-        go: ['1.24','1.25']
+        go: ['1.26.3']
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       - uses: actions/setup-go@v6
@@ -47,14 +47,14 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           args: --timeout=5m
-          version: v2.8
+          version: v2.10
   unit-test:
     name: Code-Quality / Unit-Test
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request' || (!github.event.pull_request.draft && !contains(github.event.pull_request.title, 'WIP'))
     strategy:
       matrix:
-        go: ['1.24','1.25']
+        go: ['1.26.3']
     steps:
       - uses: actions/checkout@v6
 
@@ -103,7 +103,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.24'
+          go-version: '1.26.3'
 
       - name: Set up Python
         uses: actions/setup-python@v6

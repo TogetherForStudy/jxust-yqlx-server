@@ -1,13 +1,12 @@
 package handlers
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/request"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/handlers/helper"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/services"
+	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 )
 
 type QuestionHandler struct {
@@ -35,13 +34,13 @@ func NewQuestionHandler(questionService *services.QuestionService) *QuestionHand
 func (h *QuestionHandler) GetProjects(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	projects, err := h.questionService.GetProjects(c.Request.Context(), userID)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusInternalServerError, "获取项目列表失败")
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -63,19 +62,19 @@ func (h *QuestionHandler) GetProjects(c *gin.Context) {
 func (h *QuestionHandler) GetQuestions(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	var req request.GetQuestionRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	result, err := h.questionService.GetQuestions(c.Request.Context(), userID, &req)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -97,7 +96,7 @@ func (h *QuestionHandler) GetQuestions(c *gin.Context) {
 func (h *QuestionHandler) GetQuestionByID(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
@@ -105,13 +104,13 @@ func (h *QuestionHandler) GetQuestionByID(c *gin.Context) {
 		ID uint `uri:"id" binding:"required"`
 	}
 	if err := c.ShouldBindUri(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	question, err := h.questionService.GetQuestionByID(c.Request.Context(), userID, req.ID)
 	if err != nil {
-		helper.ErrorResponse(c, http.StatusNotFound, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -132,18 +131,18 @@ func (h *QuestionHandler) GetQuestionByID(c *gin.Context) {
 func (h *QuestionHandler) RecordStudy(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	var req request.RecordStudyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	if err := h.questionService.RecordStudy(c.Request.Context(), userID, &req); err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
@@ -164,18 +163,18 @@ func (h *QuestionHandler) RecordStudy(c *gin.Context) {
 func (h *QuestionHandler) SubmitPractice(c *gin.Context) {
 	userID := helper.GetUserID(c)
 	if userID == 0 {
-		helper.ErrorResponse(c, http.StatusUnauthorized, "未获取到用户信息")
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
 		return
 	}
 
 	var req request.SubmitPracticeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.ValidateResponse(c, "参数验证失败")
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	if err := h.questionService.SubmitPractice(c.Request.Context(), userID, &req); err != nil {
-		helper.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		helper.HandleError(c, err)
 		return
 	}
 
