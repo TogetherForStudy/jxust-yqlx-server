@@ -41,9 +41,9 @@ const (
 // TeacherReview 教师评价模型
 type TeacherReview struct {
 	ID          uint                `json:"id" gorm:"type:int unsigned;primaryKey;comment:评价ID"`
-	UserID      uint                `json:"user_id" gorm:"not null;index:idx_user_id;comment:评价用户ID"`
-	TeacherName string              `json:"teacher_name" gorm:"type:varchar(50);not null;index:idx_teacher_name;comment:教师姓名"`
-	CourseName  string              `json:"course_name" gorm:"type:varchar(100);comment:课程名称"`
+	UserID      uint                `json:"user_id" gorm:"not null;index:idx_user_id;index:idx_teacher_reviews_user_teacher_course,priority:1;comment:评价用户ID"`
+	TeacherName string              `json:"teacher_name" gorm:"type:varchar(50);not null;index:idx_teacher_name;index:idx_teacher_reviews_user_teacher_course,priority:2;comment:教师姓名"`
+	CourseName  string              `json:"course_name" gorm:"type:varchar(100);index:idx_teacher_reviews_user_teacher_course,priority:3;comment:课程名称"`
 	Campus      string              `json:"campus" gorm:"type:varchar(50);not null;comment:校区"`
 	Content     string              `json:"content" gorm:"type:text;not null;comment:评价内容"`
 	Attitude    TeacherAttitude     `json:"attitude" gorm:"type:tinyint;default:0;comment:评价态度：3=中立，1=推荐，2=避雷"`
@@ -75,19 +75,19 @@ const (
 // 课程表模型
 type CourseTable struct {
 	ID         uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:课程表ID"`
-	ClassID    string         `json:"class_id" gorm:"type:varchar(50);not null;comment:班级ID;index:idx_class_id"`
+	ClassID    string         `json:"class_id" gorm:"type:varchar(50);not null;index:idx_course_tables_class_semester,priority:1;index:idx_class_id;comment:班级ID"`
 	CourseData datatypes.JSON `json:"course_data" gorm:"type:json;not null;comment:课程数据"`
 	CreatedAt  time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
 	UpdatedAt  time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
-	Semester   string         `json:"semester" gorm:"type:varchar(50);not null;comment:学期;index:idx_semester"`
+	Semester   string         `json:"semester" gorm:"type:varchar(50);not null;index:idx_course_tables_class_semester,priority:2;index:idx_semester;comment:学期"`
 }
 
 // 用户个性化课程表模型
 type ScheduleUser struct {
 	ID        uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:记录ID"`
-	UserID    uint           `json:"user_id" gorm:"not null;comment:用户ID"`
-	ClassID   string         `json:"class_id" gorm:"type:varchar(50);not null;comment:班级ID"`
-	Semester  string         `json:"semester" gorm:"type:varchar(50);not null;comment:学期"`
+	UserID    uint           `json:"user_id" gorm:"not null;index:idx_schedule_users_user_class_sem,priority:1;comment:用户ID"`
+	ClassID   string         `json:"class_id" gorm:"type:varchar(50);not null;index:idx_schedule_users_user_class_sem,priority:2;comment:班级ID"`
+	Semester  string         `json:"semester" gorm:"type:varchar(50);not null;index:idx_schedule_users_user_class_sem,priority:3;comment:学期"`
 	Schedule  datatypes.JSON `json:"schedule" gorm:"type:json;not null;comment:个性化完整课程数据"`
 	CreatedAt time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
 	UpdatedAt time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
@@ -223,9 +223,9 @@ const (
 // NotificationApproval 通知审核记录模型
 type NotificationApproval struct {
 	ID             uint                       `json:"id" gorm:"type:int unsigned;primaryKey;comment:审核记录ID"`
-	NotificationID uint                       `json:"notification_id" gorm:"not null;index:idx_notification;comment:通知ID"`
+	NotificationID uint                       `json:"notification_id" gorm:"not null;index:idx_notification;index:idx_notification_approvals_notif_status,priority:1;comment:通知ID"`
 	ReviewerID     uint                       `json:"reviewer_id" gorm:"not null;index:idx_reviewer;comment:审核者ID"`
-	Status         NotificationApprovalStatus `json:"status" gorm:"type:tinyint;not null;comment:审核状态：1=同意，2=拒绝"`
+	Status         NotificationApprovalStatus `json:"status" gorm:"type:tinyint;not null;index:idx_notification_approvals_notif_status,priority:2;comment:审核状态：1=同意，2=拒绝"`
 	Note           string                     `json:"note" gorm:"type:varchar(500);comment:审核备注"`
 	CreatedAt      time.Time                  `json:"created_at" gorm:"type:datetime;comment:创建时间"`
 	UpdatedAt      time.Time                  `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
@@ -448,8 +448,8 @@ type QuestionProject struct {
 	Name        string         `json:"name" gorm:"type:varchar(100);not null;comment:项目名称"`
 	Description string         `json:"description" gorm:"type:text;comment:项目描述"`
 	Version     int            `json:"version" gorm:"type:int;default:1;comment:版本号"`
-	Sort        int            `json:"sort" gorm:"type:int;default:0;comment:排序"`
-	IsActive    bool           `json:"is_active" gorm:"type:tinyint(1);default:1;comment:是否启用"`
+	Sort        int            `json:"sort" gorm:"type:int;default:0;index:idx_question_projects_active_sort,priority:2;comment:排序"`
+	IsActive    bool           `json:"is_active" gorm:"type:tinyint(1);default:1;index:idx_question_projects_active_sort,priority:1;comment:是否启用"`
 	CreatedAt   time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
 	UpdatedAt   time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
 	DeletedAt   gorm.DeletedAt `json:"-" gorm:"comment:软删除时间"`
@@ -486,8 +486,8 @@ const (
 // UserProjectUsage 用户对项目的使用记录
 type UserProjectUsage struct {
 	ID         uint      `json:"id" gorm:"type:int unsigned;primaryKey;comment:记录ID"`
-	UserID     uint      `json:"user_id" gorm:"not null;uniqueIndex:idx_user_project_usage;comment:用户ID"`
-	ProjectID  uint      `json:"project_id" gorm:"not null;uniqueIndex:idx_user_project_usage;comment:项目ID"`
+	UserID     uint      `json:"user_id" gorm:"not null;uniqueIndex:idx_user_project_usage,priority:1;comment:用户ID"`
+	ProjectID  uint      `json:"project_id" gorm:"not null;uniqueIndex:idx_user_project_usage,priority:2;index:idx_user_project_usages_project_id;comment:项目ID"`
 	UsageCount int       `json:"usage_count" gorm:"type:int;default:0;comment:使用次数"`
 	LastUsedAt time.Time `json:"last_used_at" gorm:"type:datetime;comment:最后使用时间"`
 	CreatedAt  time.Time `json:"created_at" gorm:"type:datetime;comment:创建时间"`
@@ -500,8 +500,8 @@ type UserProjectUsage struct {
 // UserQuestionUsage 用户对题目的使用记录
 type UserQuestionUsage struct {
 	ID              uint       `json:"id" gorm:"type:int unsigned;primaryKey;comment:记录ID"`
-	UserID          uint       `json:"user_id" gorm:"not null;uniqueIndex:idx_user_question_usage;comment:用户ID"`
-	QuestionID      uint       `json:"question_id" gorm:"not null;uniqueIndex:idx_user_question_usage;comment:题目ID"`
+	UserID          uint       `json:"user_id" gorm:"not null;uniqueIndex:idx_user_question_usage,priority:1;comment:用户ID"`
+	QuestionID      uint       `json:"question_id" gorm:"not null;uniqueIndex:idx_user_question_usage,priority:2;index:idx_user_question_usages_question_id;comment:题目ID"`
 	StudyCount      int        `json:"study_count" gorm:"type:int;default:0;comment:学习次数"`
 	PracticeCount   int        `json:"practice_count" gorm:"type:int;default:0;comment:做题次数"`
 	LastStudiedAt   *time.Time `json:"last_studied_at" gorm:"type:datetime;comment:最后学习时间"`
