@@ -41,83 +41,131 @@ func InitRedisCache(cfg *config.Config) {
 	logger.Infof("Redis cache initialized successfully, idempotency feature enabled")
 }
 
-// InitProjectRedisData 将项目相关的热数据预热到Redis中，
+// InitProjectRedisData 将项目相关的热数据从数据库同步到Redis中，
 // 包括每个活跃项目的用户集合和刷题次数统计。
+// 使用批量查询（2 次 DB 查询覆盖所有项目），避免 N+1 问题。
 func InitProjectRedisData(db *gorm.DB) {
 	if cache.GlobalCache == nil {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	logger.Info("Initializing project Redis data...")
+	logger.Info("Initializing project Redis data from database...")
 
+	// 1. 加载所有活跃项目 ID（带重试）
 	var projects []models.QuestionProject
-	if err := db.Where("is_active = ?", true).Select("id").Find(&projects).Error; err != nil {
-		logger.Warnf("Failed to load projects: %v", err)
+	const maxRetries = 3
+	for i := 0; i < maxRetries; i++ {
+		if err := db.Where("is_active = ?", true).Select("id").Find(&projects).Error; err != nil {
+			if i < maxRetries-1 {
+				wait := time.Duration(i+1) * time.Second
+				logger.Warnf("Failed to load projects (attempt %d/%d): %v, retrying in %v...", i+1, maxRetries, err, wait)
+				time.Sleep(wait)
+				continue
+			}
+			logger.Warnf("Failed to load projects after %d attempts: %v", maxRetries, err)
+			return
+		}
+		break
+	}
+
+	if len(projects) == 0 {
+		logger.Info("No active projects found, skipping Redis data initialization")
 		return
 	}
 
-	for _, project := range projects {
-		projectID := project.ID
+	projectIDs := make([]uint, len(projects))
+	for i, p := range projects {
+		projectIDs[i] = p.ID
+	}
+
+	// 2. 批量查询所有活跃项目的用户集合（1 次 DB 查询替代 N 次）
+	projectUserSets := syncProjectUserSets(ctx, db, projectIDs)
+
+	// 3. 批量查询所有活跃项目的刷题次数（1 次 DB 查询替代 N 次）
+	projectUsageCounts := syncProjectUsageCounts(ctx, db, projectIDs)
+
+	// 4. 写入 Redis
+	noExpiration := time.Duration(0)
+	for _, projectID := range projectIDs {
 		userSetKey := fmt.Sprintf("project:users:%d", projectID)
 		usageKey := fmt.Sprintf("project:usage:%d", projectID)
 
-		initProjectUserSet(ctx, db, projectID, userSetKey)
-		initProjectUsageCount(ctx, db, projectID, usageKey)
+		// 用户集合
+		_ = cache.GlobalCache.Delete(ctx, userSetKey)
+		if userIDs, ok := projectUserSets[projectID]; ok && len(userIDs) > 0 {
+			members := make([]interface{}, len(userIDs))
+			for i, uid := range userIDs {
+				members[i] = strconv.FormatUint(uint64(uid), 10)
+			}
+			if _, err := cache.GlobalCache.SAdd(ctx, userSetKey, members...); err != nil {
+				logger.Warnf("Failed to populate user set for project %d: %v", projectID, err)
+			}
+		}
+
+		// 刷题次数
+		usageCount := projectUsageCounts[projectID]
+		if err := cache.GlobalCache.Set(ctx, usageKey, strconv.FormatInt(usageCount, 10), &noExpiration); err != nil {
+			logger.Warnf("Failed to set usage count for project %d: %v", projectID, err)
+		}
 	}
 
-	logger.Info("Project Redis data initialization completed")
+	logger.Infof("Project Redis data initialized for %d projects", len(projects))
 }
 
-func initProjectUserSet(ctx context.Context, db *gorm.DB, projectID uint, key string) {
-	var userIDs []uint
+// syncProjectUserSets 批量查询所有活跃项目的用户集合。
+// idx_user_project_usages_project_id 索引保证 WHERE project_id IN (...) 走索引。
+func syncProjectUserSets(ctx context.Context, db *gorm.DB, projectIDs []uint) map[uint][]uint {
+	result := make(map[uint][]uint, len(projectIDs))
+
+	type row struct {
+		ProjectID uint
+		UserID    uint
+	}
+	var rows []row
 	if err := db.Model(&models.UserProjectUsage{}).
-		Where("project_id = ?", projectID).
-		Pluck("user_id", &userIDs).Error; err != nil {
-		logger.Warnf("Failed to load users for project %d: %v", projectID, err)
-		return
+		Select("project_id, user_id").
+		Where("project_id IN ?", projectIDs).
+		Find(&rows).Error; err != nil {
+		logger.Warnf("Failed to load project user sets: %v", err)
+		return result
 	}
 
-	if len(userIDs) == 0 {
-		return
+	for _, r := range rows {
+		result[r.ProjectID] = append(result[r.ProjectID], r.UserID)
 	}
-
-	_ = cache.GlobalCache.Delete(ctx, key)
-	members := make([]interface{}, len(userIDs))
-	for i, id := range userIDs {
-		members[i] = strconv.FormatUint(uint64(id), 10)
-	}
-	if _, err := cache.GlobalCache.SAdd(ctx, key, members...); err != nil {
-		logger.Warnf("Failed to initialize user set for project %d: %v", projectID, err)
-	}
+	return result
 }
 
-func initProjectUsageCount(ctx context.Context, db *gorm.DB, projectID uint, key string) {
-	var questionIDs []uint
-	if err := db.Model(&models.Question{}).
-		Where("project_id = ? AND is_active = ?", projectID, true).
-		Pluck("id", &questionIDs).Error; err != nil {
-		logger.Warnf("Failed to load questions for project %d: %v", projectID, err)
-		return
+// syncProjectUsageCounts 批量查询所有活跃项目的刷题总次数。
+// 一次 JOIN + GROUP BY 替代原来的 N 次独立查询。
+// idx_user_question_usages_question_id 索引保证 JOIN 走索引。
+func syncProjectUsageCounts(ctx context.Context, db *gorm.DB, projectIDs []uint) map[uint]int64 {
+	result := make(map[uint]int64, len(projectIDs))
+	// 初始化所有项目为 0
+	for _, id := range projectIDs {
+		result[id] = 0
 	}
 
-	if len(questionIDs) == 0 {
-		return
+	type row struct {
+		ProjectID uint
+		Total     int64
+	}
+	var rows []row
+	if err := db.Table("questions q").
+		Select("q.project_id, COALESCE(SUM(uq.study_count + uq.practice_count), 0) AS total").
+		Joins("LEFT JOIN user_question_usages uq ON uq.question_id = q.id").
+		Where("q.project_id IN ? AND q.is_active = ?", projectIDs, true).
+		Group("q.project_id").
+		Scan(&rows).Error; err != nil {
+		logger.Warnf("Failed to load project usage counts: %v", err)
+		return result
 	}
 
-	var usageCount int64
-	if err := db.Model(&models.UserQuestionUsage{}).
-		Where("question_id IN ?", questionIDs).
-		Select("COALESCE(SUM(study_count + practice_count), 0)").
-		Scan(&usageCount).Error; err != nil {
-		logger.Warnf("Failed to calculate usage count for project %d: %v", projectID, err)
-		return
+	for _, r := range rows {
+		result[r.ProjectID] = r.Total
 	}
-
-	noExpiration := time.Duration(0)
-	if err := cache.GlobalCache.Set(ctx, key, strconv.FormatInt(usageCount, 10), &noExpiration); err != nil {
-		logger.Warnf("Failed to initialize usage count for project %d: %v", projectID, err)
-	}
+	return result
 }
