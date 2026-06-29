@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -16,6 +17,11 @@ type WorkerConfig struct {
 
 	// ProcessInterval is how often to poll the queue
 	ProcessInterval time.Duration
+
+	// BatchSize is the maximum number of tasks to process per poll cycle.
+	// 0 means unlimited (drain entire queue). >0 enables load leveling:
+	// a burst of tasks is spread across multiple intervals, smoothing DB write pressure.
+	BatchSize int
 
 	// MaxRetries is the maximum number of retry attempts for failed tasks
 	MaxRetries int
@@ -98,14 +104,30 @@ func (w *Worker) run() {
 	}
 }
 
-// processQueue processes all available tasks in the queue.
+// processQueue processes tasks from the queue, up to BatchSize per poll cycle.
+// When BatchSize > 0, it acts as a rate limiter: a burst of incoming tasks is
+// spread across multiple intervals instead of being written to DB all at once.
 func (w *Worker) processQueue() {
+	processed := 0
 	for {
 		// Check if context is cancelled before processing next task
 		select {
 		case <-w.ctx.Done():
 			return
 		default:
+		}
+
+		// Batch limit: stop after processing BatchSize tasks, leave the rest
+		// for the next poll cycle (load leveling)
+		if w.config.BatchSize > 0 && processed >= w.config.BatchSize {
+			remaining, _ := w.queue.Length(w.ctx, w.config.QueueKey)
+			logger.InfoCtx(w.ctx, map[string]any{
+				"action":      "batch_limit_reached",
+				"worker_name": w.config.WorkerName,
+				"batch_size":  w.config.BatchSize,
+				"remaining":   remaining,
+			})
+			break
 		}
 
 		// Pop a task from the queue
@@ -137,14 +159,33 @@ func (w *Worker) processQueue() {
 				"task_type":   task.GetType(),
 			})
 		}
+		processed++
 	}
 }
 
 // handleTaskError handles task processing errors with retry logic.
+// 使用指数退避策略防止重试风暴压垮数据库。
 func (w *Worker) handleTaskError(task Task, taskData string, err error) {
 	retryCount := task.GetRetryCount()
 
 	if retryCount < w.config.MaxRetries {
+		// 指数退避：1s → 2s → 4s（第1/2/3次重试）
+		backoff := time.Duration(math.Pow(2, float64(retryCount))) * time.Second
+		logger.WarnCtx(w.ctx, map[string]any{
+			"action":        "task_retry_waiting",
+			"worker_name":   w.config.WorkerName,
+			"task_type":     task.GetType(),
+			"retry_count":   retryCount + 1,
+			"backoff_secs":  backoff.Seconds(),
+			"error":         err.Error(),
+		})
+
+		select {
+		case <-time.After(backoff):
+		case <-w.ctx.Done():
+			return
+		}
+
 		// Increment retry count and push back to queue
 		task.IncrementRetry()
 		retryData, marshalErr := task.Marshal()
