@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
@@ -11,6 +10,7 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 
 	json "github.com/bytedance/sonic"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -33,8 +33,7 @@ func (s *FeatureService) DB() *gorm.DB {
 
 // CheckUserFeature 检查用户是否有指定功能权限（带缓存）
 func (s *FeatureService) CheckUserFeature(ctx context.Context, userID uint, featureKey string) (bool, error) {
-	// 1. 检查功能是否全局启用（带缓存）
-	enabled, err := s.isFeatureEnabled(ctx, featureKey)
+	enabled, err := s.IsFeatureEnabled(ctx, featureKey)
 	if err != nil {
 		return false, err
 	}
@@ -42,7 +41,6 @@ func (s *FeatureService) CheckUserFeature(ctx context.Context, userID uint, feat
 		return false, nil
 	}
 
-	// 2. 检查用户是否在白名单中（带缓存）
 	features, err := s.GetUserFeatures(ctx, userID)
 	if err != nil {
 		return false, err
@@ -58,6 +56,7 @@ func (s *FeatureService) CheckUserFeature(ctx context.Context, userID uint, feat
 }
 
 // GetUserFeatures 获取用户的所有可用功能列表（带缓存）
+// 来源：① user_id IN user_ids  ② user_role IN role_ids（一条SQL搞定）
 func (s *FeatureService) GetUserFeatures(ctx context.Context, userID uint) ([]string, error) {
 	// 1. 尝试从缓存获取
 	if s.cache != nil {
@@ -71,22 +70,33 @@ func (s *FeatureService) GetUserFeatures(ctx context.Context, userID uint) ([]st
 		}
 	}
 
-	// 2. 从数据库查询用户的启用功能（通过JOIN优化）
-	var features []string
-	now := time.Now()
+	// 2. 获取用户角色ID列表
+	var roleIDs []uint
+	s.db.WithContext(ctx).
+		Table("user_roles").
+		Where("user_id = ? AND deleted_at IS NULL", userID).
+		Pluck("role_id", &roleIDs)
 
+	// 3. 一条SQL：JSON_CONTAINS(user_ids, userID) OR JSON_OVERLAPS(role_ids, userRoleIDs)
+	roleIDsJSON, _ := json.Marshal(roleIDs)
+
+	var features []string
 	err := s.db.WithContext(ctx).
-		Model(&models.UserFeatureWhitelist{}).
-		Distinct("user_feature_whitelist.feature_key").
-		Joins("INNER JOIN features ON user_feature_whitelist.feature_key = features.feature_key").
-		Where("user_feature_whitelist.user_id = ? AND (user_feature_whitelist.expires_at IS NULL OR user_feature_whitelist.expires_at > ?) AND features.is_enabled = ?", userID, now, true).
-		Pluck("user_feature_whitelist.feature_key", &features).Error
+		Table("features").
+		Select("DISTINCT feature_key").
+		Where("is_enabled = ? AND deleted_at IS NULL", true).
+		Where(`(
+			JSON_CONTAINS(user_ids, CAST(? AS JSON))
+			OR
+			JSON_OVERLAPS(role_ids, CAST(? AS JSON))
+		)`, fmt.Sprintf("%d", userID), string(roleIDsJSON)).
+		Pluck("feature_key", &features).Error
 
 	if err != nil {
-		return nil, apperr.Wrap(constant.CommonInternal, err)
+		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询用户功能列表失败: %w", err))
 	}
 
-	// 5. 缓存结果
+	// 4. 缓存结果
 	if s.cache != nil {
 		cacheKey := fmt.Sprintf(constant.CacheKeyUserFeatures, userID)
 		data, _ := json.Marshal(features)
@@ -97,9 +107,8 @@ func (s *FeatureService) GetUserFeatures(ctx context.Context, userID uint) ([]st
 	return features, nil
 }
 
-// isFeatureEnabled 检查功能是否全局启用（带缓存）
-func (s *FeatureService) isFeatureEnabled(ctx context.Context, featureKey string) (bool, error) {
-	// 1. 尝试从缓存获取
+// IsFeatureEnabled 检查功能是否全局启用（带缓存）
+func (s *FeatureService) IsFeatureEnabled(ctx context.Context, featureKey string) (bool, error) {
 	if s.cache != nil {
 		cacheKey := fmt.Sprintf(constant.CacheKeyFeatureEnabled, featureKey)
 		cachedData, err := s.cache.Get(ctx, cacheKey)
@@ -108,7 +117,6 @@ func (s *FeatureService) isFeatureEnabled(ctx context.Context, featureKey string
 		}
 	}
 
-	// 2. 从数据库查询
 	var feature models.Feature
 	err := s.db.WithContext(ctx).
 		Where("feature_key = ?", featureKey).
@@ -121,7 +129,6 @@ func (s *FeatureService) isFeatureEnabled(ctx context.Context, featureKey string
 		return false, apperr.Wrap(constant.CommonInternal, err)
 	}
 
-	// 3. 缓存结果
 	if s.cache != nil {
 		cacheKey := fmt.Sprintf(constant.CacheKeyFeatureEnabled, featureKey)
 		value := "0"
@@ -135,9 +142,8 @@ func (s *FeatureService) isFeatureEnabled(ctx context.Context, featureKey string
 	return feature.IsEnabled, nil
 }
 
-// GrantFeatureToUser 授予用户功能权限
-func (s *FeatureService) GrantFeatureToUser(ctx context.Context, userID, grantedBy uint, featureKey string, expiresAt *time.Time) error {
-	// 1. 检查功能是否存在
+// GrantFeatureToUser 授予用户功能权限（往 UserIDs JSON 数组添加 userID）
+func (s *FeatureService) GrantFeatureToUser(ctx context.Context, userID uint, featureKey string) error {
 	var feature models.Feature
 	err := s.db.WithContext(ctx).Where("feature_key = ?", featureKey).First(&feature).Error
 	if err != nil {
@@ -147,47 +153,38 @@ func (s *FeatureService) GrantFeatureToUser(ctx context.Context, userID, granted
 		return apperr.Wrap(constant.CommonInternal, err)
 	}
 
-	// 2. 检查用户是否存在
-	var user models.User
-	err = s.db.WithContext(ctx).Where("id = ?", userID).First(&user).Error
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return apperr.New(constant.CommonUserNotFound)
-		}
-		return apperr.Wrap(constant.CommonInternal, err)
+	var currentIDs []uint
+	if feature.UserIDs != nil {
+		_ = json.Unmarshal(feature.UserIDs, &currentIDs)
 	}
 
-	// 3. 创建或更新白名单记录
-	whitelist := models.UserFeatureWhitelist{
-		UserID:     userID,
-		FeatureKey: featureKey,
-		GrantedBy:  grantedBy,
-		GrantedAt:  time.Now(),
-		ExpiresAt:  expiresAt,
+	for _, id := range currentIDs {
+		if id == userID {
+			return nil // 已授权
+		}
 	}
+
+	currentIDs = append(currentIDs, userID)
+	newJSON, _ := json.Marshal(currentIDs)
 
 	err = s.db.WithContext(ctx).
-		Where("user_id = ? AND feature_key = ?", userID, featureKey).
-		Assign(whitelist).
-		FirstOrCreate(&whitelist).Error
-
+		Model(&models.Feature{}).
+		Where("feature_key = ?", featureKey).
+		Update("user_ids", datatypes.JSON(newJSON)).Error
 	if err != nil {
 		return apperr.Wrap(constant.CommonInternal, err)
 	}
 
-	// 4. 清除用户功能缓存
 	s.clearUserFeaturesCache(ctx, userID)
-
 	return nil
 }
 
 // BatchGrantFeatureToUsers 批量授予用户功能权限
-func (s *FeatureService) BatchGrantFeatureToUsers(ctx context.Context, userIDs []uint, grantedBy uint, featureKey string, expiresAt *time.Time) error {
+func (s *FeatureService) BatchGrantFeatureToUsers(ctx context.Context, userIDs []uint, featureKey string) error {
 	if len(userIDs) == 0 {
 		return nil
 	}
 
-	// 1. 检查功能是否存在
 	var feature models.Feature
 	err := s.db.WithContext(ctx).Where("feature_key = ?", featureKey).First(&feature).Error
 	if err != nil {
@@ -197,32 +194,196 @@ func (s *FeatureService) BatchGrantFeatureToUsers(ctx context.Context, userIDs [
 		return apperr.Wrap(constant.CommonInternal, err)
 	}
 
-	// 2. 批量授予权限
-	for _, userID := range userIDs {
-		err := s.GrantFeatureToUser(ctx, userID, grantedBy, featureKey, expiresAt)
-		if err != nil {
-			// 记录错误但继续处理其他用户
-			continue
+	var currentIDs []uint
+	if feature.UserIDs != nil {
+		_ = json.Unmarshal(feature.UserIDs, &currentIDs)
+	}
+
+	idSet := make(map[uint]bool)
+	for _, id := range currentIDs {
+		idSet[id] = true
+	}
+	for _, id := range userIDs {
+		idSet[id] = true
+	}
+
+	merged := make([]uint, 0, len(idSet))
+	for id := range idSet {
+		merged = append(merged, id)
+	}
+
+	newJSON, _ := json.Marshal(merged)
+
+	err = s.db.WithContext(ctx).
+		Model(&models.Feature{}).
+		Where("feature_key = ?", featureKey).
+		Update("user_ids", datatypes.JSON(newJSON)).Error
+	if err != nil {
+		return apperr.Wrap(constant.CommonInternal, err)
+	}
+
+	for _, uid := range userIDs {
+		s.clearUserFeaturesCache(ctx, uid)
+	}
+	return nil
+}
+
+// RevokeFeatureFromUser 撤销用户功能权限（从 UserIDs JSON 数组移除）
+func (s *FeatureService) RevokeFeatureFromUser(ctx context.Context, userID uint, featureKey string) error {
+	var feature models.Feature
+	err := s.db.WithContext(ctx).Where("feature_key = ?", featureKey).First(&feature).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return apperr.New(constant.FeatureNotFound)
+		}
+		return apperr.Wrap(constant.CommonInternal, err)
+	}
+
+	var currentIDs []uint
+	if feature.UserIDs != nil {
+		_ = json.Unmarshal(feature.UserIDs, &currentIDs)
+	}
+
+	filtered := make([]uint, 0, len(currentIDs))
+	for _, id := range currentIDs {
+		if id != userID {
+			filtered = append(filtered, id)
+		}
+	}
+
+	newJSON, _ := json.Marshal(filtered)
+
+	err = s.db.WithContext(ctx).
+		Model(&models.Feature{}).
+		Where("feature_key = ?", featureKey).
+		Update("user_ids", datatypes.JSON(newJSON)).Error
+	if err != nil {
+		return apperr.Wrap(constant.CommonInternal, err)
+	}
+
+	s.clearUserFeaturesCache(ctx, userID)
+	return nil
+}
+
+// SetFeatureRoles 设置功能的授权角色ID列表
+func (s *FeatureService) SetFeatureRoles(ctx context.Context, featureKey string, roleIDs []uint) error {
+	roleIDsJSON, _ := json.Marshal(roleIDs)
+	result := s.db.WithContext(ctx).
+		Model(&models.Feature{}).
+		Where("feature_key = ?", featureKey).
+		Update("role_ids", datatypes.JSON(roleIDsJSON))
+
+	if result.Error != nil {
+		return apperr.Wrap(constant.CommonInternal, result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return apperr.New(constant.FeatureNotFound)
+	}
+
+	s.clearFeatureEnabledCache(ctx, featureKey)
+
+	// 清除拥有这些角色的所有用户的 feature 缓存
+	if s.cache != nil {
+		var userIDs []uint
+		s.db.WithContext(ctx).
+			Table("user_roles").
+			Where("role_id IN ? AND deleted_at IS NULL", roleIDs).
+			Pluck("DISTINCT user_id", &userIDs)
+		for _, uid := range userIDs {
+			s.clearUserFeaturesCache(ctx, uid)
 		}
 	}
 
 	return nil
 }
 
-// RevokeFeatureFromUser 撤销用户功能权限
-func (s *FeatureService) RevokeFeatureFromUser(ctx context.Context, userID uint, featureKey string) error {
-	err := s.db.WithContext(ctx).
-		Where("user_id = ? AND feature_key = ?", userID, featureKey).
-		Delete(&models.UserFeatureWhitelist{}).Error
+// GrantRoleToFeature 给功能添加单个授权角色（追加到 role_ids）
+func (s *FeatureService) GrantRoleToFeature(ctx context.Context, featureKey string, roleID uint) error {
+	var feature models.Feature
+	err := s.db.WithContext(ctx).Where("feature_key = ?", featureKey).First(&feature).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return apperr.New(constant.FeatureNotFound)
+		}
+		return apperr.Wrap(constant.CommonInternal, err)
+	}
 
+	var currentIDs []uint
+	if feature.RoleIDs != nil {
+		_ = json.Unmarshal(feature.RoleIDs, &currentIDs)
+	}
+
+	for _, id := range currentIDs {
+		if id == roleID {
+			return nil // 已存在
+		}
+	}
+
+	currentIDs = append(currentIDs, roleID)
+	newJSON, _ := json.Marshal(currentIDs)
+
+	err = s.db.WithContext(ctx).
+		Model(&models.Feature{}).
+		Where("feature_key = ?", featureKey).
+		Update("role_ids", datatypes.JSON(newJSON)).Error
 	if err != nil {
 		return apperr.Wrap(constant.CommonInternal, err)
 	}
 
-	// 清除用户功能缓存
-	s.clearUserFeaturesCache(ctx, userID)
-
+	// 清除拥有该角色的所有用户的缓存
+	s.invalidateRoleUsersCache(ctx, roleID)
 	return nil
+}
+
+// RevokeRoleFromFeature 从功能移除单个授权角色
+func (s *FeatureService) RevokeRoleFromFeature(ctx context.Context, featureKey string, roleID uint) error {
+	var feature models.Feature
+	err := s.db.WithContext(ctx).Where("feature_key = ?", featureKey).First(&feature).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return apperr.New(constant.FeatureNotFound)
+		}
+		return apperr.Wrap(constant.CommonInternal, err)
+	}
+
+	var currentIDs []uint
+	if feature.RoleIDs != nil {
+		_ = json.Unmarshal(feature.RoleIDs, &currentIDs)
+	}
+
+	filtered := make([]uint, 0, len(currentIDs))
+	for _, id := range currentIDs {
+		if id != roleID {
+			filtered = append(filtered, id)
+		}
+	}
+
+	newJSON, _ := json.Marshal(filtered)
+
+	err = s.db.WithContext(ctx).
+		Model(&models.Feature{}).
+		Where("feature_key = ?", featureKey).
+		Update("role_ids", datatypes.JSON(newJSON)).Error
+	if err != nil {
+		return apperr.Wrap(constant.CommonInternal, err)
+	}
+
+	s.invalidateRoleUsersCache(ctx, roleID)
+	return nil
+}
+
+func (s *FeatureService) invalidateRoleUsersCache(ctx context.Context, roleID uint) {
+	if s.cache == nil {
+		return
+	}
+	var userIDs []uint
+	s.db.WithContext(ctx).
+		Table("user_roles").
+		Where("role_id = ? AND deleted_at IS NULL", roleID).
+		Pluck("DISTINCT user_id", &userIDs)
+	for _, uid := range userIDs {
+		s.clearUserFeaturesCache(ctx, uid)
+	}
 }
 
 // ListFeatures 获取所有功能列表
@@ -232,7 +393,6 @@ func (s *FeatureService) ListFeatures(ctx context.Context) ([]models.Feature, er
 	if err != nil {
 		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
-
 	return features, nil
 }
 
@@ -251,7 +411,6 @@ func (s *FeatureService) GetFeature(ctx context.Context, featureKey string) (*mo
 
 // CreateFeature 创建功能
 func (s *FeatureService) CreateFeature(ctx context.Context, feature *models.Feature) error {
-	// 检查功能是否已存在
 	var existing models.Feature
 	err := s.db.WithContext(ctx).Where("feature_key = ?", feature.FeatureKey).First(&existing).Error
 	if err == nil {
@@ -261,14 +420,20 @@ func (s *FeatureService) CreateFeature(ctx context.Context, feature *models.Feat
 		return apperr.Wrap(constant.CommonInternal, err)
 	}
 
+	// 确保 JSON 字段默认值为空数组
+	if feature.UserIDs == nil {
+		feature.UserIDs = datatypes.JSON([]byte("[]"))
+	}
+	if feature.RoleIDs == nil {
+		feature.RoleIDs = datatypes.JSON([]byte("[]"))
+	}
+
 	err = s.db.WithContext(ctx).Create(feature).Error
 	if err != nil {
 		return apperr.Wrap(constant.CommonInternal, err)
 	}
 
-	// 清除功能缓存
 	s.clearFeatureEnabledCache(ctx, feature.FeatureKey)
-
 	return nil
 }
 
@@ -295,9 +460,7 @@ func (s *FeatureService) UpdateFeature(ctx context.Context, featureKey string, u
 		}
 	}
 
-	// 清除功能缓存
 	s.clearFeatureEnabledCache(ctx, featureKey)
-
 	return nil
 }
 
@@ -314,57 +477,56 @@ func (s *FeatureService) DeleteFeature(ctx context.Context, featureKey string) e
 		return apperr.New(constant.FeatureNotFound)
 	}
 
-	// 清除相关缓存
 	s.clearFeatureEnabledCache(ctx, featureKey)
-	// 清除所有拥有该功能的用户缓存
-	s.clearAllUsersCacheForFeature(ctx, featureKey)
-
 	return nil
 }
 
-// ListWhitelist 获取某功能的白名单用户列表
-func (s *FeatureService) ListWhitelist(ctx context.Context, featureKey string, page, pageSize int) ([]models.UserFeatureWhitelist, int64, error) {
-	var whitelists []models.UserFeatureWhitelist
-	var total int64
-
-	query := s.db.WithContext(ctx).
-		Where("feature_key = ?", featureKey)
-
-	// 获取总数
-	err := query.Model(&models.UserFeatureWhitelist{}).Count(&total).Error
-	if err != nil {
-		return nil, 0, apperr.Wrap(constant.CommonInternal, err)
-	}
-
-	// 分页查询
-	offset := (page - 1) * pageSize
-	err = query.
-		Order("created_at DESC").
-		Limit(pageSize).
-		Offset(offset).
-		Find(&whitelists).Error
-
-	if err != nil {
-		return nil, 0, apperr.Wrap(constant.CommonInternal, err)
-	}
-
-	return whitelists, total, nil
-}
-
-// GetUserFeatureDetails 获取用户的功能权限详情（管理员查看）
-func (s *FeatureService) GetUserFeatureDetails(ctx context.Context, userID uint) ([]models.UserFeatureWhitelist, error) {
-	var whitelists []models.UserFeatureWhitelist
+// GetEnabledProjectFeatures 获取所有启用的项目灰度 feature_key
+// 查询 SELECT ... LIKE 'review.project.%' 走 B-tree 索引前缀匹配，~1ms，无需缓存
+func (s *FeatureService) GetEnabledProjectFeatures(ctx context.Context) (map[string]bool, error) {
+	var keys []string
 	err := s.db.WithContext(ctx).
-		Where("user_id = ?", userID).
-		Order("created_at DESC").
-		Find(&whitelists).Error
+		Table("features").
+		Where("feature_key LIKE ? AND is_enabled = ? AND deleted_at IS NULL", "review.project.%", true).
+		Pluck("feature_key", &keys).Error
 	if err != nil {
 		return nil, apperr.Wrap(constant.CommonInternal, err)
 	}
-	return whitelists, nil
+	set := make(map[string]bool, len(keys))
+	for _, k := range keys {
+		set[k] = true
+	}
+	return set, nil
 }
 
-// clearUserFeaturesCache 清除用户功能缓存
+// GetUserIDsByFeature 查询某功能已授权的用户ID列表
+func (s *FeatureService) GetUserIDsByFeature(ctx context.Context, featureKey string) ([]uint, error) {
+	feature, err := s.GetFeature(ctx, featureKey)
+	if err != nil {
+		return nil, err
+	}
+	var ids []uint
+	if feature.UserIDs != nil {
+		_ = json.Unmarshal(feature.UserIDs, &ids)
+	}
+	return ids, nil
+}
+
+// GetRoleIDsByFeature 查询某功能已授权的角色ID列表
+func (s *FeatureService) GetRoleIDsByFeature(ctx context.Context, featureKey string) ([]uint, error) {
+	feature, err := s.GetFeature(ctx, featureKey)
+	if err != nil {
+		return nil, err
+	}
+	var ids []uint
+	if feature.RoleIDs != nil {
+		_ = json.Unmarshal(feature.RoleIDs, &ids)
+	}
+	return ids, nil
+}
+
+// ==================== 缓存管理 ====================
+
 func (s *FeatureService) clearUserFeaturesCache(ctx context.Context, userID uint) {
 	if s.cache != nil {
 		cacheKey := fmt.Sprintf(constant.CacheKeyUserFeatures, userID)
@@ -372,33 +534,9 @@ func (s *FeatureService) clearUserFeaturesCache(ctx context.Context, userID uint
 	}
 }
 
-// clearFeatureEnabledCache 清除功能启用状态缓存
 func (s *FeatureService) clearFeatureEnabledCache(ctx context.Context, featureKey string) {
 	if s.cache != nil {
 		cacheKey := fmt.Sprintf(constant.CacheKeyFeatureEnabled, featureKey)
 		_ = s.cache.Delete(ctx, cacheKey)
-	}
-}
-
-// clearAllUsersCacheForFeature 清除所有拥有指定功能的用户缓存
-func (s *FeatureService) clearAllUsersCacheForFeature(ctx context.Context, featureKey string) {
-	if s.cache == nil {
-		return
-	}
-
-	// 查询所有拥有该功能的用户
-	var whitelists []models.UserFeatureWhitelist
-	err := s.db.WithContext(ctx).
-		Where("feature_key = ?", featureKey).
-		Select("DISTINCT user_id").
-		Find(&whitelists).Error
-
-	if err != nil {
-		return
-	}
-
-	// 清除每个用户的缓存
-	for _, w := range whitelists {
-		s.clearUserFeaturesCache(ctx, w.UserID)
 	}
 }

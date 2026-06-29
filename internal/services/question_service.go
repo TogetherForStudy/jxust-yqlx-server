@@ -19,12 +19,14 @@ import (
 )
 
 type QuestionService struct {
-	db *gorm.DB
+	db             *gorm.DB
+	featureService *FeatureService
 }
 
-func NewQuestionService(db *gorm.DB) *QuestionService {
+func NewQuestionService(db *gorm.DB, featureService *FeatureService) *QuestionService {
 	return &QuestionService{
-		db: db,
+		db:             db,
+		featureService: featureService,
 	}
 }
 
@@ -43,6 +45,8 @@ func (s *QuestionService) GetProjectByID(ctx context.Context, projectID uint) (*
 }
 
 // GetProjects 获取项目列表
+// 灰度规则：若 features 表中存在 review.project.{id} 且 is_enabled=true，则该项目灰度
+// feature 不存在或 is_enabled=false → 公开可见
 func (s *QuestionService) GetProjects(ctx context.Context, userID uint) ([]response.QuestionProjectResponse, error) {
 	var projects []models.QuestionProject
 
@@ -52,81 +56,96 @@ func (s *QuestionService) GetProjects(ctx context.Context, userID uint) ([]respo
 		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("获取项目列表失败: %w", err))
 	}
 
-	var result []response.QuestionProjectResponse
-	for _, project := range projects {
-		// 获取项目下所有启用题目的 ID（用于统计数量和刷题次数）
-		var questionIDs []uint
-		if err := s.db.WithContext(ctx).Model(&models.Question{}).
-			Where("project_id = ? AND is_active = ? AND parent_id IS NULL", project.ID, true).
-			Pluck("id", &questionIDs).Error; err != nil {
-			return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("获取项目题目列表失败: %w", err))
-		}
+	// 灰度预加载
+	var enabledGraySet map[string]bool
+	userFeatureSet := make(map[string]bool)
 
-		// 题目数量
-		questionCount := int64(len(questionIDs))
+	if s.featureService != nil {
+		enabledGraySet, _ = s.featureService.GetEnabledProjectFeatures(ctx)
+		userFeatures, _ := s.featureService.GetUserFeatures(ctx, userID)
+		for _, f := range userFeatures {
+			userFeatureSet[f] = true
+		}
+	}
+
+	// 过滤灰度项目 + 收集可见项目ID
+	type visibleProject struct {
+		project models.QuestionProject
+	}
+	var visible []visibleProject
+	for _, project := range projects {
+		featureKey := fmt.Sprintf("review.project.%d", project.ID)
+		if enabledGraySet[featureKey] && !userFeatureSet[featureKey] {
+			continue
+		}
+		visible = append(visible, visibleProject{project: project})
+	}
+	if len(visible) == 0 {
+		return []response.QuestionProjectResponse{}, nil
+	}
+
+	// 收集可见项目 ID
+	projectIDs := make([]uint, len(visible))
+	for i, v := range visible {
+		projectIDs[i] = v.project.ID
+	}
+
+	// 批量查询题目数量（一次 GROUP BY 替代 N 次 COUNT）
+	type countRow struct {
+		ProjectID uint
+		Count     int64
+	}
+	var questionCounts []countRow
+	s.db.WithContext(ctx).Model(&models.Question{}).
+		Select("project_id, COUNT(*) as count").
+		Where("project_id IN ? AND is_active = ? AND parent_id IS NULL", projectIDs, true).
+		Group("project_id").Find(&questionCounts)
+	qCountMap := make(map[uint]int64, len(questionCounts))
+	for _, r := range questionCounts {
+		qCountMap[r.ProjectID] = r.Count
+	}
+
+	// 构建结果
+	var result []response.QuestionProjectResponse
+	for _, v := range visible {
+		project := v.project
+		questionCount := qCountMap[project.ID]
+
+		// 用户数 & 刷题次数（Redis 为主，每个项目 ≈0.2ms，总量可控）
 		var userCount int64
 		userSetKey := fmt.Sprintf("project:users:%d", project.ID)
 		if cache.GlobalCache != nil {
 			var err error
 			userCount, err = cache.GlobalCache.SCard(ctx, userSetKey)
 			if err != nil {
-				// 如果 Redis 查询失败，回退到数据库查询
 				s.db.WithContext(ctx).Model(&models.UserProjectUsage{}).
-					Where("project_id = ?", project.ID).
-					Count(&userCount)
-
-				// 从数据库初始化Redis：查询所有使用过该项目的用户ID并添加到Redis集合
-				var userIDs []uint
-				if err := s.db.WithContext(ctx).Model(&models.UserProjectUsage{}).
-					Where("project_id = ?", project.ID).
-					Pluck("user_id", &userIDs).Error; err == nil && len(userIDs) > 0 {
-					// 将用户ID转换为字符串并添加到Redis集合
-					members := make([]interface{}, len(userIDs))
-					for i, id := range userIDs {
-						members[i] = strconv.FormatUint(uint64(id), 10)
-					}
-					_, _ = cache.GlobalCache.SAdd(ctx, userSetKey, members...)
-				}
+					Where("project_id = ?", project.ID).Count(&userCount)
 			}
 		} else {
-			// 如果 Redis 未初始化，使用数据库查询
 			s.db.WithContext(ctx).Model(&models.UserProjectUsage{}).
-				Where("project_id = ?", project.ID).
-				Count(&userCount)
+				Where("project_id = ?", project.ID).Count(&userCount)
 		}
 
-		// 从 Redis 获取项目内题目总刷题次数（学习+练习）
 		var usageCount int64
 		usageKey := fmt.Sprintf("project:usage:%d", project.ID)
 		if cache.GlobalCache != nil {
 			var err error
 			usageCount, err = cache.GlobalCache.GetInt(ctx, usageKey)
 			if err != nil {
-				// 如果 Redis 查询失败，回退到数据库查询
-				if len(questionIDs) > 0 {
-					if err := s.db.WithContext(ctx).Model(&models.UserQuestionUsage{}).
-						Where("question_id IN ?", questionIDs).
-						Select("COALESCE(SUM(study_count + practice_count), 0)").
-						Scan(&usageCount).Error; err != nil {
-						return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("获取项目刷题统计失败: %w", err))
-					}
-				}
-				// 从数据库初始化Redis：将查询到的值写入Redis（包括0值，避免每次都查询数据库）
-				// 即使questionIDs为空，usageCount为0，也写入Redis以保持一致性
-				// 使用 time.Duration(0) 表示永不过期
-				noExpiration := time.Duration(0)
-				_ = cache.GlobalCache.Set(ctx, usageKey, strconv.FormatInt(usageCount, 10), &noExpiration)
+				s.db.WithContext(ctx).
+					Table("user_question_usages uq").
+					Joins("JOIN questions q ON q.id = uq.question_id").
+					Where("q.project_id = ? AND q.is_active = ?", project.ID, true).
+					Select("COALESCE(SUM(uq.study_count + uq.practice_count), 0)").
+					Scan(&usageCount)
 			}
 		} else {
-			// 如果 Redis 未初始化，使用数据库查询
-			if len(questionIDs) > 0 {
-				if err := s.db.WithContext(ctx).Model(&models.UserQuestionUsage{}).
-					Where("question_id IN ?", questionIDs).
-					Select("COALESCE(SUM(study_count + practice_count), 0)").
-					Scan(&usageCount).Error; err != nil {
-					return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("获取项目刷题统计失败: %w", err))
-				}
-			}
+			s.db.WithContext(ctx).
+				Table("user_question_usages uq").
+				Joins("JOIN questions q ON q.id = uq.question_id").
+				Where("q.project_id = ? AND q.is_active = ?", project.ID, true).
+				Select("COALESCE(SUM(uq.study_count + uq.practice_count), 0)").
+				Scan(&usageCount)
 		}
 
 		result = append(result, response.ToQuestionProjectResponse(&project, questionCount, userCount, usageCount))

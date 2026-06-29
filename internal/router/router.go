@@ -61,7 +61,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	studyTaskService := services.NewStudyTaskService(db)
 	featureService := services.NewFeatureService(db)
 	materialService := services.NewMaterialService(db)
-	questionService := services.NewQuestionService(db)
+	questionService := services.NewQuestionService(db, featureService)
 	gpaBackupService := services.NewGPABackupService(db)
 	pomodoroService := services.NewPomodoroService(db)
 	statService := services.NewStatService(db)
@@ -498,9 +498,10 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				featureAdmin.PUT("/:key", featureHandler.UpdateFeature)                                                             // 更新功能
 				featureAdmin.DELETE("/:key", featureHandler.DeleteFeature)                                                          // 删除功能
 				featureAdmin.GET("/:key/whitelist", featureHandler.ListWhitelist)                                                   // 获取白名单列表
-				featureAdmin.POST("/:key/whitelist", middleware.IdempotencyRecommended(ca), featureHandler.GrantFeature)            // 授予权限（幂等性保护）
-				featureAdmin.POST("/:key/whitelist/batch", middleware.IdempotencyRecommended(ca), featureHandler.BatchGrantFeature) // 批量授予权限（幂等性保护）
+				featureAdmin.POST("/:key/whitelist", middleware.IdempotencyRecommended(ca), featureHandler.GrantFeature)            // 授予权限（单个/批量，幂等性保护）
 				featureAdmin.DELETE("/:key/whitelist/:uid", featureHandler.RevokeFeature)                                           // 撤销权限
+				featureAdmin.POST("/:key/roles", middleware.IdempotencyRecommended(ca), featureHandler.GrantRoleToFeature)          // 添加授权角色
+				featureAdmin.DELETE("/:key/roles/:rid", featureHandler.RevokeRoleFromFeature)                                       // 移除授权角色
 			}
 
 			organizationAdmin := authorized.Group("/admin/organizations")
