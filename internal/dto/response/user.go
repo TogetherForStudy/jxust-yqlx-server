@@ -45,6 +45,7 @@ type AuthSessionSummary struct {
 	SID           string `json:"sid"`
 	DeviceType    string `json:"device_type"`
 	ClientType    string `json:"client_type"`
+	IsCurrent     bool   `json:"is_current,omitempty"`
 	IssuedAt      int64  `json:"issued_at"`
 	LastRefreshAt int64  `json:"last_refresh_at"`
 	ExpiresAt     int64  `json:"expires_at"`

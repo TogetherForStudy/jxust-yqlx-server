@@ -127,6 +127,49 @@ func (h *AuthHandler) LogoutAll(c *gin.Context) {
 	helper.SuccessResponse(c, gin.H{"message": "已退出全部设备", "deleted_session_count": deleted})
 }
 
+// GetUserSessions 获取用户会话列表
+func (h *AuthHandler) GetUserSessions(c *gin.Context) {
+	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
+		return
+	}
+
+	currentSID := helper.GetAuthSessionID(c)
+	sessions, err := h.authService.GetUserSessions(c.Request.Context(), userID, currentSID)
+	if err != nil {
+		helper.HandleError(c, err)
+		return
+	}
+
+	helper.SuccessResponse(c, gin.H{
+		"sessions": sessions,
+		"total":    len(sessions),
+	})
+}
+
+// LogoutSession 退出指定会话
+func (h *AuthHandler) LogoutSession(c *gin.Context) {
+	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
+		return
+	}
+
+	targetSID := c.Param("sid")
+	if targetSID == "" {
+		helper.HandleErrCode(c, constant.CommonBadRequest)
+		return
+	}
+
+	if err := h.authService.Logout(c.Request.Context(), userID, targetSID); err != nil {
+		helper.HandleError(c, err)
+		return
+	}
+
+	helper.SuccessResponse(c, gin.H{"message": "已退出该设备"})
+}
+
 // GetProfile 获取用户资料
 func (h *AuthHandler) GetProfile(c *gin.Context) {
 	userID := helper.GetUserID(c)

@@ -169,6 +169,8 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			{
 				authProtected.POST("/logout", authHandler.Logout)
 				authProtected.POST("/logout-all", authHandler.LogoutAll)
+				authProtected.GET("/sessions", authHandler.GetUserSessions)
+				authProtected.POST("/sessions/:sid/logout", authHandler.LogoutSession)
 			}
 
 			// 用户（需认证）
@@ -492,16 +494,16 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			featureAdmin := authorized.Group("/admin/features")
 			featureAdmin.Use(middleware.RequirePermission(rbacService, constant.PermissionFeatureManage))
 			{
-				featureAdmin.GET("", featureHandler.ListFeatures)                                                                   // 获取所有功能列表
-				featureAdmin.GET("/:key", featureHandler.GetFeature)                                                                // 获取功能详情
-				featureAdmin.POST("", middleware.IdempotencyRecommended(ca), featureHandler.CreateFeature)                          // 创建功能（幂等性保护）
-				featureAdmin.PUT("/:key", featureHandler.UpdateFeature)                                                             // 更新功能
-				featureAdmin.DELETE("/:key", featureHandler.DeleteFeature)                                                          // 删除功能
-				featureAdmin.GET("/:key/whitelist", featureHandler.ListWhitelist)                                                   // 获取白名单列表
-				featureAdmin.POST("/:key/whitelist", middleware.IdempotencyRecommended(ca), featureHandler.GrantFeature)            // 授予权限（单个/批量，幂等性保护）
-				featureAdmin.DELETE("/:key/whitelist/:uid", featureHandler.RevokeFeature)                                           // 撤销权限
-				featureAdmin.POST("/:key/roles", middleware.IdempotencyRecommended(ca), featureHandler.GrantRoleToFeature)          // 添加授权角色
-				featureAdmin.DELETE("/:key/roles/:rid", featureHandler.RevokeRoleFromFeature)                                       // 移除授权角色
+				featureAdmin.GET("", featureHandler.ListFeatures)                                                          // 获取所有功能列表
+				featureAdmin.GET("/:key", featureHandler.GetFeature)                                                       // 获取功能详情
+				featureAdmin.POST("", middleware.IdempotencyRecommended(ca), featureHandler.CreateFeature)                 // 创建功能（幂等性保护）
+				featureAdmin.PUT("/:key", featureHandler.UpdateFeature)                                                    // 更新功能
+				featureAdmin.DELETE("/:key", featureHandler.DeleteFeature)                                                 // 删除功能
+				featureAdmin.GET("/:key/whitelist", featureHandler.ListWhitelist)                                          // 获取白名单列表
+				featureAdmin.POST("/:key/whitelist", middleware.IdempotencyRecommended(ca), featureHandler.GrantFeature)   // 授予权限（单个/批量，幂等性保护）
+				featureAdmin.DELETE("/:key/whitelist/:uid", featureHandler.RevokeFeature)                                  // 撤销权限
+				featureAdmin.POST("/:key/roles", middleware.IdempotencyRecommended(ca), featureHandler.GrantRoleToFeature) // 添加授权角色
+				featureAdmin.DELETE("/:key/roles/:rid", featureHandler.RevokeRoleFromFeature)                              // 移除授权角色
 			}
 
 			organizationAdmin := authorized.Group("/admin/organizations")

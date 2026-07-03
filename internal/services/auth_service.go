@@ -836,6 +836,32 @@ func (s *AuthService) MockWechatLogin(ctx context.Context, testUser, userAgent s
 	return s.completeLogin(ctx, &user, userAgent)
 }
 
+func (s *AuthService) GetUserSessions(ctx context.Context, userID uint, currentSID string) ([]response.AuthSessionSummary, error) {
+	if err := s.requireAuthCache(); err != nil {
+		return nil, err
+	}
+
+	records, err := s.loadUserSessions(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	sessions := make([]response.AuthSessionSummary, 0, len(records))
+	for _, record := range records {
+		sessions = append(sessions, response.AuthSessionSummary{
+			SID:           record.SID,
+			DeviceType:    record.Session.DeviceType,
+			ClientType:    record.Session.ClientType,
+			IsCurrent:     record.SID == currentSID,
+			IssuedAt:      record.Session.IssuedAt,
+			LastRefreshAt: record.Session.LastRefreshAt,
+			ExpiresAt:     record.Session.ExpiresAt,
+		})
+	}
+
+	return sessions, nil
+}
+
 func (s *AuthService) Logout(ctx context.Context, userID uint, sid string) error {
 	if err := s.requireAuthCache(); err != nil {
 		return err
