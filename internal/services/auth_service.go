@@ -645,20 +645,22 @@ func (s *AuthService) buildUserProfile(ctx context.Context, user models.User) (r
 	}
 
 	return response.UserProfileResponse{
-		ID:        user.ID,
-		Nickname:  user.Nickname,
-		Avatar:    user.Avatar,
-		Phone:     user.Phone,
-		StudentID: user.StudentID,
-		RealName:  user.RealName,
-		College:   user.College,
-		Major:     user.Major,
-		ClassID:   user.ClassID,
-		Role:      user.Role,
-		RoleTags:  roleTags,
-		Status:    user.Status,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
+		ID:            user.ID,
+		Nickname:      user.Nickname,
+		Avatar:        user.Avatar,
+		Phone:         user.Phone,
+		StudentID:     user.StudentID,
+		RealName:      user.RealName,
+		College:       user.College,
+		Major:         user.Major,
+		ClassID:       user.ClassID,
+		Role:          user.Role,
+		RoleTags:      roleTags,
+		Status:        user.Status,
+		Points:        user.Points,
+		PomodoroCount: user.PomodoroCount,
+		CreatedAt:     user.CreatedAt,
+		UpdatedAt:     user.UpdatedAt,
 	}, nil
 }
 

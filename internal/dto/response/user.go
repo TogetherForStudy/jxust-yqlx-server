@@ -25,20 +25,22 @@ type WechatSession struct {
 
 // UserProfileResponse 用户资料响应（不包含 openid/unionid）
 type UserProfileResponse struct {
-	ID        uint              `json:"id"`
-	Nickname  string            `json:"nickname"`
-	Avatar    string            `json:"avatar"`
-	Phone     string            `json:"phone"`
-	StudentID string            `json:"student_id"`
-	RealName  string            `json:"real_name"`
-	College   string            `json:"college"`
-	Major     string            `json:"major"`
-	ClassID   string            `json:"class_id"`
-	Role      int8              `json:"role,omitempty"` // 向前兼容字段：1=普通用户，2=管理员，3=运营
-	RoleTags  []string          `json:"role_tags,omitempty"`
-	Status    models.UserStatus `json:"status"`
-	CreatedAt time.Time         `json:"created_at"`
-	UpdatedAt time.Time         `json:"updated_at"`
+	ID            uint              `json:"id"`
+	Nickname      string            `json:"nickname"`
+	Avatar        string            `json:"avatar"`
+	Phone         string            `json:"phone"`
+	StudentID     string            `json:"student_id"`
+	RealName      string            `json:"real_name"`
+	College       string            `json:"college"`
+	Major         string            `json:"major"`
+	ClassID       string            `json:"class_id"`
+	Role          int8              `json:"role,omitempty"` // 向前兼容字段：1=普通用户，2=管理员，3=运营
+	RoleTags      []string          `json:"role_tags,omitempty"`
+	Status        models.UserStatus `json:"status"`
+	Points        uint              `json:"points"`
+	PomodoroCount uint              `json:"pomodoro_count"`
+	CreatedAt     time.Time         `json:"created_at"`
+	UpdatedAt     time.Time         `json:"updated_at"`
 }
 
 type AuthSessionSummary struct {
