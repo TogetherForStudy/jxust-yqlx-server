@@ -259,13 +259,13 @@ type ScheduleTimeSlot struct {
 // PointsTransaction 积分变动记录模型
 type PointsTransaction struct {
 	ID          uint                  `json:"id" gorm:"type:int unsigned;primaryKey;comment:交易ID"`
-	UserID      uint                  `json:"user_id" gorm:"not null;index:idx_user_created;comment:用户ID"`
-	Type        PointsTransactionType `json:"type" gorm:"type:tinyint;not null;index:idx_type_source;comment:类型：1=获得，2=消耗"`
-	Source      string                `json:"source" gorm:"type:varchar(50);not null;index:idx_type_source;comment:来源"`
+	UserID      uint                  `json:"user_id" gorm:"not null;index:idx_user_created;index:idx_points_transactions_user_type_source_created,priority:1;comment:用户ID"`
+	Type        PointsTransactionType `json:"type" gorm:"type:tinyint;not null;index:idx_type_source;index:idx_points_transactions_user_type_source_created,priority:2;comment:类型：1=获得，2=消耗"`
+	Source      string                `json:"source" gorm:"type:varchar(50);not null;index:idx_type_source;index:idx_points_transactions_user_type_source_created,priority:3;comment:来源"`
 	Points      int                   `json:"points" gorm:"type:int;not null;comment:积分数量"`
 	Description string                `json:"description" gorm:"type:varchar(200);comment:描述"`
 	RelatedID   *uint                 `json:"related_id" gorm:"comment:关联ID(投稿ID/奖品ID等)"`
-	CreatedAt   time.Time             `json:"created_at" gorm:"type:datetime;index:idx_user_created;comment:创建时间"`
+	CreatedAt   time.Time             `json:"created_at" gorm:"type:datetime;index:idx_user_created;index:idx_points_transactions_user_type_source_created,priority:4;comment:创建时间"`
 }
 
 // PointsTransactionType 积分交易类型
@@ -288,8 +288,8 @@ const (
 // UserActivity 用户活动记录模型
 type UserActivity struct {
 	ID         uint      `json:"id" gorm:"type:int unsigned;primaryKey;comment:记录ID"`
-	UserID     uint      `json:"user_id" gorm:"not null;uniqueIndex:idx_user_date;comment:用户ID"`
-	Date       time.Time `json:"date" gorm:"type:date;not null;uniqueIndex:idx_user_date;comment:活动日期"`
+	UserID     uint      `json:"user_id" gorm:"not null;uniqueIndex:idx_user_date;index:idx_user_activities_date_user,priority:2;comment:用户ID"`
+	Date       time.Time `json:"date" gorm:"type:date;not null;uniqueIndex:idx_user_date;index:idx_user_activities_date_user,priority:1;comment:活动日期"`
 	VisitCount int       `json:"visit_count" gorm:"type:int;default:1;comment:访问次数"`
 	CreatedAt  time.Time `json:"created_at" gorm:"type:datetime;comment:创建时间"`
 	UpdatedAt  time.Time `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
@@ -457,15 +457,15 @@ type QuestionProject struct {
 
 // Question 题目
 type Question struct {
-	ID        uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:题目ID"`
-	ProjectID uint           `json:"project_id" gorm:"not null;index:idx_project_question;comment:项目ID"`
-	ParentID  *uint          `json:"parent_id" gorm:"type:int unsigned;index:idx_parent_question;comment:父题目ID（用于题目分组，null表示主题或独立题）"`
+	ID        uint           `json:"id" gorm:"type:int unsigned;primaryKey;index:idx_questions_project_active_parent_sort_id,priority:5;index:idx_questions_parent_active_sort_id,priority:4;comment:题目ID"`
+	ProjectID uint           `json:"project_id" gorm:"not null;index:idx_project_question;index:idx_questions_project_active_parent_sort_id,priority:1;comment:项目ID"`
+	ParentID  *uint          `json:"parent_id" gorm:"type:int unsigned;index:idx_parent_question;index:idx_questions_project_active_parent_sort_id,priority:3;index:idx_questions_parent_active_sort_id,priority:1;comment:父题目ID（用于题目分组，null表示主题或独立题）"`
 	Type      QuestionType   `json:"type" gorm:"type:tinyint;not null;comment:题目类型：1=选择题，2=简答题"`
 	Title     string         `json:"title" gorm:"type:text;not null;comment:题目标题"`
 	Options   datatypes.JSON `json:"options" gorm:"type:json;comment:选项（JSON数组，仅选择题使用）"`
 	Answer    string         `json:"answer" gorm:"type:text;not null;comment:答案"`
-	Sort      int            `json:"sort" gorm:"type:int;default:0;comment:排序"`
-	IsActive  bool           `json:"is_active" gorm:"type:tinyint(1);default:1;comment:是否启用"`
+	Sort      int            `json:"sort" gorm:"type:int;default:0;index:idx_questions_project_active_parent_sort_id,priority:4;index:idx_questions_parent_active_sort_id,priority:3;comment:排序"`
+	IsActive  bool           `json:"is_active" gorm:"type:tinyint(1);default:1;index:idx_questions_project_active_parent_sort_id,priority:2;index:idx_questions_parent_active_sort_id,priority:2;comment:是否启用"`
 	CreatedAt time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
 	UpdatedAt time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
 	DeletedAt gorm.DeletedAt `json:"deleted_at" gorm:"type:datetime;index;comment:删除时间"`
