@@ -30,14 +30,7 @@ func (s *MaterialService) GetMaterialList(ctx context.Context, req *request.Mate
 	var materials []models.Material
 	var total int64
 
-	query := s.db.WithContext(ctx).Model(&models.Material{}).
-		Joins("LEFT JOIN material_descs ON materials.md5 = material_descs.md5").
-		Joins("LEFT JOIN material_categories ON materials.category_id = material_categories.id")
-
-	// 按分类ID筛选
-	if req.CategoryID != nil {
-		query = query.Where("materials.category_id = ?", *req.CategoryID)
-	}
+	query := s.materialPublicQuery(ctx, req.CategoryID, true)
 
 	// 获取总数
 	if err := query.Count(&total).Error; err != nil {
@@ -45,9 +38,9 @@ func (s *MaterialService) GetMaterialList(ctx context.Context, req *request.Mate
 	}
 
 	// 排序
-	sortBy := "material_descs.total_hotness DESC"
+	sortBy := "COALESCE(material_desc_stats.total_hotness, 0) DESC, materials.id DESC"
 	if req.SortBy == "time" {
-		sortBy = "materials.created_at DESC"
+		sortBy = "materials.created_at DESC, materials.id DESC"
 	}
 	query = query.Order(sortBy)
 
@@ -63,25 +56,7 @@ func (s *MaterialService) GetMaterialList(ctx context.Context, req *request.Mate
 	// 转换为响应格式
 	var result []response.MaterialListResponse
 	for _, material := range materials {
-		// 使用预加载的资料描述数据
-		var desc models.MaterialDesc
-		if material.Desc != nil {
-			desc = *material.Desc
-		}
-
-		item := response.MaterialListResponse{
-			ID:            material.ID,
-			MD5:           material.MD5,
-			FileName:      material.FileName,
-			FileSize:      material.FileSize,
-			CategoryID:    material.CategoryID,
-			Tags:          desc.Tags,
-			TotalHotness:  desc.TotalHotness,
-			PeriodHotness: desc.PeriodHotness,
-			DownloadCount: desc.DownloadCount,
-			CreatedAt:     material.CreatedAt,
-		}
-		result = append(result, item)
+		result = append(result, toMaterialListResponse(material))
 	}
 
 	return result, total, nil
@@ -165,11 +140,7 @@ func (s *MaterialService) SearchMaterials(ctx context.Context, req *request.Mate
 
 	// 构建搜索查询
 	searchPattern := "%" + req.Keywords + "%"
-	query := s.db.WithContext(ctx).Model(&models.Material{}).
-		Joins("LEFT JOIN material_descs ON materials.md5 = material_descs.md5").
-		Joins("LEFT JOIN material_categories ON materials.category_id = material_categories.id").
-		Where("materials.file_name LIKE ? OR material_descs.tags LIKE ? OR material_descs.description LIKE ? OR material_categories.name LIKE ?",
-			searchPattern, searchPattern, searchPattern, searchPattern)
+	query := s.materialSearchQuery(ctx, searchPattern)
 
 	// 获取总数
 	if err := query.Count(&total).Error; err != nil {
@@ -178,7 +149,7 @@ func (s *MaterialService) SearchMaterials(ctx context.Context, req *request.Mate
 
 	// 分页和排序
 	offset := (req.Page - 1) * req.PageSize
-	if err := query.Order("material_descs.total_hotness DESC").
+	if err := query.Order("COALESCE(material_desc_stats.total_hotness, 0) DESC, materials.id DESC").
 		Offset(offset).Limit(req.PageSize).
 		Preload("Category").Preload("Desc").Find(&materials).Error; err != nil {
 		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("搜索资料失败: %w", err))
@@ -187,25 +158,7 @@ func (s *MaterialService) SearchMaterials(ctx context.Context, req *request.Mate
 	// 转换为响应格式
 	var materialList []response.MaterialListResponse
 	for _, material := range materials {
-		// 使用预加载的资料描述数据
-		var desc models.MaterialDesc
-		if material.Desc != nil {
-			desc = *material.Desc
-		}
-
-		item := response.MaterialListResponse{
-			ID:            material.ID,
-			MD5:           material.MD5,
-			FileName:      material.FileName,
-			FileSize:      material.FileSize,
-			CategoryID:    material.CategoryID,
-			Tags:          desc.Tags,
-			TotalHotness:  desc.TotalHotness,
-			PeriodHotness: desc.PeriodHotness,
-			DownloadCount: desc.DownloadCount,
-			CreatedAt:     material.CreatedAt,
-		}
-		materialList = append(materialList, item)
+		materialList = append(materialList, toMaterialListResponse(material))
 	}
 
 	return &response.MaterialSearchResponse{
@@ -222,20 +175,20 @@ func (s *MaterialService) GetTopMaterials(ctx context.Context, req *request.TopM
 	var materials []models.Material
 
 	// 根据type参数选择排序字段和过滤条件
-	orderBy := "material_descs.total_hotness DESC"
+	orderBy := "COALESCE(material_desc_stats.total_hotness, 0) DESC, materials.id DESC"
 	minHotness := 1 // 最小热度，过滤零热度的资料
 	if req.Type == 7 {
 		// 期间热度（7天）
-		orderBy = "material_descs.period_hotness DESC"
+		orderBy = "COALESCE(material_desc_stats.period_hotness, 0) DESC, materials.id DESC"
 	}
 
-	query := s.db.WithContext(ctx).Joins("LEFT JOIN material_descs ON materials.md5 = material_descs.md5")
+	query := s.materialPublicQuery(ctx, nil, false)
 
 	// 过滤零热度的资料
 	if req.Type == 7 {
-		query = query.Where("material_descs.period_hotness >= ?", minHotness)
+		query = query.Where("COALESCE(material_desc_stats.period_hotness, 0) >= ?", minHotness)
 	} else {
-		query = query.Where("material_descs.total_hotness >= ?", minHotness)
+		query = query.Where("COALESCE(material_desc_stats.total_hotness, 0) >= ?", minHotness)
 	}
 
 	if err := query.Order(orderBy).
@@ -247,25 +200,7 @@ func (s *MaterialService) GetTopMaterials(ctx context.Context, req *request.TopM
 	// 转换为响应格式
 	var result []response.MaterialListResponse
 	for _, material := range materials {
-		// 使用预加载的资料描述数据
-		var desc models.MaterialDesc
-		if material.Desc != nil {
-			desc = *material.Desc
-		}
-
-		item := response.MaterialListResponse{
-			ID:            material.ID,
-			MD5:           material.MD5,
-			FileName:      material.FileName,
-			FileSize:      material.FileSize,
-			CategoryID:    material.CategoryID,
-			Tags:          desc.Tags,
-			TotalHotness:  desc.TotalHotness,
-			PeriodHotness: desc.PeriodHotness,
-			DownloadCount: desc.DownloadCount,
-			CreatedAt:     material.CreatedAt,
-		}
-		result = append(result, item)
+		result = append(result, toMaterialListResponse(material))
 	}
 
 	return result, nil
@@ -657,6 +592,64 @@ func (s *MaterialService) CalculateHotness(ctx context.Context) error {
 }
 
 // ==================== 私有辅助方法 ====================
+
+func (s *MaterialService) materialPublicQuery(ctx context.Context, categoryID *uint, withCategory bool) *gorm.DB {
+	canonicalMaterials := s.db.WithContext(ctx).Model(&models.Material{}).
+		Select("MAX(id) AS id").
+		Group("md5")
+	if categoryID != nil {
+		canonicalMaterials = canonicalMaterials.Where("category_id = ?", *categoryID)
+	}
+
+	// material_descs 按 md5 一对一；这里仍聚合成一行，防止历史异常数据放大资料行。
+	descStats := s.db.WithContext(ctx).Model(&models.MaterialDesc{}).
+		Select("md5, MAX(tags) AS tags, MAX(description) AS description, " +
+			"MAX(total_hotness) AS total_hotness, MAX(period_hotness) AS period_hotness").
+		Group("md5")
+
+	query := s.db.WithContext(ctx).Model(&models.Material{}).
+		Joins("JOIN (?) AS canonical_materials ON canonical_materials.id = materials.id", canonicalMaterials).
+		Joins("LEFT JOIN (?) AS material_desc_stats ON materials.md5 = material_desc_stats.md5", descStats)
+	if withCategory {
+		query = query.Joins("LEFT JOIN material_categories ON materials.category_id = material_categories.id")
+	}
+
+	return query
+}
+
+func (s *MaterialService) materialSearchQuery(ctx context.Context, searchPattern string) *gorm.DB {
+	categoryMatches := s.db.WithContext(ctx).Model(&models.Material{}).
+		Select("materials.md5").
+		Joins("JOIN material_categories ON materials.category_id = material_categories.id").
+		Where("material_categories.name LIKE ?", searchPattern).
+		Group("materials.md5")
+
+	return s.materialPublicQuery(ctx, nil, false).
+		Joins("LEFT JOIN (?) AS material_category_matches ON material_category_matches.md5 = materials.md5", categoryMatches).
+		Where("materials.file_name LIKE ? OR material_desc_stats.tags LIKE ? OR material_desc_stats.description LIKE ? OR material_category_matches.md5 IS NOT NULL",
+			searchPattern, searchPattern, searchPattern)
+}
+
+func toMaterialListResponse(material models.Material) response.MaterialListResponse {
+	// 使用预加载的资料描述数据
+	var desc models.MaterialDesc
+	if material.Desc != nil {
+		desc = *material.Desc
+	}
+
+	return response.MaterialListResponse{
+		ID:            material.ID,
+		MD5:           material.MD5,
+		FileName:      material.FileName,
+		FileSize:      material.FileSize,
+		CategoryID:    material.CategoryID,
+		Tags:          desc.Tags,
+		TotalHotness:  desc.TotalHotness,
+		PeriodHotness: desc.PeriodHotness,
+		DownloadCount: desc.DownloadCount,
+		CreatedAt:     material.CreatedAt,
+	}
+}
 
 // buildCategoryPath 构建分类路径字符串
 func (s *MaterialService) buildCategoryPath(ctx context.Context, categoryID uint) string {

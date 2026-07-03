@@ -379,7 +379,7 @@ const (
 // Material 资料表
 type Material struct {
 	ID         uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:资料ID"`
-	MD5        string         `json:"md5" gorm:"type:varchar(32);not null;comment:文件MD5"`
+	MD5        string         `json:"md5" gorm:"type:varchar(32);not null;index:idx_material_md5;comment:文件MD5"`
 	FileName   string         `json:"file_name" gorm:"type:varchar(255);not null;comment:文件名"`
 	FileSize   int64          `json:"file_size" gorm:"type:bigint;not null;comment:文件大小(字节)"`
 	CategoryID uint           `json:"category_id" gorm:"not null;index:idx_material_category;comment:分类ID"`
