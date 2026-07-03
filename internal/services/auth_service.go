@@ -886,24 +886,12 @@ func (s *AuthService) KickUser(ctx context.Context, operatorUserID, targetUserID
 		return deleted, err
 	}
 
-	expiresAt := time.Now().UTC().Add(s.accessTokenTTL())
-	blockInfo := utils.AuthBlockInfo{
-		Type:           constant.AuthBlockTypeKick,
-		OperatorUserID: operatorUserID,
-		ExpiresAt:      expiresAt.Unix(),
-	}
-	if err := s.setBlockInfo(ctx, targetUserID, blockInfo, s.accessTokenTTL()); err != nil {
-		return deleted, err
-	}
-
 	logger.InfoCtx(ctx, map[string]any{
 		"action":                "auth_admin_kick",
 		"message":               "kicked user offline",
 		"operator_user_id":      operatorUserID,
 		"target_user_id":        targetUserID,
 		"deleted_session_count": deleted,
-		"block_type":            blockInfo.Type,
-		"expires_at":            blockInfo.ExpiresAt,
 	})
 	return deleted, nil
 }
