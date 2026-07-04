@@ -30,12 +30,16 @@ func (s *MaterialService) GetMaterialList(ctx context.Context, req *request.Mate
 	var materials []models.Material
 	var total int64
 
-	query := s.materialPublicQuery(ctx, req.CategoryID, true)
-
-	// 获取总数
-	if err := query.Count(&total).Error; err != nil {
+	// 获取总数（简单 COUNT DISTINCT md5，避免执行 materialPublicQuery 的 JOIN+子查询）
+	countQuery := s.db.WithContext(ctx).Model(&models.Material{}).Select("COUNT(DISTINCT md5)")
+	if req.CategoryID != nil {
+		countQuery = countQuery.Where("category_id = ?", *req.CategoryID)
+	}
+	if err := countQuery.Scan(&total).Error; err != nil {
 		return nil, 0, apperr.Wrap(constant.CommonInternal, fmt.Errorf("获取资料总数失败: %w", err))
 	}
+
+	query := s.materialPublicQuery(ctx, req.CategoryID, true)
 
 	// 排序
 	sortBy := "COALESCE(material_desc_stats.total_hotness, 0) DESC, materials.id DESC"

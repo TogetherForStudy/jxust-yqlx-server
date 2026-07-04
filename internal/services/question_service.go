@@ -96,10 +96,12 @@ func (s *QuestionService) GetProjects(ctx context.Context, userID uint) ([]respo
 		Count     int64
 	}
 	var questionCounts []countRow
-	s.db.WithContext(ctx).Model(&models.Question{}).
+	if err := s.db.WithContext(ctx).Model(&models.Question{}).
 		Select("project_id, COUNT(*) as count").
 		Where("project_id IN ? AND is_active = ? AND parent_id IS NULL", projectIDs, true).
-		Group("project_id").Find(&questionCounts)
+		Group("project_id").Find(&questionCounts).Error; err != nil {
+		_ = err // question count 降级为 0，不中断请求
+	}
 	qCountMap := make(map[uint]int64, len(questionCounts))
 	for _, r := range questionCounts {
 		qCountMap[r.ProjectID] = r.Count
