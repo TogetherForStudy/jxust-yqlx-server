@@ -2034,7 +2034,7 @@ func buildOperations() []operation {
 			withSecurity(constant.PermissionFeatureManage),
 			withIdempotency(),
 			withParams(pathStringParam("key", "功能标识")),
-			withJSONBodyType[req.BatchGrantFeatureRequest](),
+			withJSONBodyType[req.GrantFeatureRequest](),
 			withEnvelopeResponse(messageSchema()),
 		),
 		op("DELETE", "/api/v0/admin/features/{key}/whitelist/{uid}", "Features", "撤销功能权限",
