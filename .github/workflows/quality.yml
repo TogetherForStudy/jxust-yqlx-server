@@ -74,7 +74,7 @@ jobs:
     name: Code-Quality / E2E-Test
     runs-on: ubuntu-latest
     needs: [unit-test, golangci-lint]
-    if: github.event_name != 'pull_request' || (!github.event.pull_request.draft && !contains(github.event.pull_request.title, 'WIP'))
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft && !contains(github.event.pull_request.title, 'WIP')
     services:
       mysql:
         image: mysql:8.0
@@ -204,78 +204,3 @@ jobs:
           # Cleanup
           kill $SERVER_PID 2>/dev/null || true
           exit $TEST_EXIT_CODE
-
-  deploy-to-test-env:
-    name: Deploy to Test Environment
-    runs-on: ubuntu-latest
-    needs: [e2e-test]
-    if: github.event_name == 'pull_request' && (!github.event.pull_request.draft && !contains(github.event.pull_request.title, 'WIP'))
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Build Docker Image
-        run: |
-          set -e
-          go mod download # todo: add cache for optimization
-          make docker-build
-
-      - name: Tag Docker Image
-        run: |
-          IMAGE=ghcr.io/togetherforstudy/jxust-yqlx-server:backend_${{ github.event.number }}_$(openssl rand -hex 3)
-          docker tag gojxust-app:nightly $IMAGE
-          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
-          echo "Docker Image: $IMAGE"
-
-      - name: Log in to the Container registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Push Docker image
-        run: |
-          set -e
-          docker push ${{ env.IMAGE }}
-
-      - name: Prepare and send deployment config
-        id: deploy
-        run: |
-          set -e
-          BRANCH_NAME=${{ github.head_ref || github.ref_name }}
-          
-          echo "Setup SSH"
-          mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.YQLX_DEPLOY_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H "${{ secrets.YQLX_DEPLOY_SERVER_IP }}" >> ~/.ssh/known_hosts
-          
-          echo "Modify config and pipe to remote script"
-          DEPLOY_OUTPUT=$(sed -e "s|  image: .*|  image: ${{ env.IMAGE }}|" \
-              -e "/backend:/,/frontend:/s|  branch: main|  branch: $BRANCH_NAME|" \
-              ci-test-opt.yml.example | ssh -o IdentitiesOnly=yes -i ~/.ssh/id_rsa root@${{ secrets.YQLX_DEPLOY_SERVER_IP }} 'python3 /opt/deploy/gateway.py test-deploy' 2>&1)
-          
-          echo "$DEPLOY_OUTPUT"
-          
-          # Extract the deployment URL
-          DEPLOY_URL=$(echo "$DEPLOY_OUTPUT" | grep -oP 'Access at: \Khttps://[^\s]+' || echo "")
-          echo "deploy_url=$DEPLOY_URL" >> $GITHUB_OUTPUT
-
-      - name: Comment PR with deployment URL
-        if: steps.deploy.outputs.deploy_url != ''
-        uses: actions/github-script@v8
-        with:
-          script: |
-            const deployUrl = '${{ steps.deploy.outputs.deploy_url }}';
-            const prNumber = context.issue.number;
-            const comment = `🚀 **部署成功！**\n\n测试环境已部署，可通过以下地址访问：\n\n**${deployUrl}**\n\n---\n*部署镜像: \`${{ env.IMAGE }}\`*`;
-            
-            github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber,
-              body: comment
-            });
