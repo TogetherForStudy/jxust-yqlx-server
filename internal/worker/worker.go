@@ -26,6 +26,12 @@ type WorkerConfig struct {
 	// MaxRetries is the maximum number of retry attempts for failed tasks
 	MaxRetries int
 
+	// MaxConcurrentRetries limits the number of concurrent retry goroutines.
+	// 0 (default) means 1 — the first failure doesn't block other tasks,
+	// but a second concurrent failure will block the main loop, providing
+	// automatic backpressure under systemic failure.
+	MaxConcurrentRetries int
+
 	// WorkerName is a human-readable identifier for logging
 	WorkerName string
 }
@@ -36,17 +42,22 @@ type Worker struct {
 	processor TaskProcessor
 	queue     QueueProvider
 
-	ctx    context.Context
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
+	ctx        context.Context
+	cancel     context.CancelFunc
+	wg         sync.WaitGroup
+	retryLimit chan struct{}
 }
 
 // NewWorker creates a new worker instance.
 func NewWorker(config WorkerConfig, processor TaskProcessor, queue QueueProvider) *Worker {
+	if config.MaxConcurrentRetries <= 0 {
+		config.MaxConcurrentRetries = 1
+	}
 	return &Worker{
-		config:    config,
-		processor: processor,
-		queue:     queue,
+		config:     config,
+		processor:  processor,
+		queue:      queue,
+		retryLimit: make(chan struct{}, config.MaxConcurrentRetries),
 	}
 }
 
@@ -164,7 +175,10 @@ func (w *Worker) processQueue() {
 }
 
 // handleTaskError handles task processing errors with retry logic.
-// 使用指数退避策略防止重试风暴压垮数据库。
+// 使用指数退避策略，退避等待在异步 goroutine 中执行，避免阻塞主处理循环。
+// 通过信号量限制并发重试 goroutine 数量（默认 1）：
+//   - 第 1 个失败任务：主循环不阻塞，goroutine 异步等待后推回队列
+//   - 若 goroutine 未完成时第 2 个任务也失败：信号量耗尽，主循环阻塞 → 自动背压
 func (w *Worker) handleTaskError(task Task, taskData string, err error) {
 	retryCount := task.GetRetryCount()
 
@@ -172,48 +186,60 @@ func (w *Worker) handleTaskError(task Task, taskData string, err error) {
 		// 指数退避：1s → 2s → 4s（第1/2/3次重试）
 		backoff := time.Duration(math.Pow(2, float64(retryCount))) * time.Second
 		logger.WarnCtx(w.ctx, map[string]any{
-			"action":        "task_retry_waiting",
-			"worker_name":   w.config.WorkerName,
-			"task_type":     task.GetType(),
-			"retry_count":   retryCount + 1,
-			"backoff_secs":  backoff.Seconds(),
-			"error":         err.Error(),
+			"action":       "task_retry_waiting",
+			"worker_name":  w.config.WorkerName,
+			"task_type":    task.GetType(),
+			"retry_count":  retryCount + 1,
+			"backoff_secs": backoff.Seconds(),
+			"error":        err.Error(),
 		})
 
+		// Acquire retry slot; blocks main loop when all slots are occupied → automatic backpressure
 		select {
-		case <-time.After(backoff):
+		case w.retryLimit <- struct{}{}:
 		case <-w.ctx.Done():
 			return
 		}
 
-		// Increment retry count and push back to queue
-		task.IncrementRetry()
-		retryData, marshalErr := task.Marshal()
-		if marshalErr != nil {
-			logger.ErrorCtx(w.ctx, map[string]any{
-				"action":      "marshal_retry_task_failed",
-				"worker_name": w.config.WorkerName,
-				"error":       marshalErr.Error(),
-			})
-			return
-		}
+		// Execute backoff + re-enqueue in background, so the main loop can continue
+		// processing other tasks (or block here if the slot was already occupied).
+		go func() {
+			defer func() { <-w.retryLimit }()
 
-		if pushErr := w.queue.Push(w.ctx, w.config.QueueKey, string(retryData)); pushErr != nil {
-			logger.ErrorCtx(w.ctx, map[string]any{
-				"action":      "push_retry_task_failed",
-				"worker_name": w.config.WorkerName,
-				"error":       pushErr.Error(),
-			})
-			return
-		}
+			select {
+			case <-time.After(backoff):
+			case <-w.ctx.Done():
+				return
+			}
 
-		logger.WarnCtx(w.ctx, map[string]any{
-			"action":      "task_retry_pushed",
-			"worker_name": w.config.WorkerName,
-			"task_type":   task.GetType(),
-			"retry_count": retryCount + 1,
-			"error":       err.Error(),
-		})
+			task.IncrementRetry()
+			retryData, marshalErr := task.Marshal()
+			if marshalErr != nil {
+				logger.ErrorCtx(w.ctx, map[string]any{
+					"action":      "marshal_retry_task_failed",
+					"worker_name": w.config.WorkerName,
+					"error":       marshalErr.Error(),
+				})
+				return
+			}
+
+			if pushErr := w.queue.Push(w.ctx, w.config.QueueKey, string(retryData)); pushErr != nil {
+				logger.ErrorCtx(w.ctx, map[string]any{
+					"action":      "push_retry_task_failed",
+					"worker_name": w.config.WorkerName,
+					"error":       pushErr.Error(),
+				})
+				return
+			}
+
+			logger.WarnCtx(w.ctx, map[string]any{
+				"action":      "task_retry_pushed",
+				"worker_name": w.config.WorkerName,
+				"task_type":   task.GetType(),
+				"retry_count": retryCount + 1,
+				"error":       err.Error(),
+			})
+		}()
 	} else {
 		// Max retries exceeded, log and discard
 		logger.ErrorCtx(w.ctx, map[string]any{
