@@ -57,8 +57,7 @@ func InfoGin(c *gin.Context, msg map[string]any) {
 	ctx := GinContextToContext(c)
 	merged := mergeContextAndMessage(ctx, msg)
 	l := NewStructuredClsLogging(constant.InfoLevel, merged)
-	zlog.Infoln(l.String())
-	safeSendLog(l)
+	logWithLevel(constant.InfoLevel, merged, l)
 }
 
 // DebugGin logs a debug level message from gin.Context
@@ -66,8 +65,7 @@ func DebugGin(c *gin.Context, msg map[string]any) {
 	ctx := GinContextToContext(c)
 	merged := mergeContextAndMessage(ctx, msg)
 	l := NewStructuredClsLogging(constant.DebugLevel, merged)
-	zlog.Debugln(l.String())
-	safeSendLog(l)
+	logWithLevel(constant.DebugLevel, merged, l)
 }
 
 // WarnGin logs a warning level message from gin.Context
@@ -75,8 +73,7 @@ func WarnGin(c *gin.Context, msg map[string]any) {
 	ctx := GinContextToContext(c)
 	merged := mergeContextAndMessage(ctx, msg)
 	l := NewStructuredClsLogging(constant.WarnLevel, merged)
-	zlog.Warnln(l.String())
-	safeSendLog(l)
+	logWithLevel(constant.WarnLevel, merged, l)
 }
 
 // ErrorGin logs an error level message from gin.Context
@@ -84,8 +81,7 @@ func ErrorGin(c *gin.Context, msg map[string]any) {
 	ctx := GinContextToContext(c)
 	merged := mergeContextAndMessage(ctx, msg)
 	l := NewStructuredClsLogging(constant.ErrorLevel, merged)
-	zlog.Errorln(l.String())
-	safeSendLog(l)
+	logWithLevel(constant.ErrorLevel, merged, l)
 }
 
 // FatalGin logs a fatal level message from gin.Context
@@ -94,9 +90,7 @@ func FatalGin(c *gin.Context, msg map[string]any) {
 	merged := mergeContextAndMessage(ctx, msg)
 	l := NewStructuredClsLogging(constant.FatalLevel, merged)
 	safeSendLog(l)
-	// Wait for log to be sent before exiting
-	ShutdownLogger(5 * time.Second)
-	zlog.Fatalln(l.String())
+	mergeAndFatal(merged)
 }
 
 // PanicGin logs a panic level message from gin.Context
@@ -105,8 +99,5 @@ func PanicGin(c *gin.Context, msg map[string]any) {
 	merged := mergeContextAndMessage(ctx, msg)
 	l := NewStructuredClsLogging(constant.PanicLevel, merged)
 	safeSendLog(l)
-	// Wait for log to be sent before panicking
-	ShutdownLogger(5 * time.Second)
-	zlog.Errorln(l.String()) // Log to zap before panicking
-	panic(l.String())
+	mergeAndPanic(merged)
 }

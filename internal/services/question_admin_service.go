@@ -11,6 +11,7 @@ import (
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/dto/response"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/models"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/apperr"
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/constant"
 	"github.com/TogetherForStudy/jxust-yqlx-server/pkg/utils"
 	"gorm.io/datatypes"
@@ -95,6 +96,9 @@ func (s *QuestionService) CreateAdminQuestionProject(ctx context.Context, req *r
 	if err := s.db.WithContext(ctx).Create(&project).Error; err != nil {
 		return nil, apperr.Wrap(constant.CommonInternal, fmt.Errorf("创建题目项目失败: %w", err))
 	}
+
+	// 初始化 Redis 中的项目数据，避免 GetProjects 因键缺失回退到 DB 查询
+	s.initProjectRedisKeys(ctx, project.ID)
 
 	resp := toAdminQuestionProjectResponse(project, 0)
 	return &resp, nil
@@ -490,6 +494,18 @@ func (s *QuestionService) getChildQuestionCount(ctx context.Context, questionID 
 		return 0, apperr.Wrap(constant.CommonInternal, fmt.Errorf("查询子题数量失败: %w", err))
 	}
 	return count, nil
+}
+
+// initProjectRedisKeys 为新创建的项目初始化 Redis 键（零值），
+// 防止 GetProjects 在键缺失时回退到数据库查询。
+func (s *QuestionService) initProjectRedisKeys(ctx context.Context, projectID uint) {
+	if cache.GlobalCache == nil || projectID == 0 {
+		return
+	}
+	noExpiration := time.Duration(0)
+	usageKey := fmt.Sprintf("project:usage:%d", projectID)
+	// 非致命错误：即使初始化失败，GetInt 对缺失键也返回 0（见 cache/redis.go）
+	_ = cache.GlobalCache.Set(ctx, usageKey, "0", &noExpiration)
 }
 
 func normalizeQuestionOptions(questionType int8, options []string, strict bool) (datatypes.JSON, error) {

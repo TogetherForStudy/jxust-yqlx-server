@@ -1,7 +1,5 @@
 package request
 
-import "time"
-
 // CreateFeatureRequest 创建功能请求
 type CreateFeatureRequest struct {
 	FeatureKey  string `json:"feature_key" binding:"required,max=50"`
@@ -17,14 +15,8 @@ type UpdateFeatureRequest struct {
 	IsEnabled   *bool   `json:"is_enabled"`
 }
 
-// GrantFeatureRequest 授予功能权限请求
+// GrantFeatureRequest 授予功能权限请求（支持单个/批量）
 type GrantFeatureRequest struct {
-	UserID    uint       `json:"user_id" binding:"required"`
-	ExpiresAt *time.Time `json:"expires_at"` // 可选，NULL表示永久
-}
-
-// BatchGrantFeatureRequest 批量授予功能权限请求
-type BatchGrantFeatureRequest struct {
-	UserIDs   []uint     `json:"user_ids" binding:"required,min=1"`
-	ExpiresAt *time.Time `json:"expires_at"`
+	UserID  uint   `json:"user_id"`  // 单个用户ID
+	UserIDs []uint `json:"user_ids"` // 批量用户ID
 }

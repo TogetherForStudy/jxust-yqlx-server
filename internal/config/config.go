@@ -47,6 +47,9 @@ type Config struct {
 	ClsEndpoint  string `yaml:"cls_endpoint" env:"CLS_ENDPOINT" envDefault:"ap-guangzhou.cls.tencentcs.com"`
 	ClsTopicID   string `yaml:"cls_topic_id" env:"CLS_TOPIC_ID"`
 
+	// SyncWorkerBatchSize 同步 Worker 每轮批量处理上限（削峰填谷），0 表示不限
+	SyncWorkerBatchSize int `yaml:"sync_worker_batch_size" env:"SYNC_WORKER_BATCH_SIZE" envDefault:"50"`
+
 	// For minio signature and correct reverse proxy configuration
 	Host   string `yaml:"host" env:"HOST" envDefault:"localhost:8085"` // The port is usually the same as the ServerPort.
 	Scheme string `yaml:"scheme" env:"SCHEME" envDefault:"http"`

@@ -207,38 +207,13 @@ func (h *FeatureHandler) DeleteFeature(c *gin.Context) {
 }
 
 // ListWhitelist 获取功能的白名单用户列表（管理员）
-// @Summary 获取功能白名单列表
-// @Tags Feature
-// @Accept json
-// @Produce json
-// @Param key path string true "功能标识"
-// @Param page query int false "页码" default(1)
-// @Param page_size query int false "每页数量" default(20)
-// @Success 200 {object} dto.Response{Result=response.PageResponse{Data=[]response.WhitelistUserInfo}}
-// @Router /api/v0/admin/features/:key/whitelist [get]
 func (h *FeatureHandler) ListWhitelist(c *gin.Context) {
 	featureKey := c.Param("key")
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 || pageSize > 100 {
-		pageSize = 20
-	}
-
-	whitelists, total, err := h.featureService.ListWhitelist(c.Request.Context(), featureKey, page, pageSize)
+	userIDs, err := h.featureService.GetUserIDsByFeature(c.Request.Context(), featureKey)
 	if err != nil {
 		helper.HandleError(c, err)
 		return
-	}
-
-	// 查询用户信息
-	var userIDs []uint
-	for _, w := range whitelists {
-		userIDs = append(userIDs, w.UserID)
 	}
 
 	var users []models.User
@@ -246,44 +221,25 @@ func (h *FeatureHandler) ListWhitelist(c *gin.Context) {
 		h.featureService.DB().Find(&users, userIDs)
 	}
 
-	// 构建用户信息map
-	userMap := make(map[uint]models.User)
-	for _, u := range users {
-		userMap[u.ID] = u
-	}
-
-	// 转换为响应格式
 	var result []response.WhitelistUserInfo
-	for _, w := range whitelists {
-		user := userMap[w.UserID]
+	for _, u := range users {
 		result = append(result, response.WhitelistUserInfo{
-			ID:        w.ID,
-			UserID:    w.UserID,
-			StudentID: user.StudentID,
-			RealName:  user.RealName,
-			GrantedBy: w.GrantedBy,
-			GrantedAt: w.GrantedAt,
-			ExpiresAt: w.ExpiresAt,
-			IsExpired: w.IsExpired(),
-			CreatedAt: w.CreatedAt,
+			UserID:    u.ID,
+			StudentID: u.StudentID,
+			RealName:  u.RealName,
 		})
 	}
 
-	helper.PageSuccessResponse(c, result, total, page, pageSize)
+	if result == nil {
+		result = []response.WhitelistUserInfo{}
+	}
+	total := int64(len(result))
+	helper.PageSuccessResponse(c, result, total, 1, max(1, int(total)))
 }
 
-// GrantFeature 授予用户功能权限（管理员）
-// @Summary 授予功能权限
-// @Tags Feature
-// @Accept json
-// @Produce json
-// @Param key path string true "功能标识"
-// @Param request body request.GrantFeatureRequest true "授权请求"
-// @Success 200 {object} dto.Response
-// @Router /api/v0/admin/features/:key/whitelist [post]
+// GrantFeature 授予用户功能权限（管理员，支持单个 user_id 或批量 user_ids）
 func (h *FeatureHandler) GrantFeature(c *gin.Context) {
 	featureKey := c.Param("key")
-	adminID := helper.GetUserID(c)
 
 	var req request.GrantFeatureRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -291,55 +247,26 @@ func (h *FeatureHandler) GrantFeature(c *gin.Context) {
 		return
 	}
 
-	err := h.featureService.GrantFeatureToUser(
-		c.Request.Context(),
-		req.UserID,
-		adminID,
-		featureKey,
-		req.ExpiresAt,
-	)
-
-	if err != nil {
-		helper.HandleError(c, err)
+	if req.UserID != 0 {
+		// 单个授权
+		err := h.featureService.GrantFeatureToUser(c.Request.Context(), req.UserID, featureKey)
+		if err != nil {
+			helper.HandleError(c, err)
+			return
+		}
+	} else if len(req.UserIDs) > 0 {
+		// 批量授权
+		err := h.featureService.BatchGrantFeatureToUsers(c.Request.Context(), req.UserIDs, featureKey)
+		if err != nil {
+			helper.HandleError(c, err)
+			return
+		}
+	} else {
+		helper.HandleErrCode(c, constant.CommonBadRequest)
 		return
 	}
 
 	helper.SuccessResponse(c, gin.H{"message": "授权成功"})
-}
-
-// BatchGrantFeature 批量授予用户功能权限（管理员）
-// @Summary 批量授予功能权限
-// @Tags Feature
-// @Accept json
-// @Produce json
-// @Param key path string true "功能标识"
-// @Param request body request.BatchGrantFeatureRequest true "批量授权请求"
-// @Success 200 {object} dto.Response
-// @Router /api/v0/admin/features/:key/whitelist/batch [post]
-func (h *FeatureHandler) BatchGrantFeature(c *gin.Context) {
-	featureKey := c.Param("key")
-	adminID := helper.GetUserID(c)
-
-	var req request.BatchGrantFeatureRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
-		return
-	}
-
-	err := h.featureService.BatchGrantFeatureToUsers(
-		c.Request.Context(),
-		req.UserIDs,
-		adminID,
-		featureKey,
-		req.ExpiresAt,
-	)
-
-	if err != nil {
-		helper.HandleError(c, err)
-		return
-	}
-
-	helper.SuccessResponse(c, gin.H{"message": "批量授权成功"})
 }
 
 // RevokeFeature 撤销用户功能权限（管理员）
@@ -369,13 +296,6 @@ func (h *FeatureHandler) RevokeFeature(c *gin.Context) {
 }
 
 // GetUserFeatureDetails 获取用户的功能权限详情（管理员）
-// @Summary 获取用户功能权限详情
-// @Tags Feature
-// @Accept json
-// @Produce json
-// @Param id path int true "用户ID"
-// @Success 200 {object} dto.Response{Result=[]response.UserFeatureInfo}
-// @Router /api/v0/admin/users/:id/features [get]
 func (h *FeatureHandler) GetUserFeatureDetails(c *gin.Context) {
 	userID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -383,42 +303,79 @@ func (h *FeatureHandler) GetUserFeatureDetails(c *gin.Context) {
 		return
 	}
 
-	whitelists, err := h.featureService.GetUserFeatureDetails(c.Request.Context(), uint(userID))
+	// 查询用户拥有的 feature_key
+	features, err := h.featureService.GetUserFeatures(c.Request.Context(), uint(userID))
 	if err != nil {
 		helper.HandleError(c, err)
 		return
 	}
 
-	// 查询功能信息
-	var featureKeys []string
-	for _, w := range whitelists {
-		featureKeys = append(featureKeys, w.FeatureKey)
-	}
-
-	var features []models.Feature
-	if len(featureKeys) > 0 {
-		h.featureService.DB().Where("feature_key IN ?", featureKeys).Find(&features)
-	}
-
-	// 构建功能信息map
-	featureMap := make(map[string]models.Feature)
-	for _, f := range features {
-		featureMap[f.FeatureKey] = f
-	}
-
-	// 转换为响应格式
 	var result []response.UserFeatureInfo
-	for _, w := range whitelists {
-		feature := featureMap[w.FeatureKey]
+	for _, fk := range features {
+		feat, err := h.featureService.GetFeature(c.Request.Context(), fk)
+		if err != nil {
+			continue
+		}
 		result = append(result, response.UserFeatureInfo{
-			FeatureKey:  w.FeatureKey,
-			FeatureName: feature.FeatureName,
-			GrantedBy:   w.GrantedBy,
-			GrantedAt:   w.GrantedAt,
-			ExpiresAt:   w.ExpiresAt,
-			IsExpired:   w.IsExpired(),
+			FeatureKey:  feat.FeatureKey,
+			FeatureName: feat.FeatureName,
 		})
 	}
 
+	if result == nil {
+		result = []response.UserFeatureInfo{}
+	}
 	helper.SuccessResponse(c, result)
+}
+
+// GrantRoleToFeature 给功能添加授权角色（管理员，支持单个 role_id 或批量 role_ids）
+func (h *FeatureHandler) GrantRoleToFeature(c *gin.Context) {
+	featureKey := c.Param("key")
+
+	var req struct {
+		RoleID  uint   `json:"role_id"`
+		RoleIDs []uint `json:"role_ids"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
+		return
+	}
+
+	if req.RoleID != 0 {
+		err := h.featureService.GrantRoleToFeature(c.Request.Context(), featureKey, req.RoleID)
+		if err != nil {
+			helper.HandleError(c, err)
+			return
+		}
+	} else if len(req.RoleIDs) > 0 {
+		for _, rid := range req.RoleIDs {
+			if err := h.featureService.GrantRoleToFeature(c.Request.Context(), featureKey, rid); err != nil {
+				helper.HandleError(c, err)
+				return
+			}
+		}
+	} else {
+		helper.HandleErrCode(c, constant.CommonBadRequest)
+		return
+	}
+
+	helper.SuccessResponse(c, gin.H{"message": "角色授权成功"})
+}
+
+// RevokeRoleFromFeature 从功能移除单个授权角色（管理员）
+func (h *FeatureHandler) RevokeRoleFromFeature(c *gin.Context) {
+	featureKey := c.Param("key")
+	roleID, err := strconv.ParseUint(c.Param("rid"), 10, 32)
+	if err != nil {
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
+		return
+	}
+
+	err = h.featureService.RevokeRoleFromFeature(c.Request.Context(), featureKey, uint(roleID))
+	if err != nil {
+		helper.HandleError(c, err)
+		return
+	}
+
+	helper.SuccessResponse(c, gin.H{"message": "角色授权撤销成功"})
 }

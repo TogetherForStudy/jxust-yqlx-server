@@ -645,20 +645,22 @@ func (s *AuthService) buildUserProfile(ctx context.Context, user models.User) (r
 	}
 
 	return response.UserProfileResponse{
-		ID:        user.ID,
-		Nickname:  user.Nickname,
-		Avatar:    user.Avatar,
-		Phone:     user.Phone,
-		StudentID: user.StudentID,
-		RealName:  user.RealName,
-		College:   user.College,
-		Major:     user.Major,
-		ClassID:   user.ClassID,
-		Role:      user.Role,
-		RoleTags:  roleTags,
-		Status:    user.Status,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
+		ID:            user.ID,
+		Nickname:      user.Nickname,
+		Avatar:        user.Avatar,
+		Phone:         user.Phone,
+		StudentID:     user.StudentID,
+		RealName:      user.RealName,
+		College:       user.College,
+		Major:         user.Major,
+		ClassID:       user.ClassID,
+		Role:          user.Role,
+		RoleTags:      roleTags,
+		Status:        user.Status,
+		Points:        user.Points,
+		PomodoroCount: user.PomodoroCount,
+		CreatedAt:     user.CreatedAt,
+		UpdatedAt:     user.UpdatedAt,
 	}, nil
 }
 
@@ -836,6 +838,32 @@ func (s *AuthService) MockWechatLogin(ctx context.Context, testUser, userAgent s
 	return s.completeLogin(ctx, &user, userAgent)
 }
 
+func (s *AuthService) GetUserSessions(ctx context.Context, userID uint, currentSID string) ([]response.AuthSessionSummary, error) {
+	if err := s.requireAuthCache(); err != nil {
+		return nil, err
+	}
+
+	records, err := s.loadUserSessions(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	sessions := make([]response.AuthSessionSummary, 0, len(records))
+	for _, record := range records {
+		sessions = append(sessions, response.AuthSessionSummary{
+			SID:           record.SID,
+			DeviceType:    record.Session.DeviceType,
+			ClientType:    record.Session.ClientType,
+			IsCurrent:     record.SID == currentSID,
+			IssuedAt:      record.Session.IssuedAt,
+			LastRefreshAt: record.Session.LastRefreshAt,
+			ExpiresAt:     record.Session.ExpiresAt,
+		})
+	}
+
+	return sessions, nil
+}
+
 func (s *AuthService) Logout(ctx context.Context, userID uint, sid string) error {
 	if err := s.requireAuthCache(); err != nil {
 		return err
@@ -886,24 +914,12 @@ func (s *AuthService) KickUser(ctx context.Context, operatorUserID, targetUserID
 		return deleted, err
 	}
 
-	expiresAt := time.Now().UTC().Add(s.accessTokenTTL())
-	blockInfo := utils.AuthBlockInfo{
-		Type:           constant.AuthBlockTypeKick,
-		OperatorUserID: operatorUserID,
-		ExpiresAt:      expiresAt.Unix(),
-	}
-	if err := s.setBlockInfo(ctx, targetUserID, blockInfo, s.accessTokenTTL()); err != nil {
-		return deleted, err
-	}
-
 	logger.InfoCtx(ctx, map[string]any{
 		"action":                "auth_admin_kick",
 		"message":               "kicked user offline",
 		"operator_user_id":      operatorUserID,
 		"target_user_id":        targetUserID,
 		"deleted_session_count": deleted,
-		"block_type":            blockInfo.Type,
-		"expires_at":            blockInfo.ExpiresAt,
 	})
 	return deleted, nil
 }
@@ -992,8 +1008,10 @@ func (s *AuthService) GetUserAuthDetail(ctx context.Context, userID uint) (*resp
 	}
 
 	result := &response.UserAuthDetailResponse{
-		UserInfo: profile,
-		Devices:  make([]response.AuthSessionSummary, 0),
+		UserInfo:      profile,
+		Devices:       make([]response.AuthSessionSummary, 0),
+		Points:        user.Points,
+		PomodoroCount: user.PomodoroCount,
 	}
 
 	blockInfo, err := s.getBlockInfo(ctx, userID)

@@ -38,7 +38,7 @@ func NewStoreHandler(s3Service services.S3ServiceInterface) *StoreHandler {
 // @Success 200 {object} response.UploadFileResponse
 // @Failure 400 {object} utils.Response
 // @Failure 500 {object} utils.Response
-// @Router /api/v0/store [post]
+// @Router /api/v0/admin/store [post]
 func (h *StoreHandler) UploadFile(c *gin.Context) {
 	file, err := c.FormFile("file")
 	if err != nil {
@@ -109,7 +109,7 @@ func (h *StoreHandler) UploadFile(c *gin.Context) {
 // @Param resource_id path string true "资源ID"
 // @Success 200 {object} utils.Response
 // @Failure 500 {object} utils.Response
-// @Router /api/v0/store/{resource_id} [delete]
+// @Router /api/v0/admin/store/{resource_id} [delete]
 func (h *StoreHandler) DeleteFile(c *gin.Context) {
 	resourceID := c.Param("resource_id")
 	if err := h.s3Service.DeleteObject(c.Request.Context(), resourceID); err != nil {
@@ -134,7 +134,7 @@ func (h *StoreHandler) DeleteFile(c *gin.Context) {
 // @Security ApiKeyAuth
 // @Success 200 {object} response.ListFilesResponse
 // @Failure 500 {object} utils.Response
-// @Router /api/v0/store [get]
+// @Router /api/v0/admin/store/list [get]
 func (h *StoreHandler) ListFiles(c *gin.Context) {
 	files, err := h.s3Service.ListObjects(c.Request.Context())
 	if err != nil {
@@ -158,7 +158,7 @@ func (h *StoreHandler) ListFiles(c *gin.Context) {
 // @Security ApiKeyAuth
 // @Success 200 {object} response.ListFilesResponse
 // @Failure 500 {object} utils.Response
-// @Router /api/v0/store/expired [get]
+// @Router /api/v0/admin/store/expired [get]
 func (h *StoreHandler) ListExpiredFiles(c *gin.Context) {
 	files, err := h.s3Service.ListExpiredObjects(c.Request.Context())
 	if err != nil {

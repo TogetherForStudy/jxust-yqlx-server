@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"time"
 
+	"github.com/TogetherForStudy/jxust-yqlx-server/internal/config"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/pkg/cache"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/worker"
 	"github.com/TogetherForStudy/jxust-yqlx-server/internal/worker/processors"
@@ -24,9 +25,13 @@ func InitializeWorkers(db *gorm.DB) *worker.WorkerManager {
 	queueProvider := worker.NewRedisQueueProvider(cache.GlobalCache)
 	questionProcessor := processors.NewQuestionTaskProcessor(db)
 
+	appCfg := config.GlobalConfig()
+	batchSize := appCfg.SyncWorkerBatchSize // 0 = 不限
+
 	cfg := worker.WorkerConfig{
 		QueueKey:        "sync:question:usage",
 		ProcessInterval: 5 * time.Second,
+		BatchSize:       batchSize, // 每轮最多处理 N 条，突发流量分摊到多轮（削峰填谷）
 		MaxRetries:      3,
 		WorkerName:      "question-sync-worker",
 	}

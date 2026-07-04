@@ -498,6 +498,43 @@ class E2ETestClient:
             self._record("退出全部设备登录", False, str(e))
             return False
 
+    def test_get_user_sessions(self) -> bool:
+        """测试获取用户会话列表"""
+        try:
+            resp = self._get("/auth/sessions")
+            passed = resp.status_code == 200
+            data = resp.json().get("data", {}) if passed else {}
+            total = data.get("total", 0)
+            self._record("获取用户会话列表", passed, f"status={resp.status_code}, total={total}")
+            return passed
+        except Exception as e:
+            self._record("获取用户会话列表", False, str(e))
+            return False
+
+    def test_logout_session(self) -> bool:
+        """测试退出指定会话"""
+        try:
+            sessions_resp = self._get("/auth/sessions")
+            if sessions_resp.status_code != 200:
+                self._record("退出指定会话", False, "无法获取会话列表")
+                return False
+            data = sessions_resp.json().get("data", {})
+            sessions = data.get("sessions", [])
+            if len(sessions) < 2:
+                self._record("退出指定会话", False, f"会话数不足({len(sessions)}), 跳过")
+                return True
+            target_sid = sessions[1].get("session_id")
+            if not target_sid:
+                self._record("退出指定会话", False, "session_id 为空")
+                return False
+            resp = self._post_json(f"/auth/sessions/{target_sid}/logout")
+            passed = resp.status_code == 200
+            self._record("退出指定会话", passed, f"status={resp.status_code}")
+            return passed
+        except Exception as e:
+            self._record("退出指定会话", False, str(e))
+            return False
+
     # ==================== 用户相关 ====================
 
     def test_get_profile(self) -> bool:
@@ -1055,7 +1092,7 @@ class E2ETestClient:
         """测试管理员获取评价列表"""
         try:
             resp = self.client.get(
-                self._url("/reviews/"),
+                self._url("/admin/reviews"),
                 headers=self._headers(use_admin=True)
             )
             passed = resp.status_code == 200
@@ -1098,7 +1135,7 @@ class E2ETestClient:
         """测试管理员搜索英雄"""
         try:
             resp = self.client.get(
-                self._url("/heroes/search"),
+                self._url("/admin/heroes/search"),
                 headers=self._headers(use_admin=True),
                 params={"q": "", "page": 1, "size": 10}
             )
@@ -1113,7 +1150,7 @@ class E2ETestClient:
         """测试管理员搜索配置"""
         try:
             resp = self.client.get(
-                self._url("/config/search"),
+                self._url("/admin/config/search"),
                 headers=self._headers(use_admin=True),
                 params={"query": "", "page": 1, "size": 10}
             )
@@ -1389,7 +1426,7 @@ class E2ETestClient:
     def test_admin_grant_points(self, user_id: int, points: int = 5) -> bool:
         try:
             resp = self._post_json(
-                "/points/grant",
+                "/admin/points/grant",
                 use_admin=True,
                 json={"user_id": user_id, "points": points, "description": "E2E管理员发放积分"},
             )
@@ -1443,7 +1480,7 @@ class E2ETestClient:
     def test_admin_create_hero(self) -> Optional[int]:
         hero_name = f"E2E英雄-{uuid.uuid4().hex[:6]}"
         try:
-            resp = self._post_json("/heroes/", use_admin=True, json={"name": hero_name, "sort": 999, "is_show": True})
+            resp = self._post_json("/admin/heroes", use_admin=True, json={"name": hero_name, "sort": 999, "is_show": True})
             if resp.status_code != 200:
                 self._record("管理员创建英雄", False, f"status={resp.status_code}")
                 return None
@@ -1456,7 +1493,7 @@ class E2ETestClient:
 
     def test_admin_update_hero(self, hero_id: int) -> bool:
         try:
-            resp = self._put_json(f"/heroes/{hero_id}", use_admin=True, json={"name": "E2E英雄-已更新", "sort": 1000, "is_show": True})
+            resp = self._put_json(f"/admin/heroes/{hero_id}", use_admin=True, json={"name": "E2E英雄-已更新", "sort": 1000, "is_show": True})
             passed = resp.status_code == 200
             self._record("管理员更新英雄", passed, f"status={resp.status_code}, id={hero_id}")
             return passed
@@ -1466,7 +1503,7 @@ class E2ETestClient:
 
     def test_admin_delete_hero(self, hero_id: int) -> bool:
         try:
-            resp = self._delete(f"/heroes/{hero_id}", use_admin=True)
+            resp = self._delete(f"/admin/heroes/{hero_id}", use_admin=True)
             passed = resp.status_code == 200
             self._record("管理员删除英雄", passed, f"status={resp.status_code}, id={hero_id}")
             return passed
@@ -1478,7 +1515,7 @@ class E2ETestClient:
         config_key = f"e2e.config.{uuid.uuid4().hex[:8]}"
         try:
             resp = self._post_json(
-                "/config/",
+                "/admin/config",
                 use_admin=True,
                 json={"key": config_key, "value": "true", "value_type": "boolean", "description": "E2E配置"},
             )
@@ -1492,7 +1529,7 @@ class E2ETestClient:
     def test_admin_update_config(self, config_key: str) -> bool:
         try:
             resp = self._put_json(
-                f"/config/{config_key}",
+                f"/admin/config/{config_key}",
                 use_admin=True,
                 json={"value": '{"enabled":true}', "value_type": "json", "description": "E2E配置已更新"},
             )
@@ -1515,7 +1552,7 @@ class E2ETestClient:
 
     def test_admin_delete_config(self, config_key: str) -> bool:
         try:
-            resp = self._delete(f"/config/{config_key}", use_admin=True)
+            resp = self._delete(f"/admin/config/{config_key}", use_admin=True)
             passed = resp.status_code == 200
             self._record("管理员删除配置", passed, f"status={resp.status_code}, key={config_key}")
             return passed
@@ -1643,7 +1680,7 @@ class E2ETestClient:
 
     def test_admin_get_contribution_stats(self) -> bool:
         try:
-            resp = self._get("/contributions/stats-admin", use_admin=True)
+            resp = self._get("/admin/contributions/stats-admin", use_admin=True)
             passed = resp.status_code == 200
             self._record("管理员获取投稿统计", passed, f"status={resp.status_code}")
             return passed
@@ -1709,7 +1746,7 @@ class E2ETestClient:
 
     def test_admin_reset_coursetable_bind_count(self, user_id: int) -> bool:
         try:
-            resp = self._post_json(f"/coursetable/reset/{user_id}", use_admin=True, json={})
+            resp = self._post_json(f"/admin/coursetables/reset/{user_id}", use_admin=True, json={})
             passed = resp.status_code == 200
             self._record("管理员重置课表绑定次数", passed, f"status={resp.status_code}, user_id={user_id}")
             return passed
@@ -2056,7 +2093,7 @@ class E2ETestClient:
     def test_admin_review_contribution(self, contribution_id: int) -> bool:
         try:
             resp = self._post_json(
-                f"/contributions/{contribution_id}/review",
+                f"/admin/contributions/{contribution_id}/review",
                 use_admin=True,
                 json={"status": 2, "review_note": "E2E采纳投稿", "points": 2},
             )
@@ -2248,6 +2285,32 @@ class E2ETestClient:
             return passed
         except Exception as e:
             self._record("管理员删除功能", False, str(e))
+            return False
+
+    def test_admin_grant_role_to_feature(self, feature_key: str, role_id: int = 1) -> bool:
+        """测试管理员给功能添加授权角色"""
+        try:
+            resp = self._post_json(
+                f"/admin/features/{feature_key}/roles",
+                use_admin=True,
+                json={"role_id": role_id}
+            )
+            passed = resp.status_code == 200
+            self._record("管理员给功能添加授权角色", passed, f"status={resp.status_code}")
+            return passed
+        except Exception as e:
+            self._record("管理员给功能添加授权角色", False, str(e))
+            return False
+
+    def test_admin_revoke_role_from_feature(self, feature_key: str, role_id: int = 1) -> bool:
+        """测试管理员从功能移除授权角色"""
+        try:
+            resp = self._delete(f"/admin/features/{feature_key}/roles/{role_id}", use_admin=True)
+            passed = resp.status_code == 200
+            self._record("管理员从功能移除授权角色", passed, f"status={resp.status_code}")
+            return passed
+        except Exception as e:
+            self._record("管理员从功能移除授权角色", False, str(e))
             return False
 
 

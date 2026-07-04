@@ -127,6 +127,49 @@ func (h *AuthHandler) LogoutAll(c *gin.Context) {
 	helper.SuccessResponse(c, gin.H{"message": "已退出全部设备", "deleted_session_count": deleted})
 }
 
+// GetUserSessions 获取用户会话列表
+func (h *AuthHandler) GetUserSessions(c *gin.Context) {
+	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
+		return
+	}
+
+	currentSID := helper.GetAuthSessionID(c)
+	sessions, err := h.authService.GetUserSessions(c.Request.Context(), userID, currentSID)
+	if err != nil {
+		helper.HandleError(c, err)
+		return
+	}
+
+	helper.SuccessResponse(c, gin.H{
+		"sessions": sessions,
+		"total":    len(sessions),
+	})
+}
+
+// LogoutSession 退出指定会话
+func (h *AuthHandler) LogoutSession(c *gin.Context) {
+	userID := helper.GetUserID(c)
+	if userID == 0 {
+		helper.HandleErrCode(c, constant.AuthMissingUserContext)
+		return
+	}
+
+	targetSID := c.Param("sid")
+	if targetSID == "" {
+		helper.HandleErrCode(c, constant.CommonBadRequest)
+		return
+	}
+
+	if err := h.authService.Logout(c.Request.Context(), userID, targetSID); err != nil {
+		helper.HandleError(c, err)
+		return
+	}
+
+	helper.SuccessResponse(c, gin.H{"message": "已退出该设备"})
+}
+
 // GetProfile 获取用户资料
 func (h *AuthHandler) GetProfile(c *gin.Context) {
 	userID := helper.GetUserID(c)
@@ -156,20 +199,22 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 	}
 
 	resp := response.UserProfileResponse{
-		ID:        user.ID,
-		Nickname:  user.Nickname,
-		Avatar:    user.Avatar,
-		Phone:     user.Phone,
-		StudentID: user.StudentID,
-		RealName:  user.RealName,
-		College:   user.College,
-		Major:     user.Major,
-		ClassID:   user.ClassID,
-		Role:      user.Role,
-		RoleTags:  roleTags,
-		Status:    user.Status,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
+		ID:            user.ID,
+		Nickname:      user.Nickname,
+		Avatar:        user.Avatar,
+		Phone:         user.Phone,
+		StudentID:     user.StudentID,
+		RealName:      user.RealName,
+		College:       user.College,
+		Major:         user.Major,
+		ClassID:       user.ClassID,
+		Role:          user.Role,
+		RoleTags:      roleTags,
+		Status:        user.Status,
+		Points:        user.Points,
+		PomodoroCount: user.PomodoroCount,
+		CreatedAt:     user.CreatedAt,
+		UpdatedAt:     user.UpdatedAt,
 	}
 
 	helper.SuccessResponse(c, resp)
@@ -320,6 +365,27 @@ func (h *AuthHandler) SetAdminLoginCredentials(c *gin.Context) {
 	}
 
 	helper.SuccessResponse(c, gin.H{"message": "后台登录凭据更新成功"})
+}
+
+func (h *AuthHandler) AdminLogoutSession(c *gin.Context) {
+	targetUserID, err := parsePathUserID(c)
+	if err != nil {
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
+		return
+	}
+
+	targetSID := c.Param("sid")
+	if targetSID == "" {
+		helper.HandleErrCode(c, constant.CommonBadRequest)
+		return
+	}
+
+	if err := h.authService.Logout(c.Request.Context(), targetUserID, targetSID); err != nil {
+		helper.HandleError(c, err)
+		return
+	}
+
+	helper.SuccessResponse(c, gin.H{"message": "已退出该设备"})
 }
 
 func parsePathUserID(c *gin.Context) (uint, error) {

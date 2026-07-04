@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -92,6 +93,10 @@ func (r *redisCache) SRem(ctx context.Context, key string, members ...interface{
 func (r *redisCache) GetInt(ctx context.Context, key string) (int64, error) {
 	val, err := r.cli.GetRedisCli().Get(ctx, key).Result()
 	if err != nil {
+		// 键不存在时返回 0，避免调用方误将 redis.Nil 当作 Redis 故障而回退到 DB
+		if errors.Is(err, rediscache.Nil) {
+			return 0, nil
+		}
 		return 0, err
 	}
 	result, err := strconv.ParseInt(val, 10, 64)

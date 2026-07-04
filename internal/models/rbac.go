@@ -31,8 +31,8 @@ type Permission struct {
 // UserRole 用户与角色关联
 type UserRole struct {
 	ID        uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:记录ID"`
-	UserID    uint           `json:"user_id" gorm:"type:int unsigned;not null;comment:用户ID"`
-	RoleID    uint           `json:"role_id" gorm:"type:int unsigned;not null;comment:角色ID"`
+	UserID    uint           `json:"user_id" gorm:"type:int unsigned;not null;index:idx_user_roles_user_id;comment:用户ID"`
+	RoleID    uint           `json:"role_id" gorm:"type:int unsigned;not null;index:idx_user_roles_role_id;comment:角色ID"`
 	CreatedAt time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
 	UpdatedAt time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"comment:软删除时间"`
@@ -41,7 +41,7 @@ type UserRole struct {
 // RolePermission 角色与权限关联
 type RolePermission struct {
 	ID           uint           `json:"id" gorm:"type:int unsigned;primaryKey;comment:记录ID"`
-	RoleID       uint           `json:"role_id" gorm:"type:int unsigned;not null;comment:角色ID"`
+	RoleID       uint           `json:"role_id" gorm:"type:int unsigned;not null;index:idx_role_permissions_role_id;comment:角色ID"`
 	PermissionID uint           `json:"permission_id" gorm:"type:int unsigned;not null;comment:权限ID"`
 	CreatedAt    time.Time      `json:"created_at" gorm:"type:datetime;comment:创建时间"`
 	UpdatedAt    time.Time      `json:"updated_at" gorm:"type:datetime;comment:更新时间"`

@@ -180,19 +180,19 @@ Content-Type: application/json
 ### ===========================================
 
 ### 5.1 获取所有评价列表
-GET {{baseUrl}}/api/v0/reviews/?page=1&size=10
+GET {{baseUrl}}/api/v0/admin/reviews/?page=1&size=10
 Authorization: Bearer {{adminToken}}
 
 ### 5.2 获取待审核评价
-GET {{baseUrl}}/api/v0/reviews/?page=1&size=10&status=1
+GET {{baseUrl}}/api/v0/admin/reviews/?page=1&size=10&status=1
 Authorization: Bearer {{adminToken}}
 
 ### 5.3 按教师姓名搜索评价
-GET {{baseUrl}}/api/v0/reviews/?page=1&size=10&teacher_name=张三
+GET {{baseUrl}}/api/v0/admin/reviews/?page=1&size=10&teacher_name=张三
 Authorization: Bearer {{adminToken}}
 
 ### 5.4 审核通过评价
-POST {{baseUrl}}/api/v0/reviews/1/approve
+POST {{baseUrl}}/api/v0/admin/reviews/1/approve
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
@@ -201,7 +201,7 @@ Content-Type: application/json
 }
 
 ### 5.5 审核拒绝评价
-POST {{baseUrl}}/api/v0/reviews/2/reject
+POST {{baseUrl}}/api/v0/admin/reviews/2/reject
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
@@ -210,7 +210,7 @@ Content-Type: application/json
 }
 
 ### 5.6 删除评价
-DELETE {{baseUrl}}/api/v0/reviews/3
+DELETE {{baseUrl}}/api/v0/admin/reviews/3
 Authorization: Bearer {{adminToken}}
 
 ### ===========================================
@@ -222,7 +222,7 @@ GET {{baseUrl}}/api/v0/user/profile
 Authorization: Bearer invalid_token_here
 
 ### 6.2 普通用户访问管理员接口（权限测试）
-GET {{baseUrl}}/api/v0/reviews/
+GET {{baseUrl}}/api/v0/admin/reviews/
 Authorization: Bearer {{normalToken}}
 
 ### 6.3 创建评价 - 缺少必填字段
@@ -314,11 +314,11 @@ Content-Type: application/json
 }
 
 ### 8.2 查看所有待审核评价
-GET {{baseUrl}}/api/v0/reviews/?status=1
+GET {{baseUrl}}/api/v0/admin/reviews/?status=1
 Authorization: Bearer {{adminToken}}
 
 ### 8.3 批量审核评价（需要先获取评价ID）
-POST {{baseUrl}}/api/v0/reviews/1/approve
+POST {{baseUrl}}/api/v0/admin/reviews/1/approve
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
@@ -334,11 +334,11 @@ Content-Type: application/json
 GET {{baseUrl}}/api/v0/reviews/teacher?teacher_name=张三&page=999&size=50
 
 ### 9.2 分页测试 - 大页面大小
-GET {{baseUrl}}/api/v0/reviews/?page=1&size=100
+GET {{baseUrl}}/api/v0/admin/reviews/?page=1&size=100
 Authorization: Bearer {{adminToken}}
 
 ### 9.3 搜索测试 - 特殊字符
-GET {{baseUrl}}/api/v0/reviews/?teacher_name=@#$%^&*()
+GET {{baseUrl}}/api/v0/admin/reviews/?teacher_name=@#$%^&*()
 Authorization: Bearer {{adminToken}}
 
 ### ===========================================
@@ -389,6 +389,14 @@ Authorization: Bearer {{normalToken}}
 
 ### 11.3 退出全部设备
 POST {{baseUrl}}/api/v0/auth/logout-all
+Authorization: Bearer {{normalToken}}
+
+### 11.4 获取用户会话列表
+GET {{baseUrl}}/api/v0/auth/sessions
+Authorization: Bearer {{normalToken}}
+
+### 11.5 退出指定会话
+POST {{baseUrl}}/api/v0/auth/sessions/{{sessionId}}/logout
 Authorization: Bearer {{normalToken}}
 
 ### ===========================================
@@ -450,7 +458,7 @@ DELETE {{baseUrl}}/api/v0/coursetable/schedule?semester=2024-2025-1
 Authorization: Bearer {{normalToken}}
 
 ### 13.5 管理员重置用户绑定次数
-POST {{baseUrl}}/api/v0/coursetable/reset/{{targetUserId}}
+POST {{baseUrl}}/api/v0/admin/coursetables/reset/{{targetUserId}}
 Authorization: Bearer {{adminToken}}
 
 ### ===========================================
@@ -458,11 +466,11 @@ Authorization: Bearer {{adminToken}}
 ### ===========================================
 
 ### 14.1 管理员搜索英雄
-GET {{baseUrl}}/api/v0/heroes/search?q=&page=1&size=10
+GET {{baseUrl}}/api/v0/admin/heroes/search?q=&page=1&size=10
 Authorization: Bearer {{adminToken}}
 
 ### 14.2 创建英雄
-POST {{baseUrl}}/api/v0/heroes/
+POST {{baseUrl}}/api/v0/admin/heroes/
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
@@ -473,7 +481,7 @@ Content-Type: application/json
 }
 
 ### 14.3 更新英雄
-PUT {{baseUrl}}/api/v0/heroes/1
+PUT {{baseUrl}}/api/v0/admin/heroes/1
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
@@ -484,18 +492,18 @@ Content-Type: application/json
 }
 
 ### 14.4 删除英雄
-DELETE {{baseUrl}}/api/v0/heroes/1
+DELETE {{baseUrl}}/api/v0/admin/heroes/1
 Authorization: Bearer {{adminToken}}
 
 ### 14.5 公开获取配置
 GET {{baseUrl}}/api/v0/config/test_key
 
 ### 14.6 管理员搜索配置
-GET {{baseUrl}}/api/v0/config/search?query=&page=1&size=10
+GET {{baseUrl}}/api/v0/admin/config/search?query=&page=1&size=10
 Authorization: Bearer {{adminToken}}
 
 ### 14.7 创建配置
-POST {{baseUrl}}/api/v0/config/
+POST {{baseUrl}}/api/v0/admin/config/
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
@@ -507,7 +515,7 @@ Content-Type: application/json
 }
 
 ### 14.8 更新配置
-PUT {{baseUrl}}/api/v0/config/test.feature.flag
+PUT {{baseUrl}}/api/v0/admin/config/test.feature.flag
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
@@ -518,7 +526,7 @@ Content-Type: application/json
 }
 
 ### 14.9 删除配置
-DELETE {{baseUrl}}/api/v0/config/test.feature.flag
+DELETE {{baseUrl}}/api/v0/admin/config/test.feature.flag
 Authorization: Bearer {{adminToken}}
 
 ### ===========================================
@@ -526,7 +534,7 @@ Authorization: Bearer {{adminToken}}
 ### ===========================================
 
 ### 15.1 上传文件
-POST {{baseUrl}}/api/v0/store
+POST {{baseUrl}}/api/v0/admin/store
 Authorization: Bearer {{adminToken}}
 Content-Type: multipart/form-data; boundary=GoJxustBoundary
 
@@ -538,11 +546,11 @@ hello gojxust
 --GoJxustBoundary--
 
 ### 15.2 获取文件列表
-GET {{baseUrl}}/api/v0/store/list
+GET {{baseUrl}}/api/v0/admin/store/list
 Authorization: Bearer {{adminToken}}
 
 ### 15.3 获取过期文件列表
-GET {{baseUrl}}/api/v0/store/expired
+GET {{baseUrl}}/api/v0/admin/store/expired
 Authorization: Bearer {{adminToken}}
 
 ### 15.4 获取文件下载 URL
@@ -554,7 +562,7 @@ GET {{baseUrl}}/api/v0/store/{{resourceId}}/stream
 Authorization: Bearer {{normalToken}}
 
 ### 15.6 删除文件
-DELETE {{baseUrl}}/api/v0/store/{{resourceId}}
+DELETE {{baseUrl}}/api/v0/admin/store/{{resourceId}}
 Authorization: Bearer {{adminToken}}
 
 ### ===========================================
@@ -572,7 +580,7 @@ Content-Type: application/json
 }
 
 ### 16.2 管理员发放积分
-POST {{baseUrl}}/api/v0/points/grant
+POST {{baseUrl}}/api/v0/admin/points/grant
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
@@ -591,7 +599,7 @@ GET {{baseUrl}}/api/v0/contributions/{{contributionId}}
 Authorization: Bearer {{normalToken}}
 
 ### 17.2 审核投稿
-POST {{baseUrl}}/api/v0/contributions/{{contributionId}}/review
+POST {{baseUrl}}/api/v0/admin/contributions/{{contributionId}}/review
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
@@ -602,7 +610,7 @@ Content-Type: application/json
 }
 
 ### 17.3 获取管理员投稿统计
-GET {{baseUrl}}/api/v0/contributions/stats-admin
+GET {{baseUrl}}/api/v0/admin/contributions/stats-admin
 Authorization: Bearer {{adminToken}}
 
 ### ===========================================
@@ -958,24 +966,28 @@ Content-Type: application/json
   "user_id": {{targetUserId}}
 }
 
-### 23.7 批量授予功能权限
-POST {{baseUrl}}/api/v0/admin/features/{{featureKey}}/whitelist/batch
+### 23.7 撤销功能权限
+DELETE {{baseUrl}}/api/v0/admin/features/{{featureKey}}/whitelist/{{targetUserId}}
+Authorization: Bearer {{adminToken}}
+
+### 23.8 给功能添加授权角色
+POST {{baseUrl}}/api/v0/admin/features/{{featureKey}}/roles
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
 {
-  "user_ids": [{{targetUserId}}]
+  "role_id": 1
 }
 
-### 23.8 撤销功能权限
-DELETE {{baseUrl}}/api/v0/admin/features/{{featureKey}}/whitelist/{{targetUserId}}
+### 23.9 从功能移除授权角色
+DELETE {{baseUrl}}/api/v0/admin/features/{{featureKey}}/roles/1
 Authorization: Bearer {{adminToken}}
 
-### 23.9 查看用户功能权限
+### 23.10 查看用户功能权限
 GET {{baseUrl}}/api/v0/admin/users/{{targetUserId}}/features
 Authorization: Bearer {{adminToken}}
 
-### 23.10 删除功能
+### 23.11 删除功能
 DELETE {{baseUrl}}/api/v0/admin/features/{{featureKey}}
 Authorization: Bearer {{adminToken}}
 
