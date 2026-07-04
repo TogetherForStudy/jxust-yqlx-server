@@ -162,11 +162,11 @@ adminReviews.POST("/:id/approve", middleware.IdempotencyRecommended(), reviewHan
 | 接口路径 | 方法 | 说明 | 保护级别 |
 |----------|------|------|----------|
 | `/api/v0/reviews` | POST | 创建评价 | 推荐 |
-| `/api/v0/reviews/:id/approve` | POST | 审核通过 | 推荐 |
-| `/api/v0/reviews/:id/reject` | POST | 审核拒绝 | 推荐 |
+| `/api/v0/admin/reviews/:id/approve` | POST | 审核通过 | 推荐 |
+| `/api/v0/admin/reviews/:id/reject` | POST | 审核拒绝 | 推荐 |
 | `/api/v0/points/spend` | POST | 消费积分 | 推荐 |
 | `/api/v0/contributions` | POST | 创建投稿 | 推荐 |
-| `/api/v0/contributions/:id/review` | POST | 审核投稿 | 推荐 |
+| `/api/v0/admin/contributions/:id/review` | POST | 审核投稿 | 推荐 |
 | `/api/v0/countdowns` | POST | 创建倒数日 | 推荐 |
 | `/api/v0/study-tasks` | POST | 创建学习任务 | 推荐 |
 | `/api/v0/admin/notifications` | POST | 创建通知 | 推荐 |
