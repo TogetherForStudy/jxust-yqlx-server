@@ -1092,7 +1092,7 @@ class E2ETestClient:
         """测试管理员获取评价列表"""
         try:
             resp = self.client.get(
-                self._url("/admin/reviews/"),
+                self._url("/admin/reviews"),
                 headers=self._headers(use_admin=True)
             )
             passed = resp.status_code == 200
@@ -1480,7 +1480,7 @@ class E2ETestClient:
     def test_admin_create_hero(self) -> Optional[int]:
         hero_name = f"E2E英雄-{uuid.uuid4().hex[:6]}"
         try:
-            resp = self._post_json("/admin/heroes/", use_admin=True, json={"name": hero_name, "sort": 999, "is_show": True})
+            resp = self._post_json("/admin/heroes", use_admin=True, json={"name": hero_name, "sort": 999, "is_show": True})
             if resp.status_code != 200:
                 self._record("管理员创建英雄", False, f"status={resp.status_code}")
                 return None
@@ -1515,7 +1515,7 @@ class E2ETestClient:
         config_key = f"e2e.config.{uuid.uuid4().hex[:8]}"
         try:
             resp = self._post_json(
-                "/admin/config/",
+                "/admin/config",
                 use_admin=True,
                 json={"key": config_key, "value": "true", "value_type": "boolean", "description": "E2E配置"},
             )
