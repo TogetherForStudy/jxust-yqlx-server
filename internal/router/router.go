@@ -199,16 +199,16 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			{
 				authReviews.POST("/", middleware.RequirePermission(rbacService, constant.PermissionReviewCreate), middleware.IdempotencyRecommended(ca), reviewHandler.CreateReview)
 				authReviews.GET("/user", middleware.RequirePermission(rbacService, constant.PermissionReviewGetSelf), reviewHandler.GetUserReviews)
+			}
 
-				// 管理员
-				adminReviews := authReviews.Group("")
-				adminReviews.Use(middleware.RequirePermission(rbacService, constant.PermissionReviewManage))
-				{
-					adminReviews.GET("/", reviewHandler.GetReviews)
-					adminReviews.POST("/:id/approve", middleware.IdempotencyRecommended(ca), reviewHandler.ApproveReview)
-					adminReviews.POST("/:id/reject", middleware.IdempotencyRecommended(ca), reviewHandler.RejectReview)
-					adminReviews.DELETE("/:id", reviewHandler.DeleteReview)
-				}
+			// 评价管理（管理员）
+			adminReviews := authorized.Group("/admin/reviews")
+			adminReviews.Use(middleware.RequirePermission(rbacService, constant.PermissionReviewManage))
+			{
+				adminReviews.GET("", reviewHandler.GetReviews)
+				adminReviews.POST("/:id/approve", middleware.IdempotencyRecommended(ca), reviewHandler.ApproveReview)
+				adminReviews.POST("/:id/reject", middleware.IdempotencyRecommended(ca), reviewHandler.RejectReview)
+				adminReviews.DELETE("/:id", reviewHandler.DeleteReview)
 			}
 
 			// 课程表（需认证）
@@ -220,13 +220,6 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				courseTable.PUT("/class", middleware.RequirePermission(rbacService, constant.PermissionCourseTableClassUpdate), courseTableHandler.UpdateUserClass) // 更新用户班级
 				courseTable.PUT("/", middleware.RequirePermission(rbacService, constant.PermissionCourseTableUpdate), courseTableHandler.EditCourseCell)            // 编辑个人课表的单个格子
 				courseTable.DELETE("/schedule", middleware.RequirePermission(rbacService, constant.PermissionCourseTableUpdate), courseTableHandler.ResetSchedule)  // 重置个人课表
-
-				// 管理员
-				adminCourseTable := courseTable.Group("")
-				adminCourseTable.Use(middleware.RequirePermission(rbacService, constant.PermissionCourseTableManage))
-				{
-					adminCourseTable.POST("/reset/:id", courseTableHandler.ResetUserBindCount)
-				}
 			}
 
 			// 挂科率（需认证）
@@ -236,31 +229,24 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				failrate.GET("/rand", middleware.RequirePermission(rbacService, constant.PermissionFailRate), failRateHandler.RandFailRate)
 			}
 
-			// 英雄榜（管理员）
-			heroes := authorized.Group("/heroes")
+			// 英雄榜管理（管理员）
+			adminHeroes := authorized.Group("/admin/heroes")
+			adminHeroes.Use(middleware.RequirePermission(rbacService, constant.PermissionHeroManage))
 			{
-				adminHeroes := heroes.Group("")
-				adminHeroes.Use(middleware.RequirePermission(rbacService, constant.PermissionHeroManage))
-				{
-					adminHeroes.POST("/", middleware.IdempotencyRecommended(ca), heroHandler.Create)
-					adminHeroes.PUT("/:id", heroHandler.Update)
-					adminHeroes.DELETE("/:id", heroHandler.Delete)
-					adminHeroes.GET("/search", heroHandler.SearchHeroes)
-				}
+				adminHeroes.POST("", middleware.IdempotencyRecommended(ca), heroHandler.Create)
+				adminHeroes.PUT("/:id", heroHandler.Update)
+				adminHeroes.DELETE("/:id", heroHandler.Delete)
+				adminHeroes.GET("/search", heroHandler.SearchHeroes)
 			}
 
-			// 配置写（管理员）
-			configWrite := authorized.Group("/config")
+			// 配置管理（管理员）
+			adminConfig := authorized.Group("/admin/config")
+			adminConfig.Use(middleware.RequirePermission(rbacService, constant.PermissionConfigManage))
 			{
-
-				adminConfig := configWrite.Group("")
-				adminConfig.Use(middleware.RequirePermission(rbacService, constant.PermissionConfigManage))
-				{
-					adminConfig.POST("/", middleware.IdempotencyRecommended(ca), configHandler.Create)
-					adminConfig.PUT("/:key", middleware.IdempotencyRecommended(ca), configHandler.Update)
-					adminConfig.DELETE("/:key", middleware.IdempotencyRecommended(ca), configHandler.Delete)
-					adminConfig.GET("/search", configHandler.SearchConfigs)
-				}
+				adminConfig.POST("", middleware.IdempotencyRecommended(ca), configHandler.Create)
+				adminConfig.PUT("/:key", middleware.IdempotencyRecommended(ca), configHandler.Update)
+				adminConfig.DELETE("/:key", middleware.IdempotencyRecommended(ca), configHandler.Delete)
+				adminConfig.GET("/search", configHandler.SearchConfigs)
 			}
 
 			// 存储（需认证）
@@ -268,15 +254,16 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			{
 				store.GET("/:resource_id/url", storeHandler.GetFileURL)
 				store.GET("/:resource_id/stream", storeHandler.GetFileStream)
+			}
 
-				adminStore := store.Group("")
-				adminStore.Use(middleware.RequirePermission(rbacService, constant.PermissionS3Manage))
-				{
-					adminStore.POST("", storeHandler.UploadFile)
-					adminStore.DELETE("/:resource_id", storeHandler.DeleteFile)
-					adminStore.GET("/list", storeHandler.ListFiles)
-					adminStore.GET("/expired", storeHandler.ListExpiredFiles)
-				}
+			// 存储管理（管理员）
+			adminStore := authorized.Group("/admin/store")
+			adminStore.Use(middleware.RequirePermission(rbacService, constant.PermissionS3Manage))
+			{
+				adminStore.POST("", storeHandler.UploadFile)
+				adminStore.DELETE("/:resource_id", storeHandler.DeleteFile)
+				adminStore.GET("/list", storeHandler.ListFiles)
+				adminStore.GET("/expired", storeHandler.ListExpiredFiles)
 			}
 
 			// 积分（需认证）
@@ -286,13 +273,13 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				points.GET("/transactions", middleware.RequirePermission(rbacService, constant.PermissionPointGet), pointsHandler.GetPointsTransactions)
 				points.POST("/spend", middleware.RequirePermission(rbacService, constant.PermissionPointSpend), middleware.IdempotencyRecommended(ca), pointsHandler.SpendPoints)
 				points.GET("/stats", middleware.RequirePermission(rbacService, constant.PermissionPointGet), pointsHandler.GetUserPointsStats)
+			}
 
-				// 管理员
-				adminPoints := points.Group("")
-				adminPoints.Use(middleware.RequirePermission(rbacService, constant.PermissionPointManage))
-				{
-					adminPoints.POST("/grant", middleware.IdempotencyRecommended(ca), pointsHandler.GrantPoints) // 管理员手动赋予积分
-				}
+			// 积分管理（管理员）
+			adminPoints := authorized.Group("/admin/points")
+			adminPoints.Use(middleware.RequirePermission(rbacService, constant.PermissionPointManage))
+			{
+				adminPoints.POST("/grant", middleware.IdempotencyRecommended(ca), pointsHandler.GrantPoints) // 管理员手动赋予积分
 			}
 
 			// 投稿（需认证）
@@ -302,14 +289,14 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				contributions.GET("/", middleware.RequirePermission(rbacService, constant.PermissionContributionGet), contributionHandler.GetContributions)
 				contributions.GET("/:id", middleware.RequirePermission(rbacService, constant.PermissionContributionGet), contributionHandler.GetContributionByID)
 				contributions.GET("/stats", middleware.RequirePermission(rbacService, constant.PermissionContributionGet), contributionHandler.GetUserContributionStats)
+			}
 
-				// 管理员
-				adminContributions := contributions.Group("")
-				adminContributions.Use(middleware.RequirePermission(rbacService, constant.PermissionContributionManage))
-				{
-					adminContributions.POST("/:id/review", middleware.IdempotencyRecommended(ca), contributionHandler.ReviewContribution) // 审核投稿（幂等性保护）
-					adminContributions.GET("/stats-admin", contributionHandler.GetAdminContributionStats)                                 // 管理员投稿统计
-				}
+			// 投稿管理（管理员）
+			adminContributions := authorized.Group("/admin/contributions")
+			adminContributions.Use(middleware.RequirePermission(rbacService, constant.PermissionContributionManage))
+			{
+				adminContributions.POST("/:id/review", middleware.IdempotencyRecommended(ca), contributionHandler.ReviewContribution) // 审核投稿（幂等性保护）
+				adminContributions.GET("/stats-admin", contributionHandler.GetAdminContributionStats)                                 // 管理员投稿统计
 			}
 
 			// 倒数日（需认证）
@@ -424,6 +411,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 				adminCourseTables.POST("", middleware.IdempotencyRecommended(ca), courseTableHandler.AdminCreateCourseTable)
 				adminCourseTables.PUT("/:id", courseTableHandler.AdminUpdateCourseTable)
 				adminCourseTables.DELETE("/:id", courseTableHandler.AdminDeleteCourseTable)
+				adminCourseTables.POST("/reset/:id", courseTableHandler.ResetUserBindCount)
 			}
 
 			adminQuestionProjects := authorized.Group("/admin/questions/projects")
@@ -521,6 +509,7 @@ func NewRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 			userFeatureAdmin.Use(middleware.RequirePermission(rbacService, constant.PermissionUserManage))
 			{
 				userFeatureAdmin.GET("/:id", authHandler.GetUserDetail)
+				userFeatureAdmin.POST("/:id/sessions/:sid/logout", authHandler.AdminLogoutSession)
 				userFeatureAdmin.PUT("/:id/login-credentials", authHandler.SetAdminLoginCredentials)
 				userFeatureAdmin.POST("/:id/kick", authHandler.KickUser)
 				userFeatureAdmin.POST("/:id/ban", authHandler.BanUser)
