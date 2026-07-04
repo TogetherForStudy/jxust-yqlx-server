@@ -24,36 +24,73 @@ func mergeContextAndMessage(ctx context.Context, msg map[string]any) map[string]
 	return m1
 }
 
+// logWithLevel writes structured fields to zap and optionally sends to CLS
+func logWithLevel(level constant.LogLevel, merged map[string]string, l *tencentcloudclssdkgo.Log) {
+	fields := make([]any, 0, len(merged)*2)
+	for k, v := range merged {
+		fields = append(fields, k, v)
+	}
+	switch level {
+	case constant.DebugLevel:
+		zlog.Debugw("", fields...)
+	case constant.WarnLevel:
+		zlog.Warnw("", fields...)
+	case constant.ErrorLevel:
+		zlog.Errorw("", fields...)
+	case constant.FatalLevel:
+		mergeAndFatal(merged)
+	case constant.PanicLevel:
+		mergeAndPanic(merged)
+	default:
+		zlog.Infow("", fields...)
+	}
+	safeSendLog(l)
+}
+
+func mergeAndFatal(merged map[string]string) {
+	fields := make([]any, 0, len(merged)*2)
+	for k, v := range merged {
+		fields = append(fields, k, v)
+	}
+	ShutdownLogger(5 * time.Second)
+	zlog.Fatalw("", fields...)
+}
+
+func mergeAndPanic(merged map[string]string) {
+	fields := make([]any, 0, len(merged)*2)
+	for k, v := range merged {
+		fields = append(fields, k, v)
+	}
+	ShutdownLogger(5 * time.Second)
+	zlog.Panicw("", fields...)
+}
+
 // DebugCtx logs a debug level message with context
 func DebugCtx(ctx context.Context, msg map[string]any) {
 	merged := mergeContextAndMessage(ctx, msg)
 	l := NewStructuredClsLogging(constant.DebugLevel, merged)
-	zlog.Debugln(l.String())
-	safeSendLog(l)
+	logWithLevel(constant.DebugLevel, merged, l)
 }
 
 // InfoCtx logs an info level message with context
 func InfoCtx(ctx context.Context, msg map[string]any) {
 	merged := mergeContextAndMessage(ctx, msg)
 	l := NewStructuredClsLogging(constant.InfoLevel, merged)
-	zlog.Infoln(l.String())
-	safeSendLog(l)
+	logWithLevel(constant.InfoLevel, merged, l)
 }
 
 // WarnCtx logs a warning level message with context
 func WarnCtx(ctx context.Context, msg map[string]any) {
 	merged := mergeContextAndMessage(ctx, msg)
 	l := NewStructuredClsLogging(constant.WarnLevel, merged)
-	zlog.Warnln(l.String())
-	safeSendLog(l)
+	logWithLevel(constant.WarnLevel, merged, l)
 }
 
 // ErrorCtx logs an error level message with context
 func ErrorCtx(ctx context.Context, msg map[string]any) {
 	merged := mergeContextAndMessage(ctx, msg)
 	l := NewStructuredClsLogging(constant.ErrorLevel, merged)
-	zlog.Errorln(l.String())
-	safeSendLog(l)
+	logWithLevel(constant.ErrorLevel, merged, l)
 }
 
 // FatalCtx logs a fatal level message with context
@@ -61,9 +98,7 @@ func FatalCtx(ctx context.Context, msg map[string]any) {
 	merged := mergeContextAndMessage(ctx, msg)
 	l := NewStructuredClsLogging(constant.FatalLevel, merged)
 	safeSendLog(l)
-	// Wait for log to be sent before exiting
-	ShutdownLogger(5 * time.Second)
-	zlog.Fatalln(l.String())
+	mergeAndFatal(merged)
 }
 
 // PanicCtx logs a panic level message with context
@@ -71,10 +106,7 @@ func PanicCtx(ctx context.Context, msg map[string]any) {
 	merged := mergeContextAndMessage(ctx, msg)
 	l := NewStructuredClsLogging(constant.PanicLevel, merged)
 	safeSendLog(l)
-	// Wait for log to be sent before panicking
-	ShutdownLogger(5 * time.Second)
-	zlog.Errorln(l.String()) // Log to zap before panicking
-	panic(l.String())
+	mergeAndPanic(merged)
 }
 
 // safeSendLog safely sends log to channel without blocking
