@@ -58,7 +58,7 @@ func InitProjectRedisData(db *gorm.DB) {
 	var projects []models.QuestionProject
 	const maxRetries = 3
 	for i := 0; i < maxRetries; i++ {
-		if err := db.Where("is_active = ?", true).Select("id").Find(&projects).Error; err != nil {
+		if err := db.WithContext(ctx).Where("is_active = ?", true).Select("id").Find(&projects).Error; err != nil {
 			if i < maxRetries-1 {
 				wait := time.Duration(i+1) * time.Second
 				logger.Warnf("Failed to load projects (attempt %d/%d): %v, retrying in %v...", i+1, maxRetries, err, wait)
@@ -125,7 +125,7 @@ func syncProjectUserSets(ctx context.Context, db *gorm.DB, projectIDs []uint) ma
 		UserID    uint
 	}
 	var rows []row
-	if err := db.Model(&models.UserProjectUsage{}).
+	if err := db.WithContext(ctx).Model(&models.UserProjectUsage{}).
 		Select("project_id, user_id").
 		Where("project_id IN ?", projectIDs).
 		Find(&rows).Error; err != nil {
@@ -154,7 +154,7 @@ func syncProjectUsageCounts(ctx context.Context, db *gorm.DB, projectIDs []uint)
 		Total     int64
 	}
 	var rows []row
-	if err := db.Table("questions q").
+	if err := db.WithContext(ctx).Table("questions q").
 		Select("q.project_id, COALESCE(SUM(uq.study_count + uq.practice_count), 0) AS total").
 		Joins("LEFT JOIN user_question_usages uq ON uq.question_id = q.id").
 		Where("q.project_id IN ? AND q.is_active = ?", projectIDs, true).
