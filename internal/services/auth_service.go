@@ -1008,8 +1008,10 @@ func (s *AuthService) GetUserAuthDetail(ctx context.Context, userID uint) (*resp
 	}
 
 	result := &response.UserAuthDetailResponse{
-		UserInfo: profile,
-		Devices:  make([]response.AuthSessionSummary, 0),
+		UserInfo:      profile,
+		Devices:       make([]response.AuthSessionSummary, 0),
+		Points:        user.Points,
+		PomodoroCount: user.PomodoroCount,
 	}
 
 	blockInfo, err := s.getBlockInfo(ctx, userID)

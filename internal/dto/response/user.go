@@ -60,4 +60,6 @@ type UserAuthDetailResponse struct {
 	BlockExpiresAt int64                `json:"block_expires_at,omitempty"`
 	SessionCount   int                  `json:"session_count"`
 	Devices        []AuthSessionSummary `json:"devices"`
+	Points         uint                 `json:"points"`
+	PomodoroCount  uint                 `json:"pomodoro_count"`
 }

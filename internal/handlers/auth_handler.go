@@ -367,6 +367,27 @@ func (h *AuthHandler) SetAdminLoginCredentials(c *gin.Context) {
 	helper.SuccessResponse(c, gin.H{"message": "后台登录凭据更新成功"})
 }
 
+func (h *AuthHandler) AdminLogoutSession(c *gin.Context) {
+	targetUserID, err := parsePathUserID(c)
+	if err != nil {
+		helper.HandleError(c, apperr.Wrap(constant.CommonBadRequest, err))
+		return
+	}
+
+	targetSID := c.Param("sid")
+	if targetSID == "" {
+		helper.HandleErrCode(c, constant.CommonBadRequest)
+		return
+	}
+
+	if err := h.authService.Logout(c.Request.Context(), targetUserID, targetSID); err != nil {
+		helper.HandleError(c, err)
+		return
+	}
+
+	helper.SuccessResponse(c, gin.H{"message": "已退出该设备"})
+}
+
 func parsePathUserID(c *gin.Context) (uint, error) {
 	userID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
