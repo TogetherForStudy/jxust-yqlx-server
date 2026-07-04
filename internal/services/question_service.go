@@ -111,41 +111,15 @@ func (s *QuestionService) GetProjects(ctx context.Context, userID uint) ([]respo
 		project := v.project
 		questionCount := qCountMap[project.ID]
 
-		// 用户数 & 刷题次数（Redis 为主，每个项目 ≈0.2ms，总量可控）
+		// 用户数 & 刷题次数（仅从 Redis 读取，Redis 不可用时返回 0）
 		var userCount int64
-		userSetKey := fmt.Sprintf("project:users:%d", project.ID)
 		if cache.GlobalCache != nil {
-			var err error
-			userCount, err = cache.GlobalCache.SCard(ctx, userSetKey)
-			if err != nil {
-				s.db.WithContext(ctx).Model(&models.UserProjectUsage{}).
-					Where("project_id = ?", project.ID).Count(&userCount)
-			}
-		} else {
-			s.db.WithContext(ctx).Model(&models.UserProjectUsage{}).
-				Where("project_id = ?", project.ID).Count(&userCount)
+			userCount, _ = cache.GlobalCache.SCard(ctx, fmt.Sprintf("project:users:%d", project.ID))
 		}
 
 		var usageCount int64
-		usageKey := fmt.Sprintf("project:usage:%d", project.ID)
 		if cache.GlobalCache != nil {
-			var err error
-			usageCount, err = cache.GlobalCache.GetInt(ctx, usageKey)
-			if err != nil {
-				s.db.WithContext(ctx).
-					Table("user_question_usages uq").
-					Joins("JOIN questions q ON q.id = uq.question_id").
-					Where("q.project_id = ? AND q.is_active = ?", project.ID, true).
-					Select("COALESCE(SUM(uq.study_count + uq.practice_count), 0)").
-					Scan(&usageCount)
-			}
-		} else {
-			s.db.WithContext(ctx).
-				Table("user_question_usages uq").
-				Joins("JOIN questions q ON q.id = uq.question_id").
-				Where("q.project_id = ? AND q.is_active = ?", project.ID, true).
-				Select("COALESCE(SUM(uq.study_count + uq.practice_count), 0)").
-				Scan(&usageCount)
+			usageCount, _ = cache.GlobalCache.GetInt(ctx, fmt.Sprintf("project:usage:%d", project.ID))
 		}
 
 		result = append(result, response.ToQuestionProjectResponse(&project, questionCount, userCount, usageCount))
